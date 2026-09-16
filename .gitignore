@@ -1,0 +1,20 @@
+# sbt build output, including every subproject and the meta-build
+target/
+/project/project/
+*.class
+*.tasty
+*.jar
+
+# Scala tooling and local IDE state
+.bsp/
+.bloop/
+.metals/
+.scala-build/
+.idea/
+*.iml
+
+# Local logs, Python caches, and macOS metadata
+*.log
+__pycache__/
+*.py[cod]
+.DS_Store
