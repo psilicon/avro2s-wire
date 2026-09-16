@@ -1,0 +1,23 @@
+{
+  "type": "record", "name": "Envelope", "namespace": "avrogen.fixtures",
+  "doc": "Interoperability fixture covering the first supported Avro subset.",
+  "fields": [
+    {"name":"id","type":"long"},
+    {"name":"count","type":"int"},
+    {"name":"active","type":"boolean"},
+    {"name":"ratio","type":"float"},
+    {"name":"price","type":"double"},
+    {"name":"label","type":"string"},
+    {"name":"payload","type":"bytes"},
+    {"name":"nothing","type":"null"},
+    {"name":"note","type":["null","string"],"default":null},
+    {"name":"reverse","type":["long","null"],"default":0},
+    {"name":"status","type":{"type":"enum","name":"Status","symbols":["OPEN","CLOSED"]}},
+    {"name":"digest","type":{"type":"fixed","name":"Digest","size":4}},
+    {"name":"samples","type":{"type":"array","items":"int"}},
+    {"name":"tags","type":{"type":"map","values":"string"}},
+    {"name":"children","type":{"type":"array","items":{"type":"record","name":"Child","fields":[{"name":"name","type":"string"},{"name":"score","type":"double"}]}}},
+    {"name":"matrix","type":{"type":"array","items":{"type":"array","items":"long"}}},
+    {"name":"lookup","type":{"type":"map","values":["null","bytes"]}}
+  ]
+}
