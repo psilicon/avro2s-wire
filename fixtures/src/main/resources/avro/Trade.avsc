@@ -1,0 +1,1 @@
+{"type":"record","name":"Trade","namespace":"avrogen.fixtures","fields":[{"name":"id","type":"long"},{"name":"symbol","type":"string"},{"name":"price","type":"double"},{"name":"quantities","type":{"type":"array","items":"int"}}]}

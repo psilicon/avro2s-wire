@@ -1,0 +1,9 @@
+{
+  "type":"record","name":"EdgeCases","namespace":"avrogen.fixtures",
+  "fields":[
+    {"name":"options","type":{"type":"array","items":["int","null"]}},
+    {"name":"optionalMaps","type":["null",{"type":"array","items":{"type":"map","values":"long"}}]},
+    {"name":"nulls","type":{"type":"array","items":"null"}},
+    {"name":"empty","type":{"type":"record","name":"Empty","fields":[]}}
+  ]
+}

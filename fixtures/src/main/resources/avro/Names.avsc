@@ -1,0 +1,9 @@
+{
+  "type":"record","name":"String","namespace":"avrogen.fixtures.names",
+  "fields":[
+    {"name":"type","type":"string"},
+    {"name":"copy","type":"int"},
+    {"name":"productArity","type":"int"},
+    {"name":"choice","type":{"type":"enum","name":"Choice","symbols":["codec","values","valueOf","fromOrdinal","ordinal","type","avro_symbol_codec"]}}
+  ]
+}
