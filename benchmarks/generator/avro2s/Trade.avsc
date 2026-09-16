@@ -1,0 +1,21 @@
+{
+  "type" : "record",
+  "name" : "Trade",
+  "namespace" : "avrogen.benchmarks.avro2s",
+  "fields" : [ {
+    "name" : "id",
+    "type" : "long"
+  }, {
+    "name" : "symbol",
+    "type" : "string"
+  }, {
+    "name" : "price",
+    "type" : "double"
+  }, {
+    "name" : "quantities",
+    "type" : {
+      "type" : "array",
+      "items" : "int"
+    }
+  } ]
+}
