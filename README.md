@@ -136,11 +136,13 @@ This adapter does not perform schema evolution or turn generated models into
 sbt 'benchmarks/Jmh/run -prof gc .*TradeBenchmark.*'
 ```
 
-The harness compares native codecs, the same generated codecs using Java binary
-primitives, and Java generic records. It measures reads and writes separately at
-several collection sizes. Write buffers are reused, data construction is outside
-timing, and read paths use fresh input objects. Native readers perform checks that
-the Java paths may not, so results include that policy difference.
+The harness compares avro2s, default generated Java specific records, Java
+generated custom coders, native Avrogen codecs, those same codecs using Java
+binary primitives, and Java generic records. It measures reads and writes
+separately at several collection sizes, with integer values outside the JVM cache.
+Write buffers are reused, data construction is outside timing, and read paths use
+fresh inputs and result records. Test counters verify that the generated Java
+custom decoder is actually called.
 
 For a harness smoke check, not a performance conclusion:
 
@@ -148,10 +150,19 @@ For a harness smoke check, not a performance conclusion:
 sbt 'benchmarks/Jmh/run -wi 1 -i 1 -w 300ms -r 300ms -f 1 -p collectionSize=32 .*TradeBenchmark.*'
 ```
 
-No speedup claim is established by this initial harness. Before drawing one, add
-the current avro2s and tuned Java specific-record baselines, measure allocations,
-run multiple forks with adequate warmup, and expand the workload to strings,
-bytes, nesting, unions, and schema evolution.
+The comparison models are genuine, checked-in generator output. Their versions,
+options, schemas, source hashes, and regeneration instructions are in
+[baseline provenance](benchmarks/generator/README.md). Normal tests and benchmarks
+do not need an avro2s checkout or any manually inspected JAR files.
+
+The [first measured baseline](docs/benchmarks/results-2026-09-17.md) compares
+avro2s, Java Avro, and Avrogen with raw results and source hashes.
+
+See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
+reproduction commands, and interpretation limits. Default Java models retain Utf8
+and Java collections; the Scala models return String and Scala collections. Native
+readers also perform validation that the Java paths may not. Those representation
+and policy differences are part of the measurements.
 
 ## Modules and next steps
 
@@ -161,6 +172,8 @@ bytes, nesting, unions, and schema evolution.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
 
-Next: broaden the performance baselines; implement cached writer/reader schema
-resolution; preserve branch identity for general unions; add logical types; then
-build container/registry integrations. See [the architecture notes](docs/architecture.md).
+Next: use the measured baselines to guide runtime changes; implement cached
+writer/reader schema resolution; preserve branch identity for general unions;
+add logical types; then build container/registry integrations. Broaden performance
+coverage to strings, bytes, nesting, unions, and evolution. See
+[the architecture notes](docs/architecture.md).
