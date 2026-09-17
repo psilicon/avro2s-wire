@@ -1,5 +1,5 @@
 {
-  "type":"record","name":"String","namespace":"avrogen.fixtures.names",
+  "type":"record","name":"String","namespace":"avro2s.wire.fixtures.names",
   "fields":[
     {"name":"type","type":"string"},
     {"name":"copy","type":"int"},

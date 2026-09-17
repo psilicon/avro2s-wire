@@ -1,5 +1,5 @@
 {
-  "type":"record", "name":"UnionLogicals", "namespace":"avrogen.fixtures.unions",
+  "type":"record", "name":"UnionLogicals", "namespace":"avro2s.wire.fixtures.unions",
   "fields":[
     {"name":"time","type":[{"type":"int","logicalType":"time-millis"},{"type":"long","logicalType":"time-micros"}]},
     {"name":"optional","type":[{"type":"long","logicalType":"time-micros"},"null",{"type":"int","logicalType":"time-millis"}]},

@@ -1,4 +1,4 @@
-# Avrogen
+# avro2s-wire
 
 A Scala 3 schema compiler and native Avro binary runtime. Generated models are
 ordinary immutable Scala values; generated codecs read and write their fields
@@ -10,13 +10,18 @@ This is an early implementation with direct codecs, native Scala 3 unions, logic
 types, and an optional native schema-evolution reader. Matching-schema codecs need
 only the runtime; schema resolution adds a separate JSON-parsing dependency.
 
+The former `avrogen` prototype is now `avro2s-wire`, with packages under
+`avro2s.wire` and artifact names such as `avro2s-wire-runtime`. Regenerate existing
+models to update their runtime references. Historical benchmark reports retain
+their original project names, source paths and hashes.
+
 ## Build and test
 
 Requires JDK 11 or newer and sbt. The build pins Scala 3.3.6 and sbt 1.11.0.
 
 ```sh
 sbt test
-sbt 'fixtures/runMain avrogen.fixtures.Demo'
+sbt 'fixtures/runMain avro2s.wire.fixtures.Demo'
 ```
 
 The build generates fixture sources from `.avsc` files and compiles them against
@@ -25,7 +30,9 @@ independent generic reader/writer, in addition to binary-format and generator te
 Property tests also generate schemas and values, compile the resulting Scala,
 check Java interoperability in both directions, and shrink failing cases for
 replay. The default campaign covers 197 schemas and 2,174 values, with required
-coverage assertions. See the [testing guide](docs/testing.md) for the 132 tests,
+coverage assertions. Additional campaigns generate writer/reader schema pairs,
+alternative legal collection blocks, malformed inputs, limits and ownership
+operations. See the [testing guide](docs/testing.md) for the 147 tests,
 reproducible campaign commands and remaining gaps.
 
 ## Generate Scala
@@ -33,12 +40,12 @@ reproducible campaign commands and remaining gaps.
 From this project's root:
 
 ```sh
-sbt 'compiler/run fixtures/src/main/resources/avro/Trade.avsc /tmp/avrogen-generated'
+sbt 'compiler/run fixtures/src/main/resources/avro/Trade.avsc /tmp/avro2s-wire-generated'
 ```
 
 The two arguments are an `.avsc` file (or a directory recursively containing
 `.avsc` files) and an output directory. Directory generation resolves references
-between files. Generated sources need `avrogen-runtime` on their compile/runtime
+between files. Generated sources need `avro2s-wire-runtime` on their compile/runtime
 classpath; they do not need Apache Avro. Artifacts are not published yet.
 
 The sample generates this model and a companion codec:
@@ -55,8 +62,8 @@ final case class Trade(
 Using the fixture within this build:
 
 ```scala
-import avrogen.fixtures.Trade
-import avrogen.runtime.*
+import avro2s.wire.fixtures.Trade
+import avro2s.wire.runtime.*
 
 val trade = Trade(123L, "ABC", 42.5, Vector(10, 20))
 val bytes: Array[Byte] = Trade.codec.encode(trade)
@@ -144,10 +151,10 @@ input instance, so a fresh input resets the budget. Invalid input raises
 
 ## Schema evolution
 
-Add `avrogen-resolution` when writer and reader schemas can differ:
+Add `avro2s-wire-resolution` when writer and reader schemas can differ:
 
 ```scala
-import avrogen.resolution.ResolvingReader
+import avro2s.wire.resolution.ResolvingReader
 
 // Account is the generated reader model. Retain this reader for repeated messages.
 val reader = new ResolvingReader(writerSchemaJson, Account.codec)
@@ -183,7 +190,7 @@ sbt 'benchmarks/Jmh/run -prof gc .*TradeBenchmark.*'
 ```
 
 The harness compares avro2s, default generated Java specific records, Java
-generated custom coders, native Avrogen codecs, those same codecs using Java
+generated custom coders, native avro2s-wire codecs, those same codecs using Java
 binary primitives, and Java generic records. It measures reads and writes
 separately at several collection sizes, with integer values outside the JVM cache.
 Write buffers are reused, data construction is outside timing, and read paths use
@@ -203,7 +210,7 @@ do not need an avro2s checkout or any manually inspected JAR files.
 
 The [first measured baseline](docs/benchmarks/results-2026-09-17.md), recorded
 before the union/logical/evolution additions, compares
-avro2s, Java Avro, and Avrogen with raw results and source hashes.
+avro2s, Java Avro, and avro2s-wire with raw results and source hashes.
 
 The [expanded workload harness](docs/benchmarks/expanded-workloads.md) adds integer
 distributions, ASCII and Unicode strings, bytes, maps, nested records and unions,
@@ -226,9 +233,13 @@ and policy differences are part of the measurements.
 - `resolution`: optional native schema parsing/resolution and cached reader plans.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
+- `property-tests`: generated schemas, schema evolution, wire layouts, limits and ownership properties.
 
-Next: automate exploration of schema combinations and extend measured evolution
-coverage. Optional primitive-backed collections, input reuse and bulk block
-skipping remain separate experiments. Add build-tool integration,
-streaming/container APIs, and registry adapters after the core API settles. See
-[the architecture notes](docs/architecture.md).
+The broader [comparison corpus](benchmarks/COMPARISON.md) covers 13 input profiles
+and includes a separate schema-evolution benchmark. The [testing guide](docs/testing.md)
+describes the bounded, reproducible property campaigns and their remaining gaps.
+
+Publishing, a user review of ergonomics/readability, and schema registry integration
+are deferred. Optional primitive-backed collections, input reuse and bulk block
+skipping remain separate experiments. Build-tool integration and streaming/container
+APIs are future work; see [the architecture notes](docs/architecture.md).

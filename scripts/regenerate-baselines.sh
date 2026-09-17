@@ -6,7 +6,7 @@ if [[ $# != 1 ]]; then
   exit 2
 fi
 
-avrogen_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+wire_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 avro2s_checkout=$(git -C "$1" rev-parse --show-toplevel)
 expected_commit=8342d5bd467aca16265b1f083b8b6b667929ee37
 actual_commit=$(git -C "$avro2s_checkout" rev-parse HEAD)
@@ -23,12 +23,12 @@ if [[ -n $(git -C "$avro2s_checkout" ls-files --others --exclude-standard -- pro
   exit 1
 fi
 
-export AVROGEN_BASELINE_ROOT="$avrogen_root"
-export AVROGEN_BASELINE_COMMIT="$expected_commit"
-export AVROGEN_BASELINE_GENERATOR="$avrogen_root/benchmarks/generator/GenerateBaselines.scala"
+export AVRO2S_WIRE_BASELINE_ROOT="$wire_root"
+export AVRO2S_WIRE_BASELINE_COMMIT="$expected_commit"
+export AVRO2S_WIRE_BASELINE_GENERATOR="$wire_root/benchmarks/generator/GenerateBaselines.scala"
 
 cd "$avro2s_checkout"
 # These are in-memory sbt session settings; no avro2s source or build file is edited.
-"${AVROGEN_SBT:-sbt}" \
-  'set LocalProject("avro2s3") / Compile / unmanagedSources += file(sys.env("AVROGEN_BASELINE_GENERATOR"))' \
-  'avro2s3/runMain avrogen.benchmarks.generator.GenerateBaselines'
+"${AVRO2S_WIRE_SBT:-sbt}" \
+  'set LocalProject("avro2s3") / Compile / unmanagedSources += file(sys.env("AVRO2S_WIRE_BASELINE_GENERATOR"))' \
+  'avro2s3/runMain avro2s.wire.benchmarks.generator.GenerateBaselines'

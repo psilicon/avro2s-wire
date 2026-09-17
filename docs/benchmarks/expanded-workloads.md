@@ -3,7 +3,7 @@
 These classes retain ordinary generated immutable Scala models and compare the
 native engine with the **same generated codec** using Java Avro's primitive
 engine. `TradeBenchmark` remains the separate six-implementation comparison with
-avro2s, Java specific/custom/generic, and both Avrogen engines.
+avro2s, Java specific/custom/generic, and both avro2s-wire engines.
 
 | Class | Parameters | Datum per operation |
 | --- | --- | --- |
@@ -133,8 +133,8 @@ The old production commit does not contain this expanded harness. Prepare a
 separate snapshot with the same current benchmark sources on both sides:
 
 ```sh
-python3 scripts/prepare-performance-baseline.py /absolute/path/to/avrogen-before
-python3 scripts/run-performance.py --root /absolute/path/to/avrogen-before \
+python3 scripts/prepare-performance-baseline.py /absolute/path/to/avro2s-wire-before
+python3 scripts/run-performance.py --root /absolute/path/to/avro2s-wire-before \
   --java /absolute/path/to/java --output /absolute/path/to/results \
   --label before --profile focused
 python3 scripts/run-performance.py \

@@ -1,11 +1,11 @@
 # Native schema evolution
 
-The optional `avrogen-resolution` module reads data written with a different Avro
+The optional `avro2s-wire-resolution` module reads data written with a different Avro
 schema into the generated Scala reader model. It depends on the native runtime
 and Jackson for JSON parsing. Apache Avro is a test dependency only.
 
 ```scala
-import avrogen.resolution.ResolvingReader
+import avro2s.wire.resolution.ResolvingReader
 
 val reader = new ResolvingReader(writerSchemaJson, Account.codec)
 val account: Account = reader.decode(bytes)
@@ -65,7 +65,7 @@ and requires exactly one complete datum.
 
 Reader-union selection deserves an explicit compatibility note: the specification
 uses first-matching-branch wording, while Java Avro 1.12.1 prefers an exact type
-before a promotion. Avrogen follows the Java behavior: writer `int` with reader
+before a promotion. avro2s-wire follows the Java behavior: writer `int` with reader
 `[long, int]` returns the Int alternative. This also keeps a selected branch stable
 when the only schema change is documentation. Tests exercise both that behavior
 and the ambiguous time-union wrappers against metadata-only schema changes.

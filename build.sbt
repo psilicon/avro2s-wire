@@ -10,25 +10,25 @@ val testSettings = Seq(
 
 lazy val root = (project in file("."))
   .aggregate(runtime, compiler, javaInterop, resolution, fixtures, benchmarks, propertyTests)
-  .settings(name := "avrogen", publish / skip := true)
+  .settings(name := "avro2s-wire", publish / skip := true)
 
 lazy val runtime = (project in file("runtime"))
   .settings(testSettings)
-  .settings(name := "avrogen-runtime")
+  .settings(name := "avro2s-wire-runtime")
 
 lazy val compiler = (project in file("compiler"))
   .settings(testSettings)
   .settings(
-    name := "avrogen-compiler",
+    name := "avro2s-wire-compiler",
     libraryDependencies += "org.apache.avro" % "avro" % avroVersion,
-    Compile / mainClass := Some("avrogen.compiler.Main")
+    Compile / mainClass := Some("avro2s.wire.compiler.Main")
   )
 
 lazy val javaInterop = (project in file("java-interop"))
   .dependsOn(runtime)
   .settings(testSettings)
   .settings(
-    name := "avrogen-java-interop",
+    name := "avro2s-wire-java-interop",
     libraryDependencies += "org.apache.avro" % "avro" % avroVersion
   )
 
@@ -38,7 +38,7 @@ lazy val resolution = (project in file("resolution"))
   .dependsOn(runtime)
   .settings(testSettings)
   .settings(
-    name := "avrogen-resolution",
+    name := "avro2s-wire-resolution",
     libraryDependencies ++= Seq(
       "com.fasterxml.jackson.core" % "jackson-databind" % "2.20.0",
       "org.apache.avro" % "avro" % avroVersion % Test
@@ -49,15 +49,15 @@ lazy val fixtures = (project in file("fixtures"))
   .dependsOn(runtime, javaInterop % "test->compile", resolution % "test->compile")
   .settings(testSettings)
   .settings(
-    name := "avrogen-fixtures",
+    name := "avro2s-wire-fixtures",
     publish / skip := true,
     Compile / sourceGenerators += Def.task {
-      val out = (Compile / sourceManaged).value / "avrogen"
+      val out = (Compile / sourceManaged).value / "avro2s-wire"
       val input = (Compile / resourceDirectory).value / "avro"
       // Rebuild managed output so removed schemas cannot leave stale classes.
       IO.delete(out)
       (compiler / Compile / runner).value.run(
-        "avrogen.compiler.Main",
+        "avro2s.wire.compiler.Main",
         (compiler / Compile / fullClasspath).value.files,
         Seq(input.getAbsolutePath, out.getAbsolutePath),
         streams.value.log
@@ -70,14 +70,14 @@ lazy val benchmarks = (project in file("benchmarks"))
   .dependsOn(fixtures, javaInterop, resolution)
   .enablePlugins(JmhPlugin)
   .settings(testSettings)
-  .settings(name := "avrogen-benchmarks", publish / skip := true)
+  .settings(name := "avro2s-wire-benchmarks", publish / skip := true)
 
 // Test-only compiler and Java oracle. Generated sources compile against runtime + Scala alone.
 lazy val propertyTests = (project in file("property-tests"))
-  .dependsOn(runtime, compiler)
+  .dependsOn(runtime, compiler, resolution % "test->compile")
   .settings(testSettings)
   .settings(
-    name := "avrogen-property-tests",
+    name := "avro2s-wire-property-tests",
     publish / skip := true,
     libraryDependencies ++= Seq(
       "org.scalacheck" %% "scalacheck" % "1.18.1" % Test,
@@ -87,7 +87,7 @@ lazy val propertyTests = (project in file("property-tests"))
     Test / parallelExecution := false,
     Test / javaOptions ++= Seq(
       "-Xmx2g",
-      "-Davrogen.generated.classpath=" + (runtime / Compile / fullClasspath).value.files.mkString(java.io.File.pathSeparator),
-      "-Davrogen.property.target=" + (Test / target).value.getAbsolutePath
+      "-Davro2s.wire.generated.classpath=" + (runtime / Compile / fullClasspath).value.files.mkString(java.io.File.pathSeparator),
+      "-Davro2s.wire.property.target=" + (Test / target).value.getAbsolutePath
     )
   )

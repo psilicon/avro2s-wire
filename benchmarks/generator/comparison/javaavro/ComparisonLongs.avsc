@@ -1,0 +1,12 @@
+{
+  "type" : "record",
+  "name" : "ComparisonLongs",
+  "namespace" : "avro2s.wire.benchmarks.comparison.javaavro",
+  "fields" : [ {
+    "name" : "values",
+    "type" : {
+      "type" : "array",
+      "items" : "long"
+    }
+  } ]
+}

@@ -1,7 +1,7 @@
 {
   "type" : "record",
   "name" : "Trade",
-  "namespace" : "avrogen.benchmarks.avro2s",
+  "namespace" : "avro2s.wire.benchmarks.avro2s",
   "fields" : [ {
     "name" : "id",
     "type" : "long"

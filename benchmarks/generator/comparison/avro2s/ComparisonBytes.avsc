@@ -1,0 +1,9 @@
+{
+  "type" : "record",
+  "name" : "ComparisonBytes",
+  "namespace" : "avro2s.wire.benchmarks.comparison.avro2s",
+  "fields" : [ {
+    "name" : "value",
+    "type" : "bytes"
+  } ]
+}

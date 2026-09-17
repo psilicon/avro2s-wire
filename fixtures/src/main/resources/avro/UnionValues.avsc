@@ -1,5 +1,5 @@
 {
-  "type":"record", "name":"UnionValues", "namespace":"avrogen.fixtures.unions",
+  "type":"record", "name":"UnionValues", "namespace":"avro2s.wire.fixtures.unions",
   "fields":[
     {"name":"simple","type":["string","int"]},
     {"name":"numbers","type":["double","long","int","float","boolean"]},

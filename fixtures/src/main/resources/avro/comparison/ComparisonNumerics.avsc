@@ -1,0 +1,40 @@
+{
+  "type": "record",
+  "name": "ComparisonNumerics",
+  "namespace": "avro2s.wire.fixtures.comparison",
+  "fields": [
+    {
+      "name": "active",
+      "type": "boolean"
+    },
+    {
+      "name": "ratio",
+      "type": "float"
+    },
+    {
+      "name": "price",
+      "type": "double"
+    },
+    {
+      "name": "flags",
+      "type": {
+        "type": "array",
+        "items": "boolean"
+      }
+    },
+    {
+      "name": "floats",
+      "type": {
+        "type": "array",
+        "items": "float"
+      }
+    },
+    {
+      "name": "doubles",
+      "type": {
+        "type": "array",
+        "items": "double"
+      }
+    }
+  ]
+}

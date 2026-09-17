@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "ComparisonLongs",
+  "namespace": "avro2s.wire.fixtures.comparison",
+  "fields": [
+    {
+      "name": "values",
+      "type": {
+        "type": "array",
+        "items": "long"
+      }
+    }
+  ]
+}
