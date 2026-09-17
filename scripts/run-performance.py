@@ -13,7 +13,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-PREFIX = "avrogen.benchmarks."
+PREFIX = "avro2s.wire.benchmarks."
 MATRIX = {
     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
     "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long"]},
@@ -22,6 +22,11 @@ MATRIX = {
     "NestedUnion": {"depth": ["0", "1", "4"]},
     "Trade": {"collectionSize": ["0", "32", "1024"]},
     "Evolution": {"discardedBytes": ["0", "4096"]},
+    "Comparison": {"profile": ["ints-small", "ints-wide", "longs-mixed", "string-ascii", "string-unicode",
+                                   "bytes", "collections-empty", "collections-full", "enum-fixed", "numerics"]},
+    "NestedComparison": {},
+    "LogicalComparison": {},
+    "DecimalComparison": {},
 }
 
 
@@ -40,6 +45,13 @@ def groups(profile):
     if profile == "trade":
         return [("Trade", [engine + op for engine in ["native", "javaPrimitives", "javaGeneric",
                  "javaSpecific", "javaCustom", "avro2s"] for op in ["Read", "Write"]], {})]
+    if profile == "comparison":
+        return [(name, [engine + op for engine in engines for op in ["Read", "Write"]], {})
+                for name, engines in [
+                    ("Comparison", ["native", "javaPrimitives", "javaGeneric", "javaSpecific", "javaCustom", "avro2s"]),
+                    ("NestedComparison", ["native", "javaPrimitives", "javaGeneric", "javaSpecific", "avro2s"]),
+                    ("LogicalComparison", ["native", "javaPrimitives", "javaGeneric", "javaSpecific", "avro2s"]),
+                    ("DecimalComparison", ["native", "javaPrimitives", "javaGeneric", "javaSpecific"])]]
     return [("Evolution", ["nativeResolved", "javaResolved", "nativeSameSchema", "compileResolution"], {})]
 
 
@@ -64,7 +76,7 @@ def main():
     parser.add_argument("--java", type=Path, required=True, help="Absolute fork JVM executable")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--label", required=True, help="Unique filename prefix")
-    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution"], required=True)
+    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison"], required=True)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--filter", default=".*", help="Regex narrowing the profile's full benchmark names")
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUES", help="Comma-separated parameter override; repeatable")

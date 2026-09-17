@@ -1,0 +1,24 @@
+{
+  "type" : "record",
+  "name" : "ComparisonDecimal",
+  "namespace" : "avro2s.wire.benchmarks.comparison.javaavro",
+  "fields" : [ {
+    "name" : "amount",
+    "type" : {
+      "type" : "bytes",
+      "logicalType" : "decimal",
+      "precision" : 50,
+      "scale" : 10
+    }
+  }, {
+    "name" : "fixedAmount",
+    "type" : {
+      "type" : "fixed",
+      "name" : "ComparisonDecimalFixed",
+      "size" : 32,
+      "logicalType" : "decimal",
+      "precision" : 50,
+      "scale" : 10
+    }
+  } ]
+}

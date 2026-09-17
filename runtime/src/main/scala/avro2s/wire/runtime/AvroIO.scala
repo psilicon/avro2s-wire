@@ -1,0 +1,108 @@
+package avro2s.wire.runtime
+
+trait AvroInput:
+  def readNull(): Unit = ()
+  def readBoolean(): Boolean
+  def readInt(): Int
+  def readLong(): Long
+  def readFloat(): Float
+  def readDouble(): Double
+  def readString(): String
+  def readBytes(): Bytes
+  def readFixed(size: Int): Bytes
+  /** Skip APIs allow schema resolution to discard fields without constructing their values. */
+  def skipString(): Unit = { readString(); () }
+  def skipBytes(): Unit = { readBytes(); () }
+  def skipFixed(size: Int): Unit = { readFixed(size); () }
+  /** Schema promotions. Native inputs enforce both source and destination byte limits. */
+  def readStringAsBytes(): Bytes =
+    Bytes.unsafeWrap(readString().getBytes(java.nio.charset.StandardCharsets.UTF_8))
+  def readBytesAsString(): String =
+    val decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+      .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+      .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+    try decoder.decode(java.nio.ByteBuffer.wrap(readBytes().unsafeArray)).toString
+    catch case _: java.nio.charset.CharacterCodingException =>
+      throw new AvroDecodingException("Invalid UTF-8 in bytes-to-string promotion")
+  def readEnum(): Int
+  def readIndex(): Int
+  def readArrayStart(): Long
+  def arrayNext(): Long
+  def readMapStart(): Long
+  def mapNext(): Long
+
+  /** Generated record readers pair these hooks in try/finally for depth accounting. */
+  def enterRecord(): Unit = ()
+  def leaveRecord(): Unit = ()
+
+trait AvroOutput:
+  def writeNull(): Unit = ()
+  def writeBoolean(value: Boolean): Unit
+  def writeInt(value: Int): Unit
+  def writeLong(value: Long): Unit
+  def writeFloat(value: Float): Unit
+  def writeDouble(value: Double): Unit
+  def writeString(value: String): Unit
+  def writeBytes(value: Bytes): Unit
+  def writeFixed(value: Bytes): Unit
+  def writeEnum(value: Int): Unit
+  def writeIndex(value: Int): Unit
+  def writeArrayStart(size: Int): Unit
+  def writeArrayEnd(): Unit
+  def writeMapStart(size: Int): Unit
+  def writeMapEnd(): Unit
+  def startItem(): Unit
+
+/** A matching-schema codec. Writer/reader schema resolution is a separate concern. */
+trait AvroCodec[A]:
+  def schemaJson: String
+  def read(in: AvroInput): A
+  def write(value: A, out: AvroOutput): Unit
+
+  /** Construction hook for optional schema resolution. Matching-schema reads do not use it.
+    * Records receive reader-ordered fields; enums receive their ordinal; fixed types receive
+    * their decoded underlying value. Generated implementations construct the final model.
+    */
+  def construct(values: Array[Any]): A =
+    throw new UnsupportedOperationException("This codec does not provide schema-resolution construction")
+
+  /** Lazily looks up a reachable named codec, so recursive models do not initialise recursively. */
+  def namedCodec(fullName: String): AvroCodec[?] =
+    throw new IllegalArgumentException(s"No generated codec for named schema: $fullName")
+
+  final def encode(value: A): Array[Byte] =
+    val out = new BinaryOutput()
+    write(value, out)
+    out.toByteArray
+
+  /** Reads one complete datum; malformed, truncated and trailing data are rejected. */
+  final def decode(bytes: Array[Byte]): A = decode(bytes, DecodeLimits.default)
+
+  final def decode(bytes: Array[Byte], limits: DecodeLimits): A =
+    val in = new BinaryInput(bytes, limits)
+    val value = read(in)
+    in.requireEnd()
+    value
+
+object AvroCodec:
+  def apply[A](using codec: AvroCodec[A]): AvroCodec[A] = codec
+
+/** All limits apply to a single input instance; collection items are cumulative. */
+final case class DecodeLimits(
+    maxInputBytes: Int = 64 * 1024 * 1024,
+    maxStringBytes: Int = 16 * 1024 * 1024,
+    maxBytesLength: Int = 64 * 1024 * 1024,
+    maxCollectionItems: Long = 1000000L,
+    maxNestingDepth: Int = 128
+):
+  require(maxInputBytes >= 0, "maxInputBytes must be non-negative")
+  require(maxStringBytes >= 0, "maxStringBytes must be non-negative")
+  require(maxBytesLength >= 0, "maxBytesLength must be non-negative")
+  require(maxCollectionItems >= 0, "maxCollectionItems must be non-negative")
+  require(maxNestingDepth >= 0, "maxNestingDepth must be non-negative")
+
+object DecodeLimits:
+  val default: DecodeLimits = DecodeLimits()
+
+/** Invalid Avro binary data or a configured decoding resource limit violation. */
+final class AvroDecodingException(message: String) extends IllegalArgumentException(message)

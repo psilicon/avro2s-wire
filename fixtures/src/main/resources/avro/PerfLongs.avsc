@@ -1,1 +1,1 @@
-{"type":"record","name":"PerfLongs","namespace":"avrogen.fixtures.performance","fields":[{"name":"values","type":{"type":"array","items":"long"}}]}
+{"type":"record","name":"PerfLongs","namespace":"avro2s.wire.fixtures.performance","fields":[{"name":"values","type":{"type":"array","items":"long"}}]}

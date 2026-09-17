@@ -16,7 +16,9 @@ Scala model <-> generated AvroCodec[A] <-> native binary input/output <-> bytes
 
 Apache Avro's parser is a build-time dependency. Generated sources only reference
 the small Scala runtime. An optional adapter can replace native binary operations
-with Java encoder/decoder operations for measurement and interoperability.
+with Java encoder/decoder operations. Both engines emit the same Avro datum wire
+format. The adapter integrates with callers already using Java Encoder/Decoder
+APIs and isolates primitive costs in benchmarks.
 
 ## Why generation comes first
 

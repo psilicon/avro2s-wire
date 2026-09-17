@@ -1,5 +1,5 @@
 {
-  "type": "record", "name": "CollectionEdges", "namespace": "avrogen.fixtures",
+  "type": "record", "name": "CollectionEdges", "namespace": "avro2s.wire.fixtures",
   "fields": [
     {"name": "maps", "type": {"type": "array", "items": {"type": "map", "values": "long"}}},
     {"name": "arrays", "type": {"type": "map", "values": {"type": "array", "items": "int"}}},

@@ -1,0 +1,18 @@
+{
+  "type" : "record",
+  "name" : "ComparisonCollections",
+  "namespace" : "avro2s.wire.benchmarks.comparison.avro2s",
+  "fields" : [ {
+    "name" : "values",
+    "type" : {
+      "type" : "array",
+      "items" : "int"
+    }
+  }, {
+    "name" : "labels",
+    "type" : {
+      "type" : "map",
+      "values" : "string"
+    }
+  } ]
+}

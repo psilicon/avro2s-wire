@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "ComparisonText",
+  "namespace": "avro2s.wire.fixtures.comparison",
+  "fields": [
+    {
+      "name": "value",
+      "type": "string"
+    }
+  ]
+}

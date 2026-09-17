@@ -19,6 +19,36 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def migrate_historical_namespace(destination, root):
+    """Keep pre-rename production code usable with the current benchmark imports.
+
+    This changes package names only, records every changed source hash, and leaves
+    the historical algorithm implementations in place.
+    """
+    old = "avro" + "gen"
+    new = "avro2s.wire"
+    if not (root / "runtime/src/main/scala/avro2s/wire").is_dir():
+        return {}
+    changes = {}
+    for path in sorted(destination.rglob("*")):
+        if not path.is_file() or path.suffix not in {".scala", ".java", ".avsc", ".sbt"}:
+            continue
+        original = path.read_bytes()
+        updated = (original.decode().replace(old + ".", new + ".")
+                   .replace(old + "/", new.replace(".", "/") + "/")
+                   .replace("private[" + old + "]", "private[wire]").encode())
+        if updated != original:
+            path.write_bytes(updated)
+            changes[str(path.relative_to(destination))] = {"before": digest(original), "after": digest(updated)}
+    for language in ("scala", "java"):
+        for kind in ("main", "test"):
+            for directory in sorted(destination.glob(f"*/src/{kind}/{language}/{old}")):
+                target = directory.parent / "avro2s" / "wire"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                directory.rename(target)
+    return changes
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -39,9 +69,10 @@ def main():
     if not overlays:
         parser.error("current benchmarks/src must contain source files")
     overlays += [root / f"fixtures/src/main/resources/avro/{name}.avsc" for name in FIXTURES]
+    overlays += sorted((root / "fixtures/src/main/resources/avro/comparison").glob("*.avsc"))
     overlays.append(root / "scripts/run-performance.py")
     if not overlays or any(not path.is_file() or path.is_symlink() for path in overlays):
-        parser.error("current benchmark sources, six Perf schemas and runner must exist as regular files")
+        parser.error("current benchmark sources, workload schemas and runner must exist as regular files")
     # Read overlays before exporting, giving the snapshot a fixed set of bytes.
     contents = {str(path.relative_to(root)): (path.read_bytes(), path.stat().st_mode & 0o777) for path in overlays}
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
@@ -61,6 +92,7 @@ def main():
                     with tar.extractfile(member) as source, target.open("xb") as output:
                         shutil.copyfileobj(source, output)
                     target.chmod(member.mode & 0o777)
+            namespace_migration = migrate_historical_namespace(destination, root)
             # Replace the benchmark source tree, so files removed from the current
             # harness cannot survive from the historical source version.
             benchmark_sources = destination / "benchmarks/src"
@@ -75,7 +107,8 @@ def main():
                               sourceRepository=str(repository), harnessSourceRoot=str(root),
                               gitArchiveSha256=digest(archive),
                               overlaySha256={relative: digest(data) for relative, (data, _) in contents.items()},
-                              productionPolicy="Runtime, compiler, build and all other production files come from the exported Git commit; only benchmarks/src, six Perf schemas and the runner are overlaid.")
+                              namespaceMigration=namespace_migration,
+                              productionPolicy="Production algorithms come from the exported Git commit. Pre-rename namespaces are migrated when needed, with source hashes retained; benchmarks/src, workload schemas and the runner are overlaid.")
             (destination / "performance-baseline-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
         except BaseException:
             # This directory was created by this invocation; never remove a pre-existing path.

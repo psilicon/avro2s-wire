@@ -1,7 +1,7 @@
 {
   "type": "record",
   "name": "LogicalRecord",
-  "namespace": "avrogen.fixtures.logical",
+  "namespace": "avro2s.wire.fixtures.logical",
   "fields": [
     {
       "name": "day",

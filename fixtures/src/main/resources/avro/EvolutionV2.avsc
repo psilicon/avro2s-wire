@@ -1,9 +1,9 @@
 {
   "type": "record",
   "name": "Account",
-  "namespace": "avrogen.fixtures.evolution.v2",
+  "namespace": "avro2s.wire.fixtures.evolution.v2",
   "aliases": [
-    "avrogen.fixtures.evolution.v1.Account"
+    "avro2s.wire.fixtures.evolution.v1.Account"
   ],
   "fields": [
     {
@@ -23,7 +23,7 @@
         "type": "enum",
         "name": "State",
         "aliases": [
-          "avrogen.fixtures.evolution.v1.Status"
+          "avro2s.wire.fixtures.evolution.v1.Status"
         ],
         "symbols": [
           "ACTIVE",

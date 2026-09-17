@@ -1,1 +1,1 @@
-{"type":"record","name":"PerfBytes","namespace":"avrogen.fixtures.performance","fields":[{"name":"value","type":"bytes"}]}
+{"type":"record","name":"PerfBytes","namespace":"avro2s.wire.fixtures.performance","fields":[{"name":"value","type":"bytes"}]}

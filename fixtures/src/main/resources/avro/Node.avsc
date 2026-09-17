@@ -1,1 +1,1 @@
-{"type":"record","name":"Node","namespace":"avrogen.fixtures","fields":[{"name":"value","type":"int"},{"name":"next","type":["null","Node"],"default":null}]}
+{"type":"record","name":"Node","namespace":"avro2s.wire.fixtures","fields":[{"name":"value","type":"int"},{"name":"next","type":["null","Node"],"default":null}]}

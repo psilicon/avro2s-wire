@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-These measurements compare one matching-schema `Trade` workload. Its fields are
+The original measurements compare one matching-schema `Trade` workload. Its fields are
 `id: long`, `symbol: string`, `price: double`, and `quantities: array<int>`.
 Collection sizes are 0, 32, and 1024. Integer elements are outside the JVM's
 small-integer cache so allocation measurements include boxing. This is a focused
@@ -13,15 +13,21 @@ for the 192-case matrix, allocating APIs and reproducible profile runner. The
 results and a fresh six-way Trade comparison; the historical report below remains
 unchanged.
 
+The [broader comparison corpus](../../benchmarks/COMPARISON.md) adds 13 input
+profiles, with genuine Java and avro2s generated baselines where supported.
+It covers 148 read/write cases, including temporal/UUID values and high-precision
+decimals. Unsupported custom coders and avro2s logical decimal models are excluded
+explicitly. The separate evolution profile contains eight cases.
+
 ## Implementations
 
 | Prefix | Implementation | Returned model |
 | --- | --- | --- |
-| `avro2s` | Current avro2s Scala 3 generated class, stock specific reader/writer, fast reader enabled | Scala String and List[Int] |
+| `avro2s` | Pinned avro2s Scala 3 generated class, stock specific reader/writer, fast reader enabled | Scala String and List[Int] |
 | `javaSpecific` | Apache Avro 1.12.1 generated Java class, custom coders disabled, fast reader enabled | CharSequence (normally Utf8 on read) and Java List[Integer] |
 | `javaCustom` | Same generated Java class, custom coders enabled, fast reader disabled | CharSequence and Java List[Integer] |
-| `native` | Avrogen-generated codec and native binary input/output | Scala String and Vector[Int] |
-| `javaPrimitives` | Same Avrogen-generated codec with Java primitive adapters | Scala String and Vector[Int] |
+| `native` | avro2s-wire-generated codec and native binary input/output | Scala String and Vector[Int] |
+| `javaPrimitives` | Same avro2s-wire-generated codec with Java primitive adapters | Scala String and Vector[Int] |
 | `javaGeneric` | Java Avro generic reader/writer | GenericRecord, Utf8, and generic Java collection |
 
 The checked-in comparison classes are genuine generator output. See
@@ -113,6 +119,16 @@ Java returns GenericRecord/Utf8; native returns the generated Scala model.
 sbt 'benchmarks/Jmh/run -jvm /absolute/path/to/java -jvmArgs "-Xms512m -Xmx512m" -wi 5 -i 5 -w 1s -r 1s -f 2 -prof gc -rf json -rff /absolute/path/to/evolution.json .*EvolutionBenchmark.*'
 ```
 
-The historical Trade summarizer expects Trade's `collectionSize` parameter; use
-JMH's report or raw JSON for the evolution harness. No full evolution measurement
-is recorded yet; short smoke runs only check execution and setup invariants.
+The historical Trade summarizer expects Trade's `collectionSize` parameter.
+Use `scripts/summarize-comparison.py` for the broader comparison and evolution
+results. Reproducible profiles retain the exact commands, source hashes, raw JSON,
+and local logs, and reject incomplete results or source changes during a run:
+
+```sh
+python3 scripts/run-performance.py --java /absolute/path/to/java --output /absolute/path/to/results --label comparison --profile comparison
+python3 scripts/run-performance.py --java /absolute/path/to/java --output /absolute/path/to/results --label evolution --profile evolution
+python3 scripts/summarize-comparison.py /absolute/path/to/results/comparison-*.json /absolute/path/to/results/evolution-Evolution.json
+```
+
+Pass only JMH result JSON files to the summarizer, excluding `.environment.json`.
+Short smoke runs only check execution and setup invariants.

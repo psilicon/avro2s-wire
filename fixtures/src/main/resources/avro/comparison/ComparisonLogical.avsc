@@ -1,0 +1,63 @@
+{
+  "type": "record",
+  "name": "ComparisonLogical",
+  "namespace": "avro2s.wire.fixtures.comparison",
+  "fields": [
+    {
+      "name": "day",
+      "type": {
+        "type": "int",
+        "logicalType": "date"
+      }
+    },
+    {
+      "name": "timeMs",
+      "type": {
+        "type": "int",
+        "logicalType": "time-millis"
+      }
+    },
+    {
+      "name": "timeUs",
+      "type": {
+        "type": "long",
+        "logicalType": "time-micros"
+      }
+    },
+    {
+      "name": "timestampMs",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "timestampUs",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "localMs",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-millis"
+      }
+    },
+    {
+      "name": "localUs",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-micros"
+      }
+    },
+    {
+      "name": "uuid",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    }
+  ]
+}

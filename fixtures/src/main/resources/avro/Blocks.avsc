@@ -1,1 +1,1 @@
-{"type":"record","name":"Blocks","namespace":"avrogen.fixtures","fields":[{"name":"values","type":{"type":"array","items":"long"}},{"name":"labels","type":{"type":"map","values":"string"}}]}
+{"type":"record","name":"Blocks","namespace":"avro2s.wire.fixtures","fields":[{"name":"values","type":{"type":"array","items":"long"}},{"name":"labels","type":{"type":"map","values":"string"}}]}

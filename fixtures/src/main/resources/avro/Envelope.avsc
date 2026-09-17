@@ -1,5 +1,5 @@
 {
-  "type": "record", "name": "Envelope", "namespace": "avrogen.fixtures",
+  "type": "record", "name": "Envelope", "namespace": "avro2s.wire.fixtures",
   "doc": "Interoperability fixture covering the first supported Avro subset.",
   "fields": [
     {"name":"id","type":"long"},

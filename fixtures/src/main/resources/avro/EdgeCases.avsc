@@ -1,5 +1,5 @@
 {
-  "type":"record","name":"EdgeCases","namespace":"avrogen.fixtures",
+  "type":"record","name":"EdgeCases","namespace":"avro2s.wire.fixtures",
   "fields":[
     {"name":"options","type":{"type":"array","items":["int","null"]}},
     {"name":"optionalMaps","type":["null",{"type":"array","items":{"type":"map","values":"long"}}]},

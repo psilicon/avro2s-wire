@@ -1,0 +1,32 @@
+{
+  "type" : "record",
+  "name" : "ComparisonEnumFixed",
+  "namespace" : "avro2s.wire.benchmarks.comparison.avro2s",
+  "fields" : [ {
+    "name" : "kind",
+    "type" : {
+      "type" : "enum",
+      "name" : "ComparisonKind",
+      "symbols" : [ "CREATED", "UPDATED", "DELETED" ]
+    }
+  }, {
+    "name" : "fingerprint",
+    "type" : {
+      "type" : "fixed",
+      "name" : "ComparisonFingerprint",
+      "size" : 16
+    }
+  }, {
+    "name" : "history",
+    "type" : {
+      "type" : "array",
+      "items" : "ComparisonKind"
+    }
+  }, {
+    "name" : "blocks",
+    "type" : {
+      "type" : "array",
+      "items" : "ComparisonFingerprint"
+    }
+  } ]
+}
