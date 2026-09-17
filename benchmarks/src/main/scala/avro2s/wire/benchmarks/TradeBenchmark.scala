@@ -3,7 +3,7 @@ package avro2s.wire.benchmarks
 import _root_.avro2s.wire.benchmarks.avro2s.{Trade as ScalaTrade}
 import _root_.avro2s.wire.benchmarks.javaavro.{Trade as JavaTrade}
 import _root_.avro2s.wire.fixtures.Trade
-import _root_.avro2s.wire.interop.{JavaAvroInput, JavaAvroOutput}
+import _root_.avro2s.wire.javabackend.{JavaAvroInput, JavaAvroOutput}
 import _root_.avro2s.wire.runtime.{BinaryInput, BinaryOutput}
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit

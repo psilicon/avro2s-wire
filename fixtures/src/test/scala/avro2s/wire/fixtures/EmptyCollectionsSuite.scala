@@ -1,6 +1,6 @@
 package avro2s.wire.fixtures
 
-import avro2s.wire.interop.JavaAvroInput
+import avro2s.wire.javabackend.JavaAvroInput
 import avro2s.wire.runtime.*
 import org.apache.avro.io.DecoderFactory
 

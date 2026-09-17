@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.3.6"
+ThisBuild / scalaVersion := "3.3.8"
 ThisBuild / organization := "io.psilicon"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
@@ -16,7 +16,7 @@ ThisBuild / developers := List(Developer(
   "psilicon", "Psilicon", "hello@psilicon.io", url("https://github.com/psilicon")
 ))
 ThisBuild / pomIncludeRepository := { _ => false }
-// sbt 1.11 stages signed artifacts locally; the release workflow uploads them with sonaUpload.
+// sbt stages signed artifacts locally; the release workflow uploads them with sonaUpload.
 ThisBuild / publishTo := localStaging.value
 pgpPassphrase := sys.env.get("GPG_PASSPHRASE").map(_.toArray)
 
@@ -26,7 +26,7 @@ val testSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(runtime, compiler, javaInterop, resolution, fixtures, benchmarks, propertyTests)
+  .aggregate(runtime, compiler, javaBackend, resolution, fixtures, benchmarks, propertyTests)
   .settings(name := "avro2s-wire", publish / skip := true)
 
 lazy val runtime = (project in file("runtime"))
@@ -44,11 +44,11 @@ lazy val compiler = (project in file("compiler"))
     Compile / mainClass := Some("avro2s.wire.compiler.Main")
   )
 
-lazy val javaInterop = (project in file("java-interop"))
+lazy val javaBackend = (project in file("java-backend"))
   .dependsOn(runtime)
   .settings(testSettings)
   .settings(
-    name := "avro2s-wire-java-interop",
+    name := "avro2s-wire-java-backend",
     libraryDependencies += "org.apache.avro" % "avro" % avroVersion
   )
 
@@ -66,7 +66,7 @@ lazy val resolution = (project in file("resolution"))
   )
 
 lazy val fixtures = (project in file("fixtures"))
-  .dependsOn(runtime, javaInterop % "test->compile", resolution % "test->compile")
+  .dependsOn(runtime, javaBackend % "test->compile", resolution % "test->compile")
   .settings(testSettings)
   .settings(
     name := "avro2s-wire-fixtures",
@@ -87,7 +87,7 @@ lazy val fixtures = (project in file("fixtures"))
   )
 
 lazy val benchmarks = (project in file("benchmarks"))
-  .dependsOn(fixtures, javaInterop, resolution)
+  .dependsOn(fixtures, javaBackend, resolution)
   .enablePlugins(JmhPlugin)
   .settings(testSettings)
   .settings(name := "avro2s-wire-benchmarks", publish / skip := true)

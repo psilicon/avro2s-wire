@@ -1,4 +1,4 @@
-package avro2s.wire.interop
+package avro2s.wire.javabackend
 
 import avro2s.wire.runtime.{AvroDecodingException, BinaryInput, BinaryOutput, Bytes, DecodeLimits}
 import java.io.ByteArrayOutputStream

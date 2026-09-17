@@ -1,4 +1,4 @@
-package avro2s.wire.interop
+package avro2s.wire.javabackend
 
 import avro2s.wire.runtime.{BinaryOutput, Bytes}
 import java.io.ByteArrayOutputStream

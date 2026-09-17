@@ -1,6 +1,6 @@
 package avro2s.wire.fixtures
 
-import avro2s.wire.interop.JavaAvroOutput
+import avro2s.wire.javabackend.JavaAvroOutput
 import avro2s.wire.runtime.{AvroDecodingException, BinaryInput, DecodeLimits}
 import java.io.ByteArrayOutputStream
 import org.apache.avro.Schema

@@ -1,7 +1,7 @@
 package avro2s.wire.benchmarks.comparison
 
 import _root_.avro2s.wire.runtime.{AvroCodec, BinaryInput, BinaryOutput, Bytes}
-import _root_.avro2s.wire.interop.{JavaAvroInput, JavaAvroOutput}
+import _root_.avro2s.wire.javabackend.{JavaAvroInput, JavaAvroOutput}
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.time.*

@@ -1,7 +1,7 @@
 package avro2s.wire.fixtures
 
 import avro2s.wire.fixtures.unions.*
-import avro2s.wire.interop.{JavaAvroInput, JavaAvroOutput}
+import avro2s.wire.javabackend.{JavaAvroInput, JavaAvroOutput}
 import avro2s.wire.runtime.{AvroDecodingException, Bytes}
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer

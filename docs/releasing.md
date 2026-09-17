@@ -1,8 +1,9 @@
 # CI and releases
 
-The workflows follow avro2s: `actions/checkout@v4`, `coursier/setup-action@v1`,
-Temurin 21, sbt 1.11.0, sbt-pgp 2.3.1 and Central Portal uploads. Scala is pinned
-to 3.3.6, so `sbt test` tests the whole build without the original project's
+The workflows follow avro2s's PR, pre-release and release approach. This build uses
+`actions/checkout@v4`, `coursier/setup-action@v1`, Temurin 21, sbt 1.13.0,
+sbt-pgp 2.3.1 and Central Portal uploads. Scala is pinned
+to 3.3.8, so `sbt test` tests the whole build without the original project's
 Scala 2 cross-build or sbt-plugin scripted tests.
 
 ## Workflows
@@ -43,14 +44,14 @@ The PR workflow uses no publishing secrets. Set up the secrets before merging
 release-triggering changes. Use `[skip release]` on the merge/push commit to defer
 release preparation, then manually dispatch Pre-Release on `main` when ready.
 
-Only `avro2s-wire-runtime_3`, `avro2s-wire-compiler_3`, `avro2s-wire-java-interop_3`
+Only `avro2s-wire-runtime_3`, `avro2s-wire-compiler_3`, `avro2s-wire-java-backend_3`
 and `avro2s-wire-resolution_3` are published, under `io.psilicon`. Root, fixtures,
 benchmarks and property-test modules retain `publish / skip := true`.
 
 Local checks that do not upload anything:
 
 ```sh
-sbt test 'runtime/makePom' 'compiler/makePom' 'javaInterop/makePom' 'resolution/makePom'
+sbt test 'runtime/makePom' 'compiler/makePom' 'javaBackend/makePom' 'resolution/makePom'
 ```
 
 The signing and upload steps require the repository secrets and Central service;
