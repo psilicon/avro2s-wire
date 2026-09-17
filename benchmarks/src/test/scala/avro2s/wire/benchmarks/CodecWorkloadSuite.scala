@@ -13,7 +13,7 @@ final class CodecWorkloadSuite extends FunSuite:
       Vector(0, 32, 4096).map(CodecWorkloads.bytes) ++
       Vector(0, 4, 128).map(CodecWorkloads.collections) ++
       Vector(0, 1, 4).map(CodecWorkloads.nested)
-    assertEquals(workloads.size, 30)
+    assertEquals(workloads.size, 34)
     workloads.foreach(_.verifyInteroperability())
   }
 
@@ -48,9 +48,14 @@ final class CodecWorkloadSuite extends FunSuite:
       val text = CodecWorkloads.text(profile)
       val count = if profile == "empty" then 0 else if profile.endsWith("short") then 32 else 4096
       assertEquals(text.codePointCount(0, text.length), count, profile)
-      val expectedBytes = if profile.startsWith("ascii") || profile.startsWith("question") then count
-        else if profile.startsWith("emoji") then count * 4
-        else if profile.startsWith("latin1") then count * 2 else count * 5 / 2
+      val expectedBytes = profile match
+        case "supplementary-prefix-ascii-long" => 4099
+        case "supplementary-prefix-bmp-long" => 12289
+        case "supplementary-mixed-long" => 10924
+        case "supplementary-mixed-short" => 85
+        case _ => if profile.startsWith("ascii") || profile.startsWith("question") then count
+          else if profile.startsWith("emoji") then count * 4
+          else if profile.startsWith("latin1") then count * 2 else count * 5 / 2
       assertEquals(text.getBytes(UTF_8).length, expectedBytes, profile)
     }
   }

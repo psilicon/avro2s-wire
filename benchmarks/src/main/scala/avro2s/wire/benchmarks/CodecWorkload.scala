@@ -103,7 +103,8 @@ object CodecWorkloads:
   val integerDistributions = Vector("one-byte", "medium", "wide", "mixed")
   val stringProfiles = Vector("empty", "ascii-short", "ascii-long", "multilingual-short",
     "multilingual-long", "emoji-short", "emoji-long", "latin1-short", "latin1-long",
-    "question-short", "question-long", "replacement-short", "replacement-long")
+    "question-short", "question-long", "replacement-short", "replacement-long",
+    "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short")
   val integerCount = 1024
 
   def ints(distribution: String): Vector[Int] =
@@ -152,6 +153,10 @@ object CodecWorkloads:
     */
   def text(profile: String): String =
     if profile == "empty" then ""
+    else if profile == "supplementary-prefix-ascii-long" then "😀" + "a".repeat(4095)
+    else if profile == "supplementary-prefix-bmp-long" then "😀" + "漢".repeat(4095)
+    else if profile == "supplementary-mixed-long" then "😀a漢".repeat(1365) + "😀"
+    else if profile == "supplementary-mixed-short" then "😀a漢".repeat(10) + "😀a"
     else
       val (unit, codePoints) = profile match
         case "ascii-short" => ("Avro2026", 32)
