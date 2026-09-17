@@ -6,9 +6,9 @@ directly. The application runtime depends only on the Scala standard library and
 the JDK. Apache Avro is used by the schema compiler and an optional interoperability
 module.
 
-This is the first working slice, not a complete Avro implementation. It supports
-matching writer/reader schemas. Schema evolution and general unions are the next
-major pieces of work.
+This is an early implementation with direct codecs, native Scala 3 unions, logical
+types, and an optional native schema-evolution reader. Matching-schema codecs need
+only the runtime; schema resolution adds a separate JSON-parsing dependency.
 
 ## Build and test
 
@@ -89,12 +89,18 @@ the caller must already know the exact writer schema.
 | fixed | named case class with a checked `Bytes` value |
 | array | Vector |
 | map | immutable Map[String, A] |
-| two-branch nullable union, in either order | Option[A], preserving wire branch indices |
+| non-null union | A \| B, preserving schema branch order in the codec |
+| nullable union | Option[A] or Option[A \| B], preserving wire branch indices |
+| date; time-millis/time-micros | java.time.LocalDate; java.time.LocalTime |
+| timestamps and local timestamps, millis/micros/nanos | java.time.Instant and java.time.LocalDateTime |
+| UUID string; UUID fixed | java.util.UUID; named wrapper around UUID |
+| decimal bytes; decimal fixed | Scala BigDecimal; named wrapper around BigDecimal |
+| duration fixed | named wrapper around AvroDuration |
 | recursive named records | direct references to named codecs |
 
 Top-level schemas must be named records, enums, or fixed types. Unsupported
-schemas fail generation explicitly. Logical types, general unions, empty enums,
-and the identifiers `_` and `_root_` are currently rejected. Keywords are escaped;
+schemas fail generation explicitly. Unknown/unsupported or invalid logical types,
+empty enums, and the identifiers `_` and `_root_` are currently rejected. Keywords are escaped;
 model and enum member collisions are renamed deterministically. Wire names and
 schema metadata remain intact in `schemaJson`.
 
@@ -102,11 +108,23 @@ Default-package types are supported, but a type in a named package cannot refer
 to a default-package type in Scala. Those schemas, and default-package type names
 that collide with generated members, are rejected with guidance to add a namespace.
 
-Defaults and aliases are retained as metadata. They do not yet drive reader-schema
-resolution or Scala constructor defaults. The decoder does not accept an alternate
-writer schema. Avro IDL, JSON datum encoding, object container files, compression,
-schema registries, Kafka serializers, and Scala `derives` support are not yet
-implemented.
+Defaults and aliases drive the optional schema resolver. They do not add Scala
+constructor defaults, and a field is always written even when it equals its Avro
+default. Avro IDL, JSON datum encoding, object container files, compression, schema
+registries, Kafka serializers, and Scala `derives` support are not yet implemented.
+
+Generated records, enums, and fixed types retain distinct runtime classes. For
+example, UUID string/fixed unions become `UUID | NamedFixedUuid`. When a union
+contains both `time-millis` and `time-micros`, their otherwise identical LocalTime
+mappings use `TimeMillis | TimeMicros` wrappers. Unambiguous time fields stay
+LocalTime. Scala union order does not determine Avro branch indices.
+
+Logical writes reject overflow and precision loss. Timestamps and times must be
+exactly representable at their schema's precision; decimal rescaling may add or
+remove trailing zeros but never rounds. Duration keeps separate unsigned months,
+days, and milliseconds because those calendar components cannot be reduced to a
+single elapsed-time value. Unknown logical annotations are rejected explicitly;
+this implementation does not silently fall back to the underlying primitive.
 
 `Bytes.fromArray` and `Bytes.toArray` copy to protect ownership. Decoded byte/fixed
 values own their storage. `BinaryInput` borrows its input array for the duration of
@@ -118,6 +136,29 @@ and generated union/enum indices. `DecodeLimits` controls input size, string/byt
 lengths, cumulative collection item counts, and nesting depth. Limits apply to the
 input instance, so a fresh input resets the budget. Invalid input raises
 `AvroDecodingException`. Native string encoding rejects unpaired UTF-16 surrogates.
+
+## Schema evolution
+
+Add `avrogen-resolution` when writer and reader schemas can differ:
+
+```scala
+import avrogen.resolution.ResolvingReader
+
+// Account is the generated reader model. Retain this reader for repeated messages.
+val reader = new ResolvingReader(writerSchemaJson, Account.codec)
+val account: Account = reader.decode(bytes)
+```
+
+The reader parses each schema pair and builds its resolution plan at construction.
+It supports field reordering, reader aliases and defaults, discarded writer fields,
+promotions, enum remapping/defaults, fixed types, unions, and recursive records. It
+constructs generated Scala models directly; it does not create Java GenericRecords
+or re-encode the datum. Identical schema JSON uses the generated direct codec.
+
+The optional module uses Jackson to parse JSON and has no Apache Avro runtime
+dependency. Core codecs keep their original dependency footprint. Native decode
+limits apply during resolution, including skipped fields. See
+[the evolution design and compatibility notes](docs/schema-evolution.md).
 
 ## Java Avro comparison adapter
 
@@ -155,7 +196,8 @@ options, schemas, source hashes, and regeneration instructions are in
 [baseline provenance](benchmarks/generator/README.md). Normal tests and benchmarks
 do not need an avro2s checkout or any manually inspected JAR files.
 
-The [first measured baseline](docs/benchmarks/results-2026-09-17.md) compares
+The [first measured baseline](docs/benchmarks/results-2026-09-17.md), recorded
+before the union/logical/evolution additions, compares
 avro2s, Java Avro, and Avrogen with raw results and source hashes.
 
 See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
@@ -169,11 +211,12 @@ and policy differences are part of the measurements.
 - `runtime`: owned bytes, binary I/O, codec API, decode limits; no Apache Avro dependency.
 - `compiler`: validated schema graph and deterministic Scala source generation.
 - `java-interop`: optional Java primitive adapters.
+- `resolution`: optional native schema parsing/resolution and cached reader plans.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
 
-Next: use the measured baselines to guide runtime changes; implement cached
-writer/reader schema resolution; preserve branch identity for general unions;
-add logical types; then build container/registry integrations. Broaden performance
-coverage to strings, bytes, nesting, unions, and evolution. See
+Next: broaden benchmarks to strings, bytes, nesting, unions, and evolution; use
+profiles to tune native integer output and evaluate optional primitive-backed
+collections. Add build-tool integration, streaming/container APIs, and registry
+adapters after the core API settles. See
 [the architecture notes](docs/architecture.md).

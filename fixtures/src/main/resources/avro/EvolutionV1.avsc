@@ -1,0 +1,53 @@
+{
+  "type": "record",
+  "name": "Account",
+  "namespace": "avrogen.fixtures.evolution.v1",
+  "fields": [
+    {
+      "name": "id",
+      "type": "int"
+    },
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "discarded",
+      "type": "bytes"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "Status",
+        "symbols": [
+          "NEW",
+          "ACTIVE",
+          "LEGACY"
+        ]
+      }
+    },
+    {
+      "name": "attributes",
+      "type": {
+        "type": "map",
+        "values": "long"
+      }
+    },
+    {
+      "name": "choice",
+      "type": [
+        "null",
+        "int",
+        "string"
+      ]
+    },
+    {
+      "name": "child",
+      "type": [
+        "null",
+        "Account"
+      ]
+    }
+  ]
+}

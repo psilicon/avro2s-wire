@@ -47,16 +47,25 @@ a handwritten varint loop alone is not evidence of a faster library.
 
 ## Compatibility boundary
 
-Current codecs require the writer and reader to share a schema. The future resolver
-must produce cached reader plans with writer-order traversal, field skipping,
-defaults, aliases, promotions, enum remapping, and union selection. It must preserve
-metadata relevant to resolution when constructing cache keys; parsing-canonical
-fingerprints alone omit some of that metadata.
+Direct codecs require matching schemas. The optional resolution module now compiles
+reader plans with writer-order traversal, field skipping, defaults, aliases,
+promotions, enum remapping, and union selection. Each reader instance retains its
+plan; exact matching schema JSON bypasses resolution and uses the generated codec.
+Resolution constructs Scala models through generated factories, using a temporary
+array of reader-ordered values per record. Parsing-canonical fingerprints omit
+resolution metadata such as defaults and aliases and are not used as cache keys.
 
-General Scala union syntax is only safe when runtime values retain each Avro
-branch's identity. Where mappings overlap, generated tagged alternatives are
-needed. Opaque aliases alone cannot solve runtime branch ambiguity.
+General unions now use Scala union syntax, with schema-owned branch indices.
+Named records, enums and fixed wrappers retain their runtime identity. Nullable
+unions map to Option of the non-null alternatives. The only overlapping logical
+mapping in the current supported set is time-millis plus time-micros: their union
+uses distinct TimeMillis/TimeMicros wrappers, while unambiguous fields stay
+LocalTime. Opaque aliases alone would not preserve runtime branch identity.
 
 The supported subset has binary interoperability tests in both directions with
 Java Avro. Broader wire compatibility, JVM API compatibility, file containers,
 and registry framing are separate milestones.
+
+See [schema evolution](schema-evolution.md) for plan construction, validation, and
+compatibility boundaries. The runtime remains independent of Apache Avro; the
+optional resolver uses Jackson for JSON and implements resolution itself.

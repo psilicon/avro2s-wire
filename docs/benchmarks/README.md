@@ -76,7 +76,11 @@ part of this datum-codec benchmark.
 The [17 September 2026 report](results-2026-09-17.md) retains the
 [raw JMH JSON](baseline-2026-09-17.json) and
 [environment and source hashes](baseline-2026-09-17.environment.json).
-To verify that the working sources match this run and regenerate its tables:
+This run predates the union, logical-type, and schema-resolution additions. Its
+measured sources are preserved in commit `ee45079b83471a34cf1fe457fa0ee141fbaf4fdd`.
+To reproduce that source version, create a separate checkout of that commit.
+The source verifier will correctly report differences on newer working sources.
+From the historical checkout, verify the source hashes and regenerate its tables:
 
 ```sh
 python3 scripts/summarize-benchmarks.py docs/benchmarks/baseline-2026-09-17.json --verify-sources docs/benchmarks/baseline-2026-09-17.environment.json
@@ -88,3 +92,20 @@ part of testing or measurement. Generator output is checked in; the separate
 [regeneration script](../../scripts/regenerate-baselines.sh) requires the exact
 avro2s commit documented in the provenance. Reproducing the procedure does not
 guarantee identical timings on a different JVM, machine, or system load.
+
+## Schema-evolution harness
+
+`EvolutionBenchmark` exercises generated old/new Account schemas with aliases,
+field reordering, defaults, enum fallback, union selection, numeric promotion, and
+skipped byte payloads of 0 or 4096 bytes. It separates reusable native and Java
+readers from native plan construction. `nativeSameSchema` reads the old model and
+retains the byte payload, so it is a reference cost rather than identical work.
+Java returns GenericRecord/Utf8; native returns the generated Scala model.
+
+```sh
+sbt 'benchmarks/Jmh/run -jvm /absolute/path/to/java -jvmArgs "-Xms512m -Xmx512m" -wi 5 -i 5 -w 1s -r 1s -f 2 -prof gc -rf json -rff /absolute/path/to/evolution.json .*EvolutionBenchmark.*'
+```
+
+The historical Trade summarizer expects Trade's `collectionSize` parameter; use
+JMH's report or raw JSON for the evolution harness. No full evolution measurement
+is recorded yet; short smoke runs only check execution and setup invariants.

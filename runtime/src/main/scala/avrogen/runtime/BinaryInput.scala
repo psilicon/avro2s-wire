@@ -97,6 +97,34 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readBytes(): Bytes = readFixed(length(limits.maxBytesLength, "bytes"))
 
+  override def readStringAsBytes(): Bytes =
+    val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted string/bytes")
+    validateUtf8(position, size)
+    val result = Bytes.unsafeWrap(Arrays.copyOfRange(bytes, position, position + size))
+    position += size
+    result
+
+  override def readBytesAsString(): String =
+    val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted bytes/string")
+    validateUtf8(position, size)
+    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
+    position += size
+    result
+
+  override def skipString(): Unit =
+    val size = length(limits.maxStringBytes, "string")
+    validateUtf8(position, size)
+    position += size
+
+  override def skipBytes(): Unit =
+    val size = length(limits.maxBytesLength, "bytes")
+    position += size
+
+  override def skipFixed(size: Int): Unit =
+    if size < 0 || size > limits.maxBytesLength then fail(s"Invalid fixed size $size")
+    requireAvailable(size)
+    position += size
+
   override def readFixed(size: Int): Bytes =
     if size < 0 || size > limits.maxBytesLength then fail(s"Invalid fixed size $size")
     requireAvailable(size)

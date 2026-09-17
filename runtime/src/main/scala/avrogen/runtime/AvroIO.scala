@@ -10,6 +10,20 @@ trait AvroInput:
   def readString(): String
   def readBytes(): Bytes
   def readFixed(size: Int): Bytes
+  /** Skip APIs allow schema resolution to discard fields without constructing their values. */
+  def skipString(): Unit = { readString(); () }
+  def skipBytes(): Unit = { readBytes(); () }
+  def skipFixed(size: Int): Unit = { readFixed(size); () }
+  /** Schema promotions. Native inputs enforce both source and destination byte limits. */
+  def readStringAsBytes(): Bytes =
+    Bytes.unsafeWrap(readString().getBytes(java.nio.charset.StandardCharsets.UTF_8))
+  def readBytesAsString(): String =
+    val decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+      .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+      .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+    try decoder.decode(java.nio.ByteBuffer.wrap(readBytes().unsafeArray)).toString
+    catch case _: java.nio.charset.CharacterCodingException =>
+      throw new AvroDecodingException("Invalid UTF-8 in bytes-to-string promotion")
   def readEnum(): Int
   def readIndex(): Int
   def readArrayStart(): Long
@@ -44,6 +58,17 @@ trait AvroCodec[A]:
   def schemaJson: String
   def read(in: AvroInput): A
   def write(value: A, out: AvroOutput): Unit
+
+  /** Construction hook for optional schema resolution. Matching-schema reads do not use it.
+    * Records receive reader-ordered fields; enums receive their ordinal; fixed types receive
+    * their decoded underlying value. Generated implementations construct the final model.
+    */
+  def construct(values: Array[Any]): A =
+    throw new UnsupportedOperationException("This codec does not provide schema-resolution construction")
+
+  /** Lazily looks up a reachable named codec, so recursive models do not initialise recursively. */
+  def namedCodec(fullName: String): AvroCodec[?] =
+    throw new IllegalArgumentException(s"No generated codec for named schema: $fullName")
 
   final def encode(value: A): Array[Byte] =
     val out = new BinaryOutput()

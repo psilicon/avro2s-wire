@@ -9,7 +9,7 @@ val testSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(runtime, compiler, javaInterop, fixtures, benchmarks)
+  .aggregate(runtime, compiler, javaInterop, resolution, fixtures, benchmarks)
   .settings(name := "avrogen", publish / skip := true)
 
 lazy val runtime = (project in file("runtime"))
@@ -32,8 +32,21 @@ lazy val javaInterop = (project in file("java-interop"))
     libraryDependencies += "org.apache.avro" % "avro" % avroVersion
   )
 
+// Schema evolution is optional: generated matching-schema codecs still need only runtime.
+// Jackson parses schema JSON here; Apache Avro is used only as an independent test oracle.
+lazy val resolution = (project in file("resolution"))
+  .dependsOn(runtime)
+  .settings(testSettings)
+  .settings(
+    name := "avrogen-resolution",
+    libraryDependencies ++= Seq(
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.20.0",
+      "org.apache.avro" % "avro" % avroVersion % Test
+    )
+  )
+
 lazy val fixtures = (project in file("fixtures"))
-  .dependsOn(runtime, javaInterop % "test->compile")
+  .dependsOn(runtime, javaInterop % "test->compile", resolution % "test->compile")
   .settings(testSettings)
   .settings(
     name := "avrogen-fixtures",
@@ -54,7 +67,7 @@ lazy val fixtures = (project in file("fixtures"))
   )
 
 lazy val benchmarks = (project in file("benchmarks"))
-  .dependsOn(fixtures, javaInterop)
+  .dependsOn(fixtures, javaInterop, resolution)
   .enablePlugins(JmhPlugin)
   .settings(testSettings)
   .settings(name := "avrogen-benchmarks", publish / skip := true)

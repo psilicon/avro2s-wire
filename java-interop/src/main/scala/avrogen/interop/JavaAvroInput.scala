@@ -17,6 +17,11 @@ final class JavaAvroInput(decoder: Decoder) extends AvroInput:
   override def readFloat(): Float = decoder.readFloat()
   override def readDouble(): Double = decoder.readDouble()
   override def readString(): String = decoder.readString()
+  override def skipString(): Unit = decoder.skipString()
+  override def skipBytes(): Unit = decoder.skipBytes()
+  override def skipFixed(size: Int): Unit =
+    require(size >= 0, "Fixed size must be non-negative")
+    decoder.skipFixed(size)
 
   /** Copies only the returned buffer's remaining bytes into owned storage. */
   override def readBytes(): Bytes =

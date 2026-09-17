@@ -1,0 +1,1 @@
+{"type":"record","name":"UnionOrder","namespace":"avrogen.fixtures.unions","fields":[{"name":"value","type":["int","string"]}]}
