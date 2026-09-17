@@ -1,0 +1,19 @@
+{
+  "type":"record", "name":"UnionValues", "namespace":"avrogen.fixtures.unions",
+  "fields":[
+    {"name":"simple","type":["string","int"]},
+    {"name":"numbers","type":["double","long","int","float","boolean"]},
+    {"name":"nullable","type":["long","null","string"]},
+    {"name":"containers","type":[{"type":"array","items":["int","string"]},{"type":"map","values":["null","long","string"]}]},
+    {"name":"named","type":[
+      {"type":"record","name":"UnionLeft","fields":[{"name":"id","type":"int"}]},
+      {"type":"record","name":"UnionRight","fields":[{"name":"text","type":"string"}]},
+      {"type":"enum","name":"UnionFlag","symbols":["A","B"]},
+      {"type":"fixed","name":"UnionFixed","size":2},
+      "bytes"
+    ]},
+    {"name":"single","type":["int"]},
+    {"name":"nullOnly","type":["null"]},
+    {"name":"recursive","type":["null","UnionValues","string"]}
+  ]
+}

@@ -39,19 +39,48 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(sources.head.content.contains("_root_.example.Z.codec.read(in)"))
   }
 
-  test("unsupported unions and logical types fail with useful field locations") {
-    val union = intercept[GenerationException] {
-      generate("""{"type":"record","name":"R","fields":[{"name":"item","type":["string","int"]}]}""")
-    }
-    assert(union.getMessage.contains("R.item: only two-branch nullable unions"))
+  test("invalid and unknown logical types fail with useful field locations") {
     val logical = intercept[GenerationException] {
-      generate("""{"type":"record","name":"R","fields":[{"name":"at","type":{"type":"long","logicalType":"timestamp-millis"}}]}""")
+      generate("""{"type":"record","name":"R","fields":[{"name":"at","type":{"type":"int","logicalType":"timestamp-millis"}}]}""")
     }
-    assert(logical.getMessage.contains("R.at: logical type 'timestamp-millis'"))
+    assert(logical.getMessage.contains("R.at: invalid logical type 'timestamp-millis'"))
     val unknown = intercept[GenerationException] {
       generate("""{"type":"fixed","name":"Unknown","size":16,"logicalType":"custom-type"}""")
     }
     assert(unknown.getMessage.contains("custom-type"))
+  }
+
+  test("general unions retain Scala union types and tag only colliding logical representations") {
+    val source = generate("""{"type":"record","name":"R","fields":[{"name":"value","type":["string","int"]},{"name":"optional","type":["long","null","string"]},{"name":"single","type":["int"]}]}""").head.content
+    assert(source.contains("value: _root_.java.lang.String | _root_.scala.Int"))
+    assert(source.contains("optional: _root_.scala.Option[_root_.scala.Long | _root_.java.lang.String]"))
+    assert(source.contains("single: _root_.scala.Int"))
+    assert(!source.contains("sealed trait"))
+    val collision = generate("""{"type":"record","name":"R","fields":[{"name":"time","type":[{"type":"int","logicalType":"time-millis"},{"type":"long","logicalType":"time-micros"}]}]}""").head.content
+    assert(collision.contains("time: _root_.avrogen.runtime.TimeMillis | _root_.avrogen.runtime.TimeMicros"))
+    assert(collision.contains("new _root_.avrogen.runtime.TimeMillis("))
+    val plain = generate("""{"type":"record","name":"R","fields":[{"name":"time","type":{"type":"int","logicalType":"time-millis"}}]}""").head.content
+    assert(plain.contains("time: _root_.java.time.LocalTime"))
+  }
+
+  test("logical fixed types remain nominal to distinguish union branches") {
+    val sources = generate("""{"type":"record","name":"R","fields":[{"name":"id","type":[{"type":"string","logicalType":"uuid"},{"type":"fixed","name":"BinaryUuid","size":16,"logicalType":"uuid"}]}]}""")
+    val record = sources.find(_.relativePath == "R.scala").get.content
+    val fixed = sources.find(_.relativePath == "BinaryUuid.scala").get.content
+    assert(record.contains("_root_.java.util.UUID | BinaryUuid"))
+    assert(fixed.contains("final case class BinaryUuid(value: _root_.java.util.UUID)"))
+    assert(fixed.contains("LogicalValues.readFixedUuid(in)"))
+    assert(fixed.contains("LogicalValues.writeFixedUuid(value.value, out)"))
+  }
+
+  test("named codec factories include reachable definitions without inaccessible parents") {
+    val sources = generate("""{"type":"record","name":"Parent","fields":[{"name":"child","type":{"type":"record","name":"Child","namespace":"p","fields":[]}}]}""")
+    val parent = sources.find(_.relativePath == "Parent.scala").get.content
+    val child = sources.find(_.relativePath == "p/Child.scala").get.content
+    assert(parent.contains("case \"Parent\" => Parent.codec"))
+    assert(parent.contains("case \"p.Child\" => _root_.p.Child.codec"))
+    assert(!child.contains("Parent.codec"))
+    assert(parent.contains("override def construct(values:"))
   }
 
   test("keywords are escaped and inherited members are renamed without collisions") {
@@ -189,7 +218,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
     withDirectory { directory =>
       val inputs = Files.createDirectory(directory.resolve("schemas"))
       Files.writeString(inputs.resolve("good.avsc"), """{"type":"record","name":"Good","fields":[]}""")
-      Files.writeString(inputs.resolve("unsupported.avsc"), """{"type":"record","name":"Unsupported","fields":[{"name":"value","type":["int","string"]}]}""")
+      Files.writeString(inputs.resolve("unsupported.avsc"), """{"type":"record","name":"Unsupported","fields":[{"name":"value","type":{"type":"bytes","logicalType":"big-decimal"}}]}""")
       val output = directory.resolve("generated")
       intercept[GenerationException](SchemaCompiler.generate(inputs, output))
       assert(!Files.exists(output))

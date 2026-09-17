@@ -1,0 +1,125 @@
+{
+  "type": "record",
+  "name": "LogicalRecord",
+  "namespace": "avrogen.fixtures.logical",
+  "fields": [
+    {
+      "name": "day",
+      "type": {
+        "type": "int",
+        "logicalType": "date"
+      }
+    },
+    {
+      "name": "timeMs",
+      "type": {
+        "type": "int",
+        "logicalType": "time-millis"
+      }
+    },
+    {
+      "name": "timeUs",
+      "type": {
+        "type": "long",
+        "logicalType": "time-micros"
+      }
+    },
+    {
+      "name": "timestampMs",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "timestampUs",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "timestampNs",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-nanos"
+      }
+    },
+    {
+      "name": "localMs",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-millis"
+      }
+    },
+    {
+      "name": "localUs",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-micros"
+      }
+    },
+    {
+      "name": "localNs",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-nanos"
+      }
+    },
+    {
+      "name": "uuid",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "binaryUuid",
+      "type": {
+        "type": "fixed",
+        "logicalType": "uuid",
+        "name": "WireUuid",
+        "size": 16
+      }
+    },
+    {
+      "name": "amount",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 12,
+        "scale": 2
+      }
+    },
+    {
+      "name": "fixedAmount",
+      "type": {
+        "type": "fixed",
+        "logicalType": "decimal",
+        "name": "WireAmount",
+        "size": 8,
+        "precision": 18,
+        "scale": 4
+      }
+    },
+    {
+      "name": "duration",
+      "type": {
+        "type": "fixed",
+        "logicalType": "duration",
+        "name": "WireDuration",
+        "size": 12
+      }
+    },
+    {
+      "name": "identifier",
+      "type": [
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        },
+        "WireUuid"
+      ]
+    }
+  ]
+}

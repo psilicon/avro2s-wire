@@ -1,0 +1,11 @@
+{
+  "type":"record", "name":"UnionLogicals", "namespace":"avrogen.fixtures.unions",
+  "fields":[
+    {"name":"time","type":[{"type":"int","logicalType":"time-millis"},{"type":"long","logicalType":"time-micros"}]},
+    {"name":"optional","type":[{"type":"long","logicalType":"time-micros"},"null",{"type":"int","logicalType":"time-millis"}]},
+    {"name":"amount","type":[
+      {"type":"bytes","logicalType":"decimal","precision":12,"scale":3},
+      {"type":"fixed","name":"UnionDecimal","size":8,"logicalType":"decimal","precision":15,"scale":3}
+    ]}
+  ]
+}

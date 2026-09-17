@@ -1,0 +1,93 @@
+{
+  "type": "record",
+  "name": "Account",
+  "namespace": "avrogen.fixtures.evolution.v2",
+  "aliases": [
+    "avrogen.fixtures.evolution.v1.Account"
+  ],
+  "fields": [
+    {
+      "name": "label",
+      "aliases": [
+        "name"
+      ],
+      "type": "string"
+    },
+    {
+      "name": "id",
+      "type": "long"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "State",
+        "aliases": [
+          "avrogen.fixtures.evolution.v1.Status"
+        ],
+        "symbols": [
+          "ACTIVE",
+          "NEW",
+          "UNKNOWN"
+        ],
+        "default": "UNKNOWN"
+      }
+    },
+    {
+      "name": "attributes",
+      "type": {
+        "type": "map",
+        "values": "double"
+      }
+    },
+    {
+      "name": "choice",
+      "type": [
+        "string",
+        "long",
+        "null"
+      ]
+    },
+    {
+      "name": "child",
+      "type": [
+        "Account",
+        "null"
+      ]
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "name": "tags",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [
+        "fresh"
+      ]
+    },
+    {
+      "name": "notes",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {
+        "created": "by reader"
+      }
+    },
+    {
+      "name": "stamp",
+      "type": {
+        "type": "fixed",
+        "name": "Stamp",
+        "size": 2
+      },
+      "default": "\u0000\u00ff"
+    }
+  ]
+}
