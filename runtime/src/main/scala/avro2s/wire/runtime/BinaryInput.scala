@@ -2,6 +2,13 @@ package avro2s.wire.runtime
 
 import java.nio.charset.StandardCharsets
 import java.util.Arrays
+import java.lang.invoke.{MethodHandles, VarHandle}
+import java.nio.ByteOrder
+
+/** Plain byte-array views permit unaligned access and use public JDK APIs. */
+private[runtime] object LittleEndianNumbers:
+  val ints: VarHandle = MethodHandles.byteArrayViewVarHandle(classOf[Array[Int]], ByteOrder.LITTLE_ENDIAN)
+  val longs: VarHandle = MethodHandles.byteArrayViewVarHandle(classOf[Array[Long]], ByteOrder.LITTLE_ENDIAN)
 
 /** Reads a caller-owned array without copying it. Do not mutate it during decoding.
   * Returned Bytes values own separate arrays. Instances are not thread-safe.
@@ -41,8 +48,45 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     case _ => fail("Boolean must be encoded as 0 or 1")
 
   override def readInt(): Int =
-    var bits = 0
-    var shift = 0
+    val offset = position
+    if offset >= boundary then fail("Truncated binary data or collection block")
+    val first = bytes(offset).toInt
+    if first >= 0 then
+      position = offset + 1
+      (first >>> 1) ^ -(first & 1)
+    else if boundary - offset >= 5 then readIntMultiple(first, offset)
+    else
+      position = offset + 1
+      readIntTail(first)
+
+  /** The caller checks the complete maximum width, including sized-block bounds. */
+  private def readIntMultiple(first: Int, offset: Int): Int =
+    var bits = first & 0x7f
+    var current = bytes(offset + 1).toInt
+    bits |= (current & 0x7f) << 7
+    var size = 2
+    if current < 0 then
+      current = bytes(offset + 2).toInt
+      bits |= (current & 0x7f) << 14
+      size = 3
+      if current < 0 then
+        current = bytes(offset + 3).toInt
+        bits |= (current & 0x7f) << 21
+        size = 4
+        if current < 0 then
+          current = bytes(offset + 4).toInt
+          if (current & 0xf0) != 0 then
+            position = offset + 5
+            fail("Invalid int varint")
+          bits |= current << 28
+          size = 5
+    position = offset + size
+    (bits >>> 1) ^ -(bits & 1)
+
+  /** Near an input/block boundary each remaining byte must be checked separately. */
+  private def readIntTail(first: Int): Int =
+    var bits = first & 0x7f
+    var shift = 7
     while shift < 35 do
       val current = byte()
       if shift == 28 && (current & 0xf0) != 0 then fail("Invalid int varint")
@@ -52,8 +96,63 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     fail("Invalid int varint")
 
   override def readLong(): Long =
-    var bits = 0L
-    var shift = 0
+    val offset = position
+    if offset >= boundary then fail("Truncated binary data or collection block")
+    val first = bytes(offset).toInt
+    if first >= 0 then
+      position = offset + 1
+      ((first >>> 1) ^ -(first & 1)).toLong
+    else if boundary - offset >= 10 then readLongMultiple(first, offset)
+    else
+      position = offset + 1
+      readLongTail(first)
+
+  private def readLongMultiple(first: Int, offset: Int): Long =
+    var bits = (first & 0x7f).toLong
+    var current = bytes(offset + 1).toInt
+    bits |= (current & 0x7f).toLong << 7
+    var size = 2
+    if current < 0 then
+      current = bytes(offset + 2).toInt
+      bits |= (current & 0x7f).toLong << 14
+      size = 3
+      if current < 0 then
+        current = bytes(offset + 3).toInt
+        bits |= (current & 0x7f).toLong << 21
+        size = 4
+        if current < 0 then
+          current = bytes(offset + 4).toInt
+          bits |= (current & 0x7f).toLong << 28
+          size = 5
+          if current < 0 then
+            current = bytes(offset + 5).toInt
+            bits |= (current & 0x7f).toLong << 35
+            size = 6
+            if current < 0 then
+              current = bytes(offset + 6).toInt
+              bits |= (current & 0x7f).toLong << 42
+              size = 7
+              if current < 0 then
+                current = bytes(offset + 7).toInt
+                bits |= (current & 0x7f).toLong << 49
+                size = 8
+                if current < 0 then
+                  current = bytes(offset + 8).toInt
+                  bits |= (current & 0x7f).toLong << 56
+                  size = 9
+                  if current < 0 then
+                    current = bytes(offset + 9).toInt
+                    if (current & 0xfe) != 0 then
+                      position = offset + 10
+                      fail("Invalid long varint")
+                    bits |= current.toLong << 63
+                    size = 10
+    position = offset + size
+    (bits >>> 1) ^ -(bits & 1L)
+
+  private def readLongTail(first: Int): Long =
+    var bits = (first & 0x7f).toLong
+    var shift = 7
     while shift < 70 do
       val current = byte()
       if shift == 63 && (current & 0xfe) != 0 then fail("Invalid long varint")
@@ -64,22 +163,14 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readFloat(): Float =
     requireAvailable(4)
-    var bits = 0
-    var shift = 0
-    while shift < 32 do
-      bits |= (bytes(position) & 0xff) << shift
-      position += 1
-      shift += 8
+    val bits = ByteArrayAccess.getIntLE(bytes, position)
+    position += 4
     java.lang.Float.intBitsToFloat(bits)
 
   override def readDouble(): Double =
     requireAvailable(8)
-    var bits = 0L
-    var shift = 0
-    while shift < 64 do
-      bits |= (bytes(position) & 0xffL) << shift
-      position += 1
-      shift += 8
+    val bits = ByteArrayAccess.getLongLE(bytes, position)
+    position += 8
     java.lang.Double.longBitsToDouble(bits)
 
   private def length(maximum: Int, kind: String): Int =
@@ -90,9 +181,9 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readString(): String =
     val size = length(limits.maxStringBytes, "string")
-    val ascii = validateUtf8(position, size)
-    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
-    val result = new String(bytes, position, size, charset)
+    if size == 0 then return ""
+    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
+    if StrictUtf8.mayHaveDecodingReplacement(result) then validateUtf8(position, size)
     position += size
     result
 
@@ -107,9 +198,9 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readBytesAsString(): String =
     val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted bytes/string")
-    val ascii = validateUtf8(position, size)
-    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
-    val result = new String(bytes, position, size, charset)
+    if size == 0 then return ""
+    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
+    if StrictUtf8.mayHaveDecodingReplacement(result) then validateUtf8(position, size)
     position += size
     result
 

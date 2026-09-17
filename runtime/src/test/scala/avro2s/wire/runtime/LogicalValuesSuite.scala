@@ -167,6 +167,30 @@ final class LogicalValuesSuite extends FunSuite:
     intercept[AvroDecodingException](LogicalValues.uuidFromFixed(Bytes.empty))
   }
 
+  test("canonical UUID parsing preserves every bit and rejects non-ASCII hex at every position") {
+    val random = new scala.util.Random(20260917L)
+    val values = Vector(new UUID(0L, 0L), new UUID(-1L, -1L)) ++
+      Vector.tabulate(64)(bit => new UUID(1L << bit, 0L)) ++
+      Vector.tabulate(64)(bit => new UUID(0L, 1L << bit)) ++
+      Vector.fill(128)(new UUID(random.nextLong(), random.nextLong()))
+    values.foreach { expected =>
+      val text = expected.toString
+      val mixedCase = text.zipWithIndex.map((ch, index) => if index % 2 == 0 then ch.toUpper else ch).mkString
+      assertEquals(LogicalValues.uuidFromString(text), expected)
+      assertEquals(LogicalValues.uuidFromString(mixedCase), expected)
+    }
+    val canonical = "00112233-4455-6677-8899-aabbccddeeff"
+    val separators = Set(8, 13, 18, 23)
+    canonical.indices.foreach { index =>
+      val invalid = if separators(index) then Vector('0', '_', '\u2010')
+        else Vector('/', ':', '@', 'G', 'g', '`', '\uff10', '\u0660', '\ud800', '-')
+      invalid.foreach { character =>
+        intercept[AvroDecodingException](LogicalValues.uuidFromString(canonical.updated(index, character)))
+      }
+    }
+    intercept[AvroDecodingException](LogicalValues.uuidFromString(null))
+  }
+
   test("decimal uses signed big-endian unscaled integers and sign-extends fixed output") {
     List(BigDecimal("123.45") -> List(0x30, 0x39), BigDecimal("-123.45") -> List(0xcf, 0xc7)).foreach { (value, expected) =>
       val bytes = encoded(out => LogicalValues.writeDecimal(value, out, 6, 2))

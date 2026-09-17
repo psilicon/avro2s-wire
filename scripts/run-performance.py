@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 PREFIX = "avro2s.wire.benchmarks."
 MATRIX = {
     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
-    "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long"]},
+    "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
+                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"]},
     "Bytes": {"byteCount": ["0", "32", "4096"]},
     "Collections": {"collectionSize": ["0", "4", "128"]},
     "NestedUnion": {"depth": ["0", "1", "4"]},
@@ -27,10 +28,17 @@ MATRIX = {
     "NestedComparison": {},
     "LogicalComparison": {},
     "DecimalComparison": {},
+    "DecodedString": {"profile": ["string-ascii", "string-unicode", "collections-full"]},
 }
 
 
 def groups(profile):
+    if profile == "decoded-strings":
+        return [("DecodedString", ["nativeRead", "javaPrimitivesRead", "javaGenericStringRead",
+                                    "javaSpecificStringRead", "avro2sRead"], {})]
+    if profile == "strings":
+        return [("String", [engine + op for engine in ["native", "javaPrimitives"]
+                            for op in ["Read", "Write", "Encode", "Decode"]], {})]
     if profile == "pilot":
         return [(name, ["nativeRead", "nativeWrite"], {}) for name in list(MATRIX)[:5]]
     if profile == "focused":
@@ -76,7 +84,7 @@ def main():
     parser.add_argument("--java", type=Path, required=True, help="Absolute fork JVM executable")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--label", required=True, help="Unique filename prefix")
-    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison"], required=True)
+    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison", "decoded-strings", "strings"], required=True)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--filter", default=".*", help="Regex narrowing the profile's full benchmark names")
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUES", help="Comma-separated parameter override; repeatable")

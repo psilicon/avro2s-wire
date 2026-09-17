@@ -5,6 +5,24 @@ import org.apache.avro.Schema
 import munit.FunSuite
 
 final class ComparisonBenchmarkSuite extends FunSuite:
+  test("explicit String readers materialize text without changing Utf8 baselines") {
+    Vector("string-ascii", "string-unicode", "collections-full").foreach { profile =>
+      ComparisonFixtures(profile).verifyStringReaders()
+    }
+    Vector("string-ascii", "string-unicode").foreach { profile =>
+      val workload = ComparisonFixtures(profile)
+      val expected = workload.expected.asInstanceOf[Product].productElement(0)
+      Vector(workload.javaGenericStringRead().get(0), workload.javaSpecificStringRead().get(0)).foreach { value =>
+        assert(value.isInstanceOf[String])
+        assertEquals(value, expected)
+      }
+      assert(workload.javaGenericRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
+      assert(workload.javaSpecificRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
+      assert(workload.javaSpecificStringRead() ne workload.javaSpecificStringRead())
+      assert(workload.javaGenericStringRead() ne workload.javaGenericStringRead())
+    }
+  }
+
   test("every supported comparison writer is read by every independent reader") {
     val workloads = ComparisonFixtures.profiles.map(ComparisonFixtures.apply) ++
       Vector(ComparisonFixtures.nested(), ComparisonFixtures.logical(), ComparisonFixtures.decimal())

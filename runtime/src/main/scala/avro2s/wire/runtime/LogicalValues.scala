@@ -103,14 +103,28 @@ object LogicalValues:
 
   def uuidFromString(value: String): UUID =
     if value == null || value.length != 36 then invalid("UUID must have the canonical 8-4-4-4-12 hexadecimal form")
-    var index = 0
-    while index < value.length do
-      val ch = value.charAt(index)
-      val separator = index == 8 || index == 13 || index == 18 || index == 23
-      val hex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
-      if (separator && ch != '-') || (!separator && !hex) then invalid("Invalid UUID string")
+    if value.charAt(8) != '-' || value.charAt(13) != '-' || value.charAt(18) != '-' || value.charAt(23) != '-' then
+      invalid("Invalid UUID string")
+    // Validate and accumulate each ASCII hex digit once. UUID.fromString is
+    // intentionally more permissive, so validating then calling it would parse
+    // the same canonical representation twice.
+    val most = (uuidHex(value, 0, 8) << 32) | (uuidHex(value, 9, 13) << 16) | uuidHex(value, 14, 18)
+    val least = (uuidHex(value, 19, 23) << 48) | uuidHex(value, 24, 36)
+    new UUID(most, least)
+
+  private def uuidHex(value: String, start: Int, end: Int): Long =
+    var result = 0L
+    var index = start
+    while index < end do
+      val ch = value.charAt(index).toInt
+      val digit = if ch >= '0' && ch <= '9' then ch - '0'
+        else
+          val lower = ch | 0x20
+          if lower >= 'a' && lower <= 'f' then lower - 'a' + 10
+          else invalid("Invalid UUID string")
+      result = (result << 4) | digit.toLong
       index += 1
-    UUID.fromString(value)
+    result
 
   def uuidFromFixed(value: Bytes): UUID =
     if value.size != 16 then invalid("A fixed UUID requires exactly 16 bytes")

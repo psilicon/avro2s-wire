@@ -102,7 +102,8 @@ final class CodecWorkload[A](
 object CodecWorkloads:
   val integerDistributions = Vector("one-byte", "medium", "wide", "mixed")
   val stringProfiles = Vector("empty", "ascii-short", "ascii-long", "multilingual-short",
-    "multilingual-long", "emoji-short", "emoji-long")
+    "multilingual-long", "emoji-short", "emoji-long", "latin1-short", "latin1-long",
+    "question-short", "question-long", "replacement-short", "replacement-long")
   val integerCount = 1024
 
   def ints(distribution: String): Vector[Int] =
@@ -159,6 +160,12 @@ object CodecWorkloads:
         case "multilingual-long" => ("λé漢字", 4096)
         case "emoji-short" => ("😀🚀🎉🌍", 32)
         case "emoji-long" => ("😀🚀🎉🌍", 4096)
+        case "latin1-short" => ("éñüç", 32)
+        case "latin1-long" => ("éñüç", 4096)
+        case "question-short" => ("Ready?Go", 32)
+        case "question-long" => ("Ready?Go", 4096)
+        case "replacement-short" => ("a\ufffdλ😀", 32)
+        case "replacement-long" => ("a\ufffdλ😀", 4096)
         case other => throw new IllegalArgumentException(s"Unknown string profile: $other")
       unit.repeat(codePoints / unit.codePointCount(0, unit.length))
 

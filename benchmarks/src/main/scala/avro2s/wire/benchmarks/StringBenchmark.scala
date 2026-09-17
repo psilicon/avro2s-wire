@@ -10,7 +10,8 @@ import org.openjdk.jmh.annotations.*
 @Measurement(iterations = 5, time = 1)
 @Fork(2)
 class StringBenchmark:
-  @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long"))
+  @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
+    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"))
   var profile: String = "empty"
 
   private var workload: CodecWorkload[?] = null
