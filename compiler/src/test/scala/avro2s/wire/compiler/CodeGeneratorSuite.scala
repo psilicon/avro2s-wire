@@ -33,6 +33,24 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(content.contains("Invalid nullable union index"))
   }
 
+  test("only physical int and long arrays select whole-array output hooks") {
+    val source = generate("""{"type":"record","name":"BulkArrays","fields":[
+      {"name":"ints","type":{"type":"array","items":"int"}},
+      {"name":"longs","type":{"type":"array","items":"long"}},
+      {"name":"optional","type":["null",{"type":"array","items":"int"}]},
+      {"name":"nested","type":{"type":"map","values":{"type":"array","items":"long"}}},
+      {"name":"dates","type":{"type":"array","items":{"type":"int","logicalType":"date"}}},
+      {"name":"nullableItems","type":{"type":"array","items":["null","int"]}},
+      {"name":"floats","type":{"type":"array","items":"float"}}
+    ]}""").head.content
+    assert(source.contains("out.writeIntArray(value.ints)"))
+    assert(source.contains("out.writeLongArray(value.longs)"))
+    assertEquals("out.writeIntArray\\(".r.findAllIn(source).size, 2)
+    assertEquals("out.writeLongArray\\(".r.findAllIn(source).size, 2)
+    assert(source.contains("LogicalValues.writeDate("))
+    assert(source.contains("out.writeFloat("))
+  }
+
   test("nested named schemas are emitted once in stable path order") {
     val sources = generate("""{"type":"record","name":"Z","namespace":"example","fields":[{"name":"child","type":{"type":"record","name":"A","fields":[{"name":"parent","type":["null","Z"]}]}},{"name":"other","type":"A"}]}""")
     assertEquals(sources.map(_.relativePath), Vector("example/A.scala", "example/Z.scala"))

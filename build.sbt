@@ -14,7 +14,10 @@ lazy val root = (project in file("."))
 
 lazy val runtime = (project in file("runtime"))
   .settings(testSettings)
-  .settings(name := "avro2s-wire-runtime")
+  .settings(
+    name := "avro2s-wire-runtime",
+    Compile / javacOptions ++= Seq("--release", "11")
+  )
 
 lazy val compiler = (project in file("compiler"))
   .settings(testSettings)

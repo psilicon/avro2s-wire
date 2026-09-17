@@ -24,99 +24,301 @@ final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
     position += 1
 
   override def writeBoolean(value: Boolean): Unit =
-    reserve(1)
+    if position == buffer.length then reserve(1)
     put(if value then 1 else 0)
 
   override def writeInt(value: Int): Unit =
+    val bits = (value << 1) ^ (value >> 31)
+    if (bits & ~0x7f) == 0 then
+      if position == buffer.length then reserve(1)
+      buffer(position) = bits.toByte
+      position += 1
+    else writeIntMultiple(bits)
+
+  private def writeIntMultiple(encoded: Int): Unit =
     if buffer.length - position < 5 then reserve(5)
     val bytes = buffer
-    var offset = position
-    var bits = (value << 1) ^ (value >> 31)
-    while (bits & ~0x7f) != 0 do
-      bytes(offset) = ((bits & 0x7f) | 0x80).toByte
-      offset += 1
+    val offset = position
+    bytes(offset) = (encoded | 0x80).toByte
+    var bits = encoded >>> 7
+    if (bits & ~0x7f) == 0 then
+      bytes(offset + 1) = bits.toByte
+      position = offset + 2
+    else
+      bytes(offset + 1) = (bits | 0x80).toByte
       bits = bits >>> 7
-    bytes(offset) = bits.toByte
-    position = offset + 1
+      if (bits & ~0x7f) == 0 then
+        bytes(offset + 2) = bits.toByte
+        position = offset + 3
+      else
+        bytes(offset + 2) = (bits | 0x80).toByte
+        bits = bits >>> 7
+        if (bits & ~0x7f) == 0 then
+          bytes(offset + 3) = bits.toByte
+          position = offset + 4
+        else
+          bytes(offset + 3) = (bits | 0x80).toByte
+          bytes(offset + 4) = (bits >>> 7).toByte
+          position = offset + 5
 
   override def writeLong(value: Long): Unit =
+    val bits = (value << 1) ^ (value >> 63)
+    if (bits & ~0x7fL) == 0 then
+      if position == buffer.length then reserve(1)
+      buffer(position) = bits.toByte
+      position += 1
+    else writeLongMultiple(bits)
+
+  private def writeLongMultiple(encoded: Long): Unit =
     if buffer.length - position < 10 then reserve(10)
     val bytes = buffer
-    var offset = position
-    var bits = (value << 1) ^ (value >> 63)
-    while (bits & ~0x7fL) != 0 do
-      bytes(offset) = ((bits & 0x7fL) | 0x80L).toByte
-      offset += 1
+    val offset = position
+    bytes(offset) = (encoded.toInt | 0x80).toByte
+    var bits = encoded >>> 7
+    if (bits & ~0x7fL) == 0 then
+      bytes(offset + 1) = bits.toByte
+      position = offset + 2
+    else
+      bytes(offset + 1) = (bits.toInt | 0x80).toByte
       bits = bits >>> 7
-    bytes(offset) = bits.toByte
-    position = offset + 1
+      if (bits & ~0x7fL) == 0 then
+        bytes(offset + 2) = bits.toByte
+        position = offset + 3
+      else
+        bytes(offset + 2) = (bits.toInt | 0x80).toByte
+        bits = bits >>> 7
+        if (bits & ~0x7fL) == 0 then
+          bytes(offset + 3) = bits.toByte
+          position = offset + 4
+        else
+          bytes(offset + 3) = (bits.toInt | 0x80).toByte
+          bits = bits >>> 7
+          if (bits & ~0x7fL) == 0 then
+            bytes(offset + 4) = bits.toByte
+            position = offset + 5
+          else
+            bytes(offset + 4) = (bits.toInt | 0x80).toByte
+            bits = bits >>> 7
+            if (bits & ~0x7fL) == 0 then
+              bytes(offset + 5) = bits.toByte
+              position = offset + 6
+            else
+              bytes(offset + 5) = (bits.toInt | 0x80).toByte
+              bits = bits >>> 7
+              if (bits & ~0x7fL) == 0 then
+                bytes(offset + 6) = bits.toByte
+                position = offset + 7
+              else
+                bytes(offset + 6) = (bits.toInt | 0x80).toByte
+                bits = bits >>> 7
+                if (bits & ~0x7fL) == 0 then
+                  bytes(offset + 7) = bits.toByte
+                  position = offset + 8
+                else
+                  bytes(offset + 7) = (bits.toInt | 0x80).toByte
+                  bits = bits >>> 7
+                  if (bits & ~0x7fL) == 0 then
+                    bytes(offset + 8) = bits.toByte
+                    position = offset + 9
+                  else
+                    bytes(offset + 8) = (bits.toInt | 0x80).toByte
+                    bytes(offset + 9) = (bits >>> 7).toByte
+                    position = offset + 10
+
+  /** Grow at a bulk loop's current cursor, keeping earlier bytes visible to reserve. */
+  private def growBulk(offset: Int, count: Int): Array[Byte] =
+    position = offset
+    reserve(count)
+    buffer
+
+  override def writeIntArray(values: Vector[Int]): Unit =
+    writeArrayStart(values.size)
+    var bytes = buffer
+    var offset = position
+    val iterator = values.iterator
+    while iterator.hasNext do
+      val value = iterator.next()
+      val encoded = (value << 1) ^ (value >> 31)
+      if (encoded & ~0x7f) == 0 then
+        if offset == bytes.length then bytes = growBulk(offset, 1)
+        bytes(offset) = encoded.toByte
+        offset += 1
+      else
+        if bytes.length - offset < 5 then
+          // This slow capacity check reserves only this value's actual width,
+          // never values.size * 5 (nor five bytes when only two are needed).
+          val width = (38 - java.lang.Integer.numberOfLeadingZeros(encoded)) / 7
+          if bytes.length - offset < width then bytes = growBulk(offset, width)
+        bytes(offset) = (encoded | 0x80).toByte
+        var bits = encoded >>> 7
+        if (bits & ~0x7f) == 0 then
+          bytes(offset + 1) = bits.toByte
+          offset += 2
+        else
+          bytes(offset + 1) = (bits | 0x80).toByte
+          bits = bits >>> 7
+          if (bits & ~0x7f) == 0 then
+            bytes(offset + 2) = bits.toByte
+            offset += 3
+          else
+            bytes(offset + 2) = (bits | 0x80).toByte
+            bits = bits >>> 7
+            if (bits & ~0x7f) == 0 then
+              bytes(offset + 3) = bits.toByte
+              offset += 4
+            else
+              bytes(offset + 3) = (bits | 0x80).toByte
+              bytes(offset + 4) = (bits >>> 7).toByte
+              offset += 5
+    position = offset
+    writeArrayEnd()
+
+  override def writeLongArray(values: Vector[Long]): Unit =
+    writeArrayStart(values.size)
+    var bytes = buffer
+    var offset = position
+    val iterator = values.iterator
+    while iterator.hasNext do
+      val value = iterator.next()
+      val encoded = (value << 1) ^ (value >> 63)
+      if (encoded & ~0x7fL) == 0 then
+        if offset == bytes.length then bytes = growBulk(offset, 1)
+        bytes(offset) = encoded.toByte
+        offset += 1
+      else
+        if bytes.length - offset < 10 then
+          val width = (70 - java.lang.Long.numberOfLeadingZeros(encoded)) / 7
+          if bytes.length - offset < width then bytes = growBulk(offset, width)
+        bytes(offset) = (encoded.toInt | 0x80).toByte
+        var bits = encoded >>> 7
+        if (bits & ~0x7fL) == 0 then
+          bytes(offset + 1) = bits.toByte
+          offset += 2
+        else
+          bytes(offset + 1) = (bits.toInt | 0x80).toByte
+          bits = bits >>> 7
+          if (bits & ~0x7fL) == 0 then
+            bytes(offset + 2) = bits.toByte
+            offset += 3
+          else
+            bytes(offset + 2) = (bits.toInt | 0x80).toByte
+            bits = bits >>> 7
+            if (bits & ~0x7fL) == 0 then
+              bytes(offset + 3) = bits.toByte
+              offset += 4
+            else
+              bytes(offset + 3) = (bits.toInt | 0x80).toByte
+              bits = bits >>> 7
+              if (bits & ~0x7fL) == 0 then
+                bytes(offset + 4) = bits.toByte
+                offset += 5
+              else
+                bytes(offset + 4) = (bits.toInt | 0x80).toByte
+                bits = bits >>> 7
+                if (bits & ~0x7fL) == 0 then
+                  bytes(offset + 5) = bits.toByte
+                  offset += 6
+                else
+                  bytes(offset + 5) = (bits.toInt | 0x80).toByte
+                  bits = bits >>> 7
+                  if (bits & ~0x7fL) == 0 then
+                    bytes(offset + 6) = bits.toByte
+                    offset += 7
+                  else
+                    bytes(offset + 6) = (bits.toInt | 0x80).toByte
+                    bits = bits >>> 7
+                    if (bits & ~0x7fL) == 0 then
+                      bytes(offset + 7) = bits.toByte
+                      offset += 8
+                    else
+                      bytes(offset + 7) = (bits.toInt | 0x80).toByte
+                      bits = bits >>> 7
+                      if (bits & ~0x7fL) == 0 then
+                        bytes(offset + 8) = bits.toByte
+                        offset += 9
+                      else
+                        bytes(offset + 8) = (bits.toInt | 0x80).toByte
+                        bytes(offset + 9) = (bits >>> 7).toByte
+                        offset += 10
+    position = offset
+    writeArrayEnd()
 
   override def writeFloat(value: Float): Unit =
-    reserve(4)
+    if buffer.length - position < 4 then reserve(4)
     val bits = java.lang.Float.floatToRawIntBits(value)
-    var shift = 0
-    while shift < 32 do
-      put(bits >>> shift)
-      shift += 8
+    LittleEndianNumbers.ints.set(buffer, position, bits)
+    position += 4
 
   override def writeDouble(value: Double): Unit =
-    reserve(8)
+    if buffer.length - position < 8 then reserve(8)
     val bits = java.lang.Double.doubleToRawLongBits(value)
-    var shift = 0
-    while shift < 64 do
-      put((bits >>> shift).toInt)
-      shift += 8
+    LittleEndianNumbers.longs.set(buffer, position, bits)
+    position += 8
 
-  /** Emits UTF-8 directly, rejecting unpaired UTF-16 surrogates. */
+  /** Rejects unpaired UTF-16 before changing output. Tiny strings avoid a temporary array. */
   override def writeString(value: String): Unit =
+    if value.isEmpty then
+      writeLong(0L)
+    else if value.length <= 16 then writeShortString(value)
+    else writeLongString(value)
+
+  private def writeLongString(value: String): Unit =
+    val bytes = StrictUtf8.encode(value)
+    val headerSize = (39 - java.lang.Integer.numberOfLeadingZeros(bytes.length)) / 7
+    require(bytes.length <= Int.MaxValue - headerSize, "Encoded datum exceeds maximum array size")
+    reserve(bytes.length + headerSize)
+    writeLong(bytes.length.toLong)
+    System.arraycopy(bytes, 0, buffer, position, bytes.length)
+    position += bytes.length
+
+  /** At most 16 UTF-16 units produce at most 48 bytes, hence a one-byte length prefix. */
+  private def writeShortString(value: String): Unit =
+    var encodedLength = 0
     var index = 0
-    while index < value.length && value.charAt(index) < 0x80 do index += 1
-    var encodedLength = index.toLong
     while index < value.length do
-      val ch = value.charAt(index).toInt
-      if ch < 0x80 then encodedLength += 1
-      else if ch < 0x800 then encodedLength += 2
-      else if ch >= 0xd800 && ch <= 0xdbff then
+      val char = value.charAt(index)
+      if char < 0x80 then encodedLength += 1
+      else if char < 0x800 then encodedLength += 2
+      else if Character.isHighSurrogate(char) then
         require(index + 1 < value.length && Character.isLowSurrogate(value.charAt(index + 1)),
           s"Unpaired UTF-16 surrogate at index $index")
         encodedLength += 4
         index += 1
       else
-        require(ch < 0xdc00 || ch > 0xdfff, s"Unpaired UTF-16 surrogate at index $index")
+        require(!Character.isLowSurrogate(char), s"Unpaired UTF-16 surrogate at index $index")
         encodedLength += 3
       index += 1
-    require(encodedLength <= Int.MaxValue, "UTF-8 string exceeds maximum array size")
-    writeLong(encodedLength)
-    reserve(encodedLength.toInt)
-    if encodedLength == value.length.toLong then
-      // ASCII has already been validated. Copy without per-byte position updates.
-      val destination = buffer
-      val start = position
-      index = 0
-      while index < value.length do
-        destination(start + index) = value.charAt(index).toByte
-        index += 1
-      position = start + value.length
-      return
+
+    reserve(encodedLength + 1)
+    val destination = buffer
+    var offset = position
+    destination(offset) = (encodedLength << 1).toByte
+    offset += 1
     index = 0
     while index < value.length do
-      val ch = value.charAt(index).toInt
-      if ch < 0x80 then put(ch)
-      else if ch < 0x800 then
-        put(0xc0 | (ch >>> 6))
-        put(0x80 | (ch & 0x3f))
-      else if ch >= 0xd800 && ch <= 0xdbff then
+      val char = value.charAt(index).toInt
+      if char < 0x80 then
+        destination(offset) = char.toByte
+        offset += 1
+      else if char < 0x800 then
+        destination(offset) = (0xc0 | (char >>> 6)).toByte
+        destination(offset + 1) = (0x80 | (char & 0x3f)).toByte
+        offset += 2
+      else if char >= 0xd800 && char <= 0xdbff then
         val codePoint = Character.toCodePoint(value.charAt(index), value.charAt(index + 1))
-        put(0xf0 | (codePoint >>> 18))
-        put(0x80 | ((codePoint >>> 12) & 0x3f))
-        put(0x80 | ((codePoint >>> 6) & 0x3f))
-        put(0x80 | (codePoint & 0x3f))
+        destination(offset) = (0xf0 | (codePoint >>> 18)).toByte
+        destination(offset + 1) = (0x80 | ((codePoint >>> 12) & 0x3f)).toByte
+        destination(offset + 2) = (0x80 | ((codePoint >>> 6) & 0x3f)).toByte
+        destination(offset + 3) = (0x80 | (codePoint & 0x3f)).toByte
+        offset += 4
         index += 1
       else
-        put(0xe0 | (ch >>> 12))
-        put(0x80 | ((ch >>> 6) & 0x3f))
-        put(0x80 | (ch & 0x3f))
+        destination(offset) = (0xe0 | (char >>> 12)).toByte
+        destination(offset + 1) = (0x80 | ((char >>> 6) & 0x3f)).toByte
+        destination(offset + 2) = (0x80 | (char & 0x3f)).toByte
+        offset += 3
       index += 1
+    position = offset
 
   override def writeBytes(value: Bytes): Unit =
     writeLong(value.size.toLong)

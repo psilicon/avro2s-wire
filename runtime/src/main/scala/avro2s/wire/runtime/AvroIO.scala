@@ -53,6 +53,25 @@ trait AvroOutput:
   def writeMapEnd(): Unit
   def startItem(): Unit
 
+  /** Whole-array hooks. Defaults preserve every encoder block/item callback;
+    * native outputs may override them without changing generated model types.
+    */
+  def writeIntArray(values: Vector[Int]): Unit =
+    writeArrayStart(values.size)
+    val iterator = values.iterator
+    while iterator.hasNext do
+      startItem()
+      writeInt(iterator.next())
+    writeArrayEnd()
+
+  def writeLongArray(values: Vector[Long]): Unit =
+    writeArrayStart(values.size)
+    val iterator = values.iterator
+    while iterator.hasNext do
+      startItem()
+      writeLong(iterator.next())
+    writeArrayEnd()
+
 /** A matching-schema codec. Writer/reader schema resolution is a separate concern. */
 trait AvroCodec[A]:
   def schemaJson: String

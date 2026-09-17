@@ -67,6 +67,14 @@ final class ComparativeWorkload[A](
   private val genericReader = new GenericDatumReader[GenericRecord](schema, schema, genericData)
   private val specificWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, standardData)
   private val specificReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, standardData)
+  // Separate reader schemas preserve the original Utf8 baselines. These variants
+  // explicitly request String materialization from Avro's normal readers.
+  private lazy val stringGenericReader =
+    val readerSchema = stringSchema(schema)
+    new GenericDatumReader[GenericRecord](schema, readerSchema, genericData)
+  private lazy val stringSpecificReader =
+    val readerSchema = stringSchema(javaSchema)
+    new SpecificDatumReader[SpecificRecordBase](javaSchema, readerSchema, standardData)
   private val customWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, customData)
   private val customReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, customData)
   private val scalaWriter = if supportsAvro2s then new SpecificDatumWriter[SpecificRecordBase](scalaSchema, scalaData) else null
@@ -110,6 +118,15 @@ final class ComparativeWorkload[A](
   def javaPrimitivesRead(): A = codec.read(new JavaAvroInput(DecoderFactory.get().binaryDecoder(payload, null)))
   def javaGenericRead(): GenericRecord = genericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
   def javaSpecificRead(): SpecificRecordBase = specificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+  def javaGenericStringRead(): GenericRecord = stringGenericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+  def javaSpecificStringRead(): SpecificRecordBase = stringSpecificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+  def verifyStringReaders(): Unit =
+    val generic = javaGenericStringRead()
+    val specific = javaSpecificStringRead()
+    requireStrings(generic, schema, genericData)
+    requireStrings(specific, javaSchema, standardData)
+    require(normalize(generic, schema) == canonical)
+    require(normalize(specific, schema) == canonical)
   def javaCustomRead(): SpecificRecordBase =
     require(supportsCustom, "This schema has no generated Java custom coder")
     customReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
@@ -170,6 +187,22 @@ final class ComparativeWorkload[A](
     counts
 
 object ComparativeWorkload:
+  private def stringSchema(original: Schema): Schema =
+    val result = new Schema.Parser().parse(original.toString)
+    val seen = new java.util.IdentityHashMap[Schema, java.lang.Boolean]()
+    def visit(schema: Schema): Unit =
+      if seen.put(schema, java.lang.Boolean.TRUE) == null then schema.getType match
+        case Schema.Type.STRING => GenericData.setStringType(schema, GenericData.StringType.String)
+        case Schema.Type.MAP =>
+          GenericData.setStringType(schema, GenericData.StringType.String)
+          visit(schema.getValueType)
+        case Schema.Type.ARRAY => visit(schema.getElementType)
+        case Schema.Type.RECORD => schema.getFields.asScala.foreach(f => visit(f.schema()))
+        case Schema.Type.UNION => schema.getTypes.asScala.foreach(visit)
+        case _ => ()
+    visit(result)
+    result
+
   private final class JavaOutput:
     val bytes = new ByteArrayOutputStream()
     val encoder = EncoderFactory.get().binaryEncoder(bytes, null)

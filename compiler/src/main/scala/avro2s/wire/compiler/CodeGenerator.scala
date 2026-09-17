@@ -186,12 +186,20 @@ object CodeGenerator:
       val arguments = if isMap then s"_root_.java.lang.String, ${scalaType(element)}" else scalaType(element)
       val start = if isMap then "readMapStart" else "readArrayStart"
       val next = if isMap then "mapNext" else "arrayNext"
+      // Map's generic builder stages the first four distinct keys in compact
+      // maps before forwarding every subsequent entry to a HashMap builder.
+      // Start that builder directly when this block already exceeds the compact
+      // representation; small maps still retain their compact representation.
+      val newBuilder = if isMap then
+        s"if $remaining > 4L then _root_.scala.collection.immutable.HashMap.newBuilder[$arguments] " +
+          s"else _root_.scala.collection.immutable.Map.newBuilder[$arguments]"
+      else s"_root_.scala.collection.immutable.Vector.newBuilder[$arguments]"
       val entry =
         if isMap then s"val $key = in.readString()\nval $item: ${scalaType(element)} = ${read(element)}\n$builder += (($key, $item))"
         else s"$builder += (${read(element)})"
       s"{\n  var $remaining = in.$start()\n" +
         s"  if $remaining == 0L then _root_.scala.collection.immutable.$collection.empty[$arguments]\n" +
-        s"  else {\n    val $builder = _root_.scala.collection.immutable.$collection.newBuilder[$arguments]\n" +
+        s"  else {\n    val $builder = $newBuilder\n" +
         s"    while $remaining != 0L do {\n" +
         s"      while $remaining > 0L do {\n" + indent(entry, 8) + s"\n        $remaining -= 1L\n      }\n" +
         s"      $remaining = in.$next()\n    }\n    $builder.result()\n  }\n}"
@@ -205,6 +213,8 @@ object CodeGenerator:
       case Value.Optional(element, nullIndex, valueIndex) =>
         s"if $expression.isEmpty then {\n  out.writeIndex($nullIndex)\n  out.writeNull()\n} else {\n  out.writeIndex($valueIndex)\n" +
           indent(write(element, s"$expression.get"), 2) + "\n}"
+      case Value.ArrayOf(Value.Primitive(Schema.Type.INT)) => s"out.writeIntArray($expression)"
+      case Value.ArrayOf(Value.Primitive(Schema.Type.LONG)) => s"out.writeLongArray($expression)"
       case Value.ArrayOf(element) => writeCollection(element, expression, isMap = false)
       case Value.MapOf(element) => writeCollection(element, expression, isMap = true)
       case Value.Union(branches) =>
@@ -228,12 +238,16 @@ object CodeGenerator:
         "\n  case _ => throw new _root_.java.lang.IllegalArgumentException(\"Value does not match any Avro union branch\")\n}"
 
     private def writeCollection(element: Value, expression: String, isMap: Boolean): String =
-      val iterator = fresh("iterator")
-      val entry = fresh("entry")
+      val collection = fresh("entry")
+      val item = fresh("item")
       val kind = if isMap then "Map" else "Array"
-      val body =
-        if isMap then s"val $entry = $iterator.next()\nout.writeString($entry._1)\n" + write(element, s"$entry._2")
-        else s"val $entry = $iterator.next()\n" + write(element, entry)
-      s"out.write${kind}Start($expression.size)\nval $iterator = $expression.iterator\n" +
-        s"while $iterator.hasNext do {\n  out.startItem()\n" + indent(body, 2) + "\n}\n" +
+      // HashMap.foreachEntry traverses its nodes without Tuple2/iterator
+      // allocation. Vector.foreach traverses its leaf arrays directly; both
+      // retain collection order and the encoder's per-item callback contract.
+      val traversal = if isMap then
+        val key = fresh("key")
+        s"$collection.foreachEntry { ($key, $item) =>\n  out.startItem()\n  out.writeString($key)\n" +
+          indent(write(element, item), 2) + "\n}\n"
+      else s"$collection.foreach { $item =>\n  out.startItem()\n" + indent(write(element, item), 2) + "\n}\n"
+      s"val $collection = $expression\nout.write${kind}Start($collection.size)\n" + traversal +
         s"out.write${kind}End()"
