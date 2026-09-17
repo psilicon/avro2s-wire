@@ -45,6 +45,16 @@ mutable record reuse would be separate APIs with explicit lifetimes. Native outp
 already supports buffer reuse. Direct field access is the main starting hypothesis;
 a handwritten varint loop alone is not evidence of a faster library.
 
+The first measured optimisations preserve these APIs and validation policies.
+Integer writers reserve enough space for the maximum encoded width, then use a
+local offset and publish the final position once. Generated collection readers
+validate the initial block header before allocating a builder; empty collections
+return the standard immutable empty value. String readers retain strict UTF-8
+validation and reuse its ASCII result to select a simpler JDK decoding path;
+string writers validate before emitting bytes and copy all-ASCII text with local
+indices. Unicode fallback behaviour is unchanged. See the
+[paired measurements](benchmarks/performance-2026-09-17.md) for benefits and limits.
+
 ## Compatibility boundary
 
 Direct codecs require matching schemas. The optional resolution module now compiles

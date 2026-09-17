@@ -6,6 +6,13 @@ Collection sizes are 0, 32, and 1024. Integer elements are outside the JVM's
 small-integer cache so allocation measurements include boxing. This is a focused
 baseline, not a claim about every Avro workload.
 
+Additional matching-schema workloads now cover integers, strings, bytes,
+collections and nested unions. See the [expanded workload guide](expanded-workloads.md)
+for the 192-case matrix, allocating APIs and reproducible profile runner. The
+[performance follow-up](performance-2026-09-17.md) records paired optimisation
+results and a fresh six-way Trade comparison; the historical report below remains
+unchanged.
+
 ## Implementations
 
 | Prefix | Implementation | Returned model |

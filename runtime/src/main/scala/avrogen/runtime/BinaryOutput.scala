@@ -28,20 +28,28 @@ final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
     put(if value then 1 else 0)
 
   override def writeInt(value: Int): Unit =
-    reserve(5)
+    if buffer.length - position < 5 then reserve(5)
+    val bytes = buffer
+    var offset = position
     var bits = (value << 1) ^ (value >> 31)
     while (bits & ~0x7f) != 0 do
-      put((bits & 0x7f) | 0x80)
+      bytes(offset) = ((bits & 0x7f) | 0x80).toByte
+      offset += 1
       bits = bits >>> 7
-    put(bits)
+    bytes(offset) = bits.toByte
+    position = offset + 1
 
   override def writeLong(value: Long): Unit =
-    reserve(10)
+    if buffer.length - position < 10 then reserve(10)
+    val bytes = buffer
+    var offset = position
     var bits = (value << 1) ^ (value >> 63)
     while (bits & ~0x7fL) != 0 do
-      put(((bits & 0x7fL) | 0x80L).toInt)
+      bytes(offset) = ((bits & 0x7fL) | 0x80L).toByte
+      offset += 1
       bits = bits >>> 7
-    put(bits.toInt)
+    bytes(offset) = bits.toByte
+    position = offset + 1
 
   override def writeFloat(value: Float): Unit =
     reserve(4)
@@ -61,8 +69,9 @@ final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
 
   /** Emits UTF-8 directly, rejecting unpaired UTF-16 surrogates. */
   override def writeString(value: String): Unit =
-    var encodedLength = 0L
     var index = 0
+    while index < value.length && value.charAt(index) < 0x80 do index += 1
+    var encodedLength = index.toLong
     while index < value.length do
       val ch = value.charAt(index).toInt
       if ch < 0x80 then encodedLength += 1
@@ -79,6 +88,16 @@ final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
     require(encodedLength <= Int.MaxValue, "UTF-8 string exceeds maximum array size")
     writeLong(encodedLength)
     reserve(encodedLength.toInt)
+    if encodedLength == value.length.toLong then
+      // ASCII has already been validated. Copy without per-byte position updates.
+      val destination = buffer
+      val start = position
+      index = 0
+      while index < value.length do
+        destination(start + index) = value.charAt(index).toByte
+        index += 1
+      position = start + value.length
+      return
     index = 0
     while index < value.length do
       val ch = value.charAt(index).toInt

@@ -1,0 +1,1 @@
+{"type":"record","name":"PerfCollections","namespace":"avrogen.fixtures.performance","fields":[{"name":"values","type":{"type":"array","items":"int"}},{"name":"labels","type":{"type":"map","values":"string"}}]}
