@@ -17,7 +17,8 @@ PREFIX = "avro2s.wire.benchmarks."
 MATRIX = {
     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
     "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
-                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"]},
+                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long",
+                            "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short"]},
     "Bytes": {"byteCount": ["0", "32", "4096"]},
     "Collections": {"collectionSize": ["0", "4", "128"]},
     "NestedUnion": {"depth": ["0", "1", "4"]},

@@ -11,7 +11,8 @@ import org.openjdk.jmh.annotations.*
 @Fork(2)
 class StringBenchmark:
   @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
-    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"))
+    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long",
+    "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short"))
   var profile: String = "empty"
 
   private var workload: CodecWorkload[?] = null
