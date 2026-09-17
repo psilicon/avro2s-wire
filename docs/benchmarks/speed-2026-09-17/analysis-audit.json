@@ -1,0 +1,1400 @@
+{
+  "inputs": [
+    {
+      "group": "historical",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison-Comparison.json",
+      "sha256": "bfd0d036427fac9dbbc01be2e8e4588fd887216f870f0db760224bf634602861",
+      "cases": 120,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 120
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison.environment.json",
+        "sha256": "d95926fca4b810575f8fecebf7c949ca4adc4dc60cf3c4f9a7418503f748d3f0",
+        "status": "complete",
+        "gitRevision": "553f32f2b0e834c0a58715c7f199be7e76c40296",
+        "sourceRoot": "/Users/sam/AI/avro2s-wire",
+        "startedAt": "2026-09-17T13:02:47.633835+00:00",
+        "finishedAt": "2026-09-17T13:26:17.468005+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "historical",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison-NestedComparison.json",
+      "sha256": "9051f1772e291e753449c26a7e657911de23fc30285e22445f7d58e02ae18d2f",
+      "cases": 10,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 10
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison.environment.json",
+        "sha256": "d95926fca4b810575f8fecebf7c949ca4adc4dc60cf3c4f9a7418503f748d3f0",
+        "status": "complete",
+        "gitRevision": "553f32f2b0e834c0a58715c7f199be7e76c40296",
+        "sourceRoot": "/Users/sam/AI/avro2s-wire",
+        "startedAt": "2026-09-17T13:02:47.633835+00:00",
+        "finishedAt": "2026-09-17T13:26:17.468005+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "historical",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison-LogicalComparison.json",
+      "sha256": "6121e90657966009bb6ad0d2ef0662691df088d68a0ab4921a389e206bc6a230",
+      "cases": 10,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 10
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison.environment.json",
+        "sha256": "d95926fca4b810575f8fecebf7c949ca4adc4dc60cf3c4f9a7418503f748d3f0",
+        "status": "complete",
+        "gitRevision": "553f32f2b0e834c0a58715c7f199be7e76c40296",
+        "sourceRoot": "/Users/sam/AI/avro2s-wire",
+        "startedAt": "2026-09-17T13:02:47.633835+00:00",
+        "finishedAt": "2026-09-17T13:26:17.468005+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "historical",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison-DecimalComparison.json",
+      "sha256": "f90a5be2f901d2674fc2ff24ed99d495b451bea341311ad78c45767960387924",
+      "cases": 8,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 8
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/comparison-2026-09-17/comparison.environment.json",
+        "sha256": "d95926fca4b810575f8fecebf7c949ca4adc4dc60cf3c4f9a7418503f748d3f0",
+        "status": "complete",
+        "gitRevision": "553f32f2b0e834c0a58715c7f199be7e76c40296",
+        "sourceRoot": "/Users/sam/AI/avro2s-wire",
+        "startedAt": "2026-09-17T13:02:47.633835+00:00",
+        "finishedAt": "2026-09-17T13:26:17.468005+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "fresh-before",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-Comparison.json",
+      "sha256": "f81454fb8bf0a878136f96847960f7563708a10a4fed6077325819abd6f22289",
+      "cases": 20,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 20
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before.environment.json",
+        "sha256": "c178ac81d2adf94092b1b9d9d89acca0ae2b69c2b8b458d067aecc51ec865951",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:10:17.813540+00:00",
+        "finishedAt": "2026-09-17T14:15:22.634542+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "fresh-before",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-NestedComparison.json",
+      "sha256": "60c0f8fa098ce405fa66600e51c99d4c0f6dea40a2f618a8b3cc71ee8cd5063e",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before.environment.json",
+        "sha256": "c178ac81d2adf94092b1b9d9d89acca0ae2b69c2b8b458d067aecc51ec865951",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:10:17.813540+00:00",
+        "finishedAt": "2026-09-17T14:15:22.634542+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "fresh-before",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-LogicalComparison.json",
+      "sha256": "dd67923a010139b9beedc89eed7cfee6ded1547d7b12613678e5c3060e9846ef",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before.environment.json",
+        "sha256": "c178ac81d2adf94092b1b9d9d89acca0ae2b69c2b8b458d067aecc51ec865951",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:10:17.813540+00:00",
+        "finishedAt": "2026-09-17T14:15:22.634542+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "fresh-before",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-DecimalComparison.json",
+      "sha256": "9111711b814c29c5168e1b78d6504e85e33fe625ad8700faefdc567e33c53dbc",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before.environment.json",
+        "sha256": "c178ac81d2adf94092b1b9d9d89acca0ae2b69c2b8b458d067aecc51ec865951",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:10:17.813540+00:00",
+        "finishedAt": "2026-09-17T14:15:22.634542+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "final-after",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-Comparison.json",
+      "sha256": "47a68441f8141eb8650bc0dd61180c7bd8c331d9dae766d1911fadf79bbd8468",
+      "cases": 120,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 120
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after.environment.json",
+        "sha256": "562144720d5b9bb5a18b5bc2021171106f59efc97396569639486215561332a1",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:20:33.273700+00:00",
+        "finishedAt": "2026-09-17T15:43:56.145753+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-after",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-NestedComparison.json",
+      "sha256": "d3ce1651837f4aca258906b5fa67e8500bab897c8f31bc42a8207f1d83aac5de",
+      "cases": 10,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 10
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after.environment.json",
+        "sha256": "562144720d5b9bb5a18b5bc2021171106f59efc97396569639486215561332a1",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:20:33.273700+00:00",
+        "finishedAt": "2026-09-17T15:43:56.145753+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-after",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-LogicalComparison.json",
+      "sha256": "1e099c38e6012a5479eedd59f672d45c3ebc0b36b059f19d0774a3c19f2a6ebe",
+      "cases": 10,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 10
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after.environment.json",
+        "sha256": "562144720d5b9bb5a18b5bc2021171106f59efc97396569639486215561332a1",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:20:33.273700+00:00",
+        "finishedAt": "2026-09-17T15:43:56.145753+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-after",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-DecimalComparison.json",
+      "sha256": "c2403882e40dbf1f0697654a15999bc3a08803e9bd3eedbef7fe460eaa2d2759",
+      "cases": 8,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 8
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after.environment.json",
+        "sha256": "562144720d5b9bb5a18b5bc2021171106f59efc97396569639486215561332a1",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:20:33.273700+00:00",
+        "finishedAt": "2026-09-17T15:43:56.145753+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-strings-String.json",
+      "sha256": "d3bb95854cff1cde1e8227b134a28a011193265c50be8af369cbc68517c26cce",
+      "cases": 26,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 26
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-strings.environment.json",
+        "sha256": "97682c0fa8b1e4bbf0dad55695671cf1db442bf9b768085a887d25eb620f8150",
+        "status": "complete",
+        "gitRevision": "6e6c0effdec43d61cd978ec1a970a645459487f2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:59:11.046529+00:00",
+        "finishedAt": "2026-09-17T15:04:03.541612+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/decoded-strings-DecodedString.json",
+      "sha256": "82d54fa0d4d15eab84a4532764db66a610330d065725585fa75631c006015cd7",
+      "cases": 15,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 15
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/decoded-strings.environment.json",
+        "sha256": "12fa9bea527a68d9d53997f668a23ce5bfb72ca9f0e0710e001896b9c6494e63",
+        "status": "complete",
+        "gitRevision": "6e6c0effdec43d61cd978ec1a970a645459487f2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:05:37.769015+00:00",
+        "finishedAt": "2026-09-17T15:08:10.812245+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-trade-Trade.json",
+      "sha256": "9469d7c038e5506f5343e718f1e7ca8ffdd3a5215c76922853e3864e63002b4f",
+      "cases": 12,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 12
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-trade.environment.json",
+        "sha256": "006b93b21c2930d941ed3e7a2e8bdec7587892ec9c6455132c30e79f4be2c683",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:45:41.356418+00:00",
+        "finishedAt": "2026-09-17T15:47:45.621935+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api-Integer.json",
+      "sha256": "d342427b8fd555dc5559fbb4b7efd8cac20b5a2edb11089028c518fb80a0c399",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api.environment.json",
+        "sha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:51:11.554375+00:00",
+        "finishedAt": "2026-09-17T15:54:35.882396+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api-String.json",
+      "sha256": "a3c76b66ef770b6a11285f32d3ee6768cb69ca07cc2d9b3342546dd7730735ef",
+      "cases": 4,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 4
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api.environment.json",
+        "sha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:51:11.554375+00:00",
+        "finishedAt": "2026-09-17T15:54:35.882396+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api-Collections.json",
+      "sha256": "d1cb896910b01a3f3b6d3586073aba948d749eceefa214b9c725f8cf3b5f5cf5",
+      "cases": 4,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 4
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api.environment.json",
+        "sha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:51:11.554375+00:00",
+        "finishedAt": "2026-09-17T15:54:35.882396+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api-Bytes.json",
+      "sha256": "cbfc17d82d86ad95b4a5fb2d68bf57b8c11f49d9e3e4ca480fed1ec37d01b413",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api.environment.json",
+        "sha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:51:11.554375+00:00",
+        "finishedAt": "2026-09-17T15:54:35.882396+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api-NestedUnion.json",
+      "sha256": "63cd3d97fb813fe566ae405ced5d34479cf32f3de1e77751d538d80380a2a392",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-api.environment.json",
+        "sha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:51:11.554375+00:00",
+        "finishedAt": "2026-09-17T15:54:35.882396+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-evolution-Evolution.json",
+      "sha256": "d32a12cba255bfa50196b31d3d2feaa17ad8d706b190475c32fd123582fba20d",
+      "cases": 8,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 8
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-evolution.environment.json",
+        "sha256": "c42965df40bc708f231c05c50505c10d7baf40951b9bdbbefd22f773a54f7a2c",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:54:35.971569+00:00",
+        "finishedAt": "2026-09-17T15:56:04.223975+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "final-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-supplementary-String.json",
+      "sha256": "107444b845f5308b1f51e1460f862ff39202fff64d39d95a7785641f5720c6e8",
+      "cases": 8,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 8
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/after-supplementary.environment.json",
+        "sha256": "0d91067b7297431cc630ef218adab11a71f4b540fb8f960f318cbad6caa03264",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:56:04.316270+00:00",
+        "finishedAt": "2026-09-17T15:57:32.028791+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-strings-String.json",
+      "sha256": "938877ff37d74a244b8492e22432614432fb8900e8307641b6977242e44ed2a0",
+      "cases": 26,
+      "protocols": [
+        {
+          "forks": 1,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 4,
+          "measurementTime": "300 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "300 ms",
+          "cases": 26
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-strings.environment.json",
+        "sha256": "91d48b77e6813b4c6eca263fbb3fc630e3d724b812f83a4cde468be2a0bd98c4",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T14:16:06.034237+00:00",
+        "finishedAt": "2026-09-17T14:17:52.313427+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api-Integer.json",
+      "sha256": "3c0034c63cebf92faa504cfbce510f2ba4e7100c825ff5d87b63f9b1a456a9bf",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api.environment.json",
+        "sha256": "ad85572f9d75a51896dedb904e26451532f814aaeb3f28bea33af324a79d0f36",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:47:45.725113+00:00",
+        "finishedAt": "2026-09-17T15:51:11.429295+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api-String.json",
+      "sha256": "e1f988e0b17d42422323f707f653703c0b657d926bebb8b41732ca8e7e721afe",
+      "cases": 4,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 4
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api.environment.json",
+        "sha256": "ad85572f9d75a51896dedb904e26451532f814aaeb3f28bea33af324a79d0f36",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:47:45.725113+00:00",
+        "finishedAt": "2026-09-17T15:51:11.429295+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api-Collections.json",
+      "sha256": "fdb8ed6e94bdc0ab2cf70cfdf4a6a4c35524bbbf57a392e1463ed2209b69ea9a",
+      "cases": 4,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 4
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api.environment.json",
+        "sha256": "ad85572f9d75a51896dedb904e26451532f814aaeb3f28bea33af324a79d0f36",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:47:45.725113+00:00",
+        "finishedAt": "2026-09-17T15:51:11.429295+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api-Bytes.json",
+      "sha256": "8cfea2195f35c473c351b3976c93fd0ebe6fe8fae3fc2bbd63fe8bb66a628e0f",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api.environment.json",
+        "sha256": "ad85572f9d75a51896dedb904e26451532f814aaeb3f28bea33af324a79d0f36",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:47:45.725113+00:00",
+        "finishedAt": "2026-09-17T15:51:11.429295+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "before-extra",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api-NestedUnion.json",
+      "sha256": "273a39424ff84af9bcad3a21ecc0e60d97ceac9f47b8e0c6f2b7ab1654f8b6b2",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-api.environment.json",
+        "sha256": "ad85572f9d75a51896dedb904e26451532f814aaeb3f28bea33af324a79d0f36",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:47:45.725113+00:00",
+        "finishedAt": "2026-09-17T15:51:11.429295+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "confirmed-before",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-emoji-confirm-String.json",
+      "sha256": "8ef17fff1756a578eb4b1d4bf4cb2d0bf434770e7adb957e48c313cba2bce678",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/before-emoji-confirm.environment.json",
+        "sha256": "7ae0d7e7471a94848250fe3f6d637d274bdf9077f6e530c08e334ceff334e973",
+        "status": "complete",
+        "gitRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/baseline-confirm",
+        "startedAt": "2026-09-17T15:08:44.390489+00:00",
+        "finishedAt": "2026-09-17T15:10:11.166125+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 12,
+        "implementationSha256": "98cbd9fc19f0f82b66e433aa395bc9726b707ca061d92c0e3ed3d5ec362fe52c"
+      }
+    },
+    {
+      "group": "confirmed-after",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/confirm-small-ints-Comparison.json",
+      "sha256": "64c4869f7390d96b1a91fb88a04627b7ba3909d3e4b47af4954819ba889c1a19",
+      "cases": 2,
+      "protocols": [
+        {
+          "forks": 2,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 5,
+          "measurementTime": "1 s",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 5,
+          "warmupTime": "1 s",
+          "cases": 2
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/confirm-small-ints.environment.json",
+        "sha256": "ecb16b63384286d7eabec257ff6275242fe1706de41e26aec96879c5bdb6555b",
+        "status": "complete",
+        "gitRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:57:32.119211+00:00",
+        "finishedAt": "2026-09-17T15:58:30.020567+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    },
+    {
+      "group": "supplementary-control-pilot",
+      "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/supplementary-control-String.json",
+      "sha256": "e349fec5e6983514e279bb933cc12c0c8ffca8b3f5cc96bf8026c591e232c3da",
+      "cases": 10,
+      "protocols": [
+        {
+          "forks": 1,
+          "jdkVersion": "21",
+          "jmhVersion": "1.37",
+          "jvmArgs": [
+            "-Xms512m",
+            "-Xmx512m"
+          ],
+          "measurementIterations": 4,
+          "measurementTime": "500 ms",
+          "mode": "avgt",
+          "threads": 1,
+          "vmName": "OpenJDK 64-Bit Server VM",
+          "vmVersion": "21+35-LTS",
+          "warmupIterations": 3,
+          "warmupTime": "500 ms",
+          "cases": 10
+        }
+      ],
+      "environment": {
+        "path": "/private/tmp/avro2s-speed-255_nufn/work/docs/benchmarks/speed-2026-09-17/raw/supplementary-control.environment.json",
+        "sha256": "4bad28ac195c8b7950b4e724be0280820a36cada226bd841b53d4dc3bc6fb42d",
+        "status": "complete",
+        "gitRevision": "6e6c0effdec43d61cd978ec1a970a645459487f2",
+        "sourceRoot": "/private/tmp/avro2s-speed-255_nufn/work",
+        "startedAt": "2026-09-17T15:12:47.066870+00:00",
+        "finishedAt": "2026-09-17T15:13:47.625974+00:00",
+        "sourcesUnchanged": true,
+        "platform": "macOS-15.4-arm64-arm-64bit",
+        "machine": "arm64",
+        "javaVersion": "openjdk version \"21\" 2023-09-19 LTS\nOpenJDK Runtime Environment Corretto-21.0.0.35.1 (build 21+35-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.0.35.1 (build 21+35-LTS, mixed mode, sharing)\n",
+        "implementationFiles": 14,
+        "implementationSha256": "3f8f9221596cd90c5f7cba4fbe783b608dc00885fdd4815d4632e9d521c65887"
+      }
+    }
+  ],
+  "warnings": [
+    "extra controls: 26 paired cases have different JMH/JVM protocols; changed fields: forks, measurementIterations, measurementTime, warmupTime. Treat changes as descriptive, not independently confirmed improvements."
+  ],
+  "coverage": {
+    "historical": 148,
+    "freshBefore": 26,
+    "finalComparison": 148,
+    "finalExtra": 83,
+    "confirmedBefore": 2,
+    "confirmedAfter": 2,
+    "supplementaryControlPilot": 10
+  },
+  "originalDeficits": [
+    {
+      "profile": "ints-small",
+      "operation": "Write"
+    },
+    {
+      "profile": "ints-wide",
+      "operation": "Read"
+    },
+    {
+      "profile": "ints-wide",
+      "operation": "Write"
+    },
+    {
+      "profile": "longs-mixed",
+      "operation": "Read"
+    },
+    {
+      "profile": "longs-mixed",
+      "operation": "Write"
+    },
+    {
+      "profile": "string-ascii",
+      "operation": "Read"
+    },
+    {
+      "profile": "string-ascii",
+      "operation": "Write"
+    },
+    {
+      "profile": "string-unicode",
+      "operation": "Read"
+    },
+    {
+      "profile": "string-unicode",
+      "operation": "Write"
+    },
+    {
+      "profile": "collections-full",
+      "operation": "Read"
+    },
+    {
+      "profile": "collections-full",
+      "operation": "Write"
+    },
+    {
+      "profile": "numerics",
+      "operation": "Write"
+    },
+    {
+      "profile": "logical",
+      "operation": "Read"
+    }
+  ],
+  "currentMeanLower": [
+    [
+      "ints-wide",
+      "Read"
+    ],
+    [
+      "ints-wide",
+      "Write"
+    ],
+    [
+      "longs-mixed",
+      "Read"
+    ],
+    [
+      "longs-mixed",
+      "Write"
+    ],
+    [
+      "string-ascii",
+      "Read"
+    ],
+    [
+      "collections-full",
+      "Write"
+    ],
+    [
+      "numerics",
+      "Write"
+    ],
+    [
+      "logical",
+      "Read"
+    ]
+  ],
+  "currentMeanHigher": [
+    [
+      "ints-small",
+      "Write"
+    ],
+    [
+      "string-ascii",
+      "Write"
+    ],
+    [
+      "string-unicode",
+      "Read"
+    ],
+    [
+      "string-unicode",
+      "Write"
+    ],
+    [
+      "collections-full",
+      "Read"
+    ]
+  ],
+  "overlappingCIs": [],
+  "missingFinalKeys": [],
+  "pendingRunBundles": []
+}

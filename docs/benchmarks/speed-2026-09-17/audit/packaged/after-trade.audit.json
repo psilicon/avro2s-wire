@@ -1,0 +1,48 @@
+{
+  "campaign": "after-trade",
+  "baseRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+  "manifestSha256": "006b93b21c2930d941ed3e7a2e8bdec7587892ec9c6455132c30e79f4be2c683",
+  "patchSha256": "41ffe1a318247dc5b90ab78b57f405923cbb30b00cbb2e4550b111ccc2e1db3a",
+  "patches": [
+    {
+      "name": "committed-5e3f95f.patch",
+      "sha256": "41ffe1a318247dc5b90ab78b57f405923cbb30b00cbb2e4550b111ccc2e1db3a"
+    }
+  ],
+  "sourceSnapshot": "commit-plus-patch",
+  "verifiedSourceFiles": 156,
+  "sourceMismatches": [],
+  "sourcesUnchanged": true,
+  "results": {
+    "cases": 12,
+    "observations": {
+      "primary": 120,
+      "gc.alloc.rate": 120,
+      "gc.alloc.rate.norm": 120,
+      "gc.count": 120,
+      "gc.time": 83
+    },
+    "runs": [
+      {
+        "name": "Trade",
+        "cases": 12,
+        "observations": {
+          "primary": 120,
+          "gc.alloc.rate": 120,
+          "gc.alloc.rate.norm": 120,
+          "gc.count": 120,
+          "gc.time": 83
+        },
+        "resultSha256": "9469d7c038e5506f5343e718f1e7ca8ffdd3a5215c76922853e3864e63002b4f",
+        "logSha256": "62d97f3a0dbb074bd20f54c3d07557e6f5852daccaf1863531e92fb2395eafa5",
+        "logArtifact": {
+          "name": "after-trade-Trade.log.gz",
+          "compression": "gzip",
+          "sha256": "b02f4b47b5483149fc9d70d4caff4fcde4382c67347786e9bb86861df627cdef"
+        },
+        "knownSlf4jWarningLines": 72
+      }
+    ]
+  }
+}

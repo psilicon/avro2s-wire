@@ -1,0 +1,213 @@
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
+index 11006a4..09d9af2 100644
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
+@@ -102,7 +102,8 @@ final class CodecWorkload[A](
+ object CodecWorkloads:
+   val integerDistributions = Vector("one-byte", "medium", "wide", "mixed")
+   val stringProfiles = Vector("empty", "ascii-short", "ascii-long", "multilingual-short",
+-    "multilingual-long", "emoji-short", "emoji-long")
++    "multilingual-long", "emoji-short", "emoji-long", "latin1-short", "latin1-long",
++    "question-short", "question-long", "replacement-short", "replacement-long")
+   val integerCount = 1024
+ 
+   def ints(distribution: String): Vector[Int] =
+@@ -159,6 +160,12 @@ object CodecWorkloads:
+         case "multilingual-long" => ("λé漢字", 4096)
+         case "emoji-short" => ("😀🚀🎉🌍", 32)
+         case "emoji-long" => ("😀🚀🎉🌍", 4096)
++        case "latin1-short" => ("éñüç", 32)
++        case "latin1-long" => ("éñüç", 4096)
++        case "question-short" => ("Ready?Go", 32)
++        case "question-long" => ("Ready?Go", 4096)
++        case "replacement-short" => ("a\ufffdλ😀", 32)
++        case "replacement-long" => ("a\ufffdλ😀", 4096)
+         case other => throw new IllegalArgumentException(s"Unknown string profile: $other")
+       unit.repeat(codePoints / unit.codePointCount(0, unit.length))
+ 
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala
+new file mode 100644
+index 0000000..538f8db
+--- /dev/null
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala
+@@ -0,0 +1,32 @@
++package avro2s.wire.benchmarks
++
++import _root_.avro2s.wire.benchmarks.comparison.{ComparativeWorkload, ComparisonFixtures}
++import java.util.concurrent.TimeUnit
++import org.openjdk.jmh.annotations.*
++
++/** Every timed method materializes a java.lang.String, including both Java readers. */
++@State(Scope.Thread)
++@BenchmarkMode(Array(Mode.AverageTime))
++@OutputTimeUnit(TimeUnit.NANOSECONDS)
++@Warmup(iterations = 5, time = 1)
++@Measurement(iterations = 5, time = 1)
++@Fork(2)
++class DecodedStringBenchmark:
++  @Param(Array("string-ascii", "string-unicode"))
++  var profile: String = "string-ascii"
++  private var workload: ComparativeWorkload[?] = null
++
++  @Setup(Level.Trial)
++  def setup(): Unit =
++    workload = ComparisonFixtures(profile)
++    workload.verifyInteroperability()
++    val expected = workload.expected.asInstanceOf[Product].productElement(0)
++    Vector(workload.javaGenericStringRead().get(0), workload.javaSpecificStringRead().get(0)).foreach { value =>
++      require(value.isInstanceOf[String] && value == expected)
++    }
++
++  @Benchmark def nativeRead(): Any = workload.nativeRead()
++  @Benchmark def javaPrimitivesRead(): Any = workload.javaPrimitivesRead()
++  @Benchmark def javaGenericStringRead(): Any = workload.javaGenericStringRead()
++  @Benchmark def javaSpecificStringRead(): Any = workload.javaSpecificStringRead()
++  @Benchmark def avro2sRead(): Any = workload.avro2sRead()
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
+index a0a837f..88a9f3d 100644
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
+@@ -10,7 +10,8 @@ import org.openjdk.jmh.annotations.*
+ @Measurement(iterations = 5, time = 1)
+ @Fork(2)
+ class StringBenchmark:
+-  @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long"))
++  @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
++    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"))
+   var profile: String = "empty"
+ 
+   private var workload: CodecWorkload[?] = null
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
+index 488522b..b162769 100644
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
+@@ -67,6 +67,14 @@ final class ComparativeWorkload[A](
+   private val genericReader = new GenericDatumReader[GenericRecord](schema, schema, genericData)
+   private val specificWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, standardData)
+   private val specificReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, standardData)
++  // Separate reader schemas preserve the original Utf8 baselines. These variants
++  // explicitly request String materialization from Avro's normal readers.
++  private lazy val stringGenericReader =
++    val readerSchema = stringSchema(schema)
++    new GenericDatumReader[GenericRecord](schema, readerSchema, genericData)
++  private lazy val stringSpecificReader =
++    val readerSchema = stringSchema(javaSchema)
++    new SpecificDatumReader[SpecificRecordBase](javaSchema, readerSchema, standardData)
+   private val customWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, customData)
+   private val customReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, customData)
+   private val scalaWriter = if supportsAvro2s then new SpecificDatumWriter[SpecificRecordBase](scalaSchema, scalaData) else null
+@@ -110,6 +118,8 @@ final class ComparativeWorkload[A](
+   def javaPrimitivesRead(): A = codec.read(new JavaAvroInput(DecoderFactory.get().binaryDecoder(payload, null)))
+   def javaGenericRead(): GenericRecord = genericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+   def javaSpecificRead(): SpecificRecordBase = specificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
++  def javaGenericStringRead(): GenericRecord = stringGenericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
++  def javaSpecificStringRead(): SpecificRecordBase = stringSpecificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+   def javaCustomRead(): SpecificRecordBase =
+     require(supportsCustom, "This schema has no generated Java custom coder")
+     customReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+@@ -170,6 +180,22 @@ final class ComparativeWorkload[A](
+     counts
+ 
+ object ComparativeWorkload:
++  private def stringSchema(original: Schema): Schema =
++    val result = new Schema.Parser().parse(original.toString)
++    val seen = new java.util.IdentityHashMap[Schema, java.lang.Boolean]()
++    def visit(schema: Schema): Unit =
++      if seen.put(schema, java.lang.Boolean.TRUE) == null then schema.getType match
++        case Schema.Type.STRING => GenericData.setStringType(schema, GenericData.StringType.String)
++        case Schema.Type.MAP =>
++          GenericData.setStringType(schema, GenericData.StringType.String)
++          visit(schema.getValueType)
++        case Schema.Type.ARRAY => visit(schema.getElementType)
++        case Schema.Type.RECORD => schema.getFields.asScala.foreach(f => visit(f.schema()))
++        case Schema.Type.UNION => schema.getTypes.asScala.foreach(visit)
++        case _ => ()
++    visit(result)
++    result
++
+   private final class JavaOutput:
+     val bytes = new ByteArrayOutputStream()
+     val encoder = EncoderFactory.get().binaryEncoder(bytes, null)
+diff --git a/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala b/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
+index 600bbd2..0bce41f 100644
+--- a/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
++++ b/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
+@@ -48,8 +48,9 @@ final class CodecWorkloadSuite extends FunSuite:
+       val text = CodecWorkloads.text(profile)
+       val count = if profile == "empty" then 0 else if profile.endsWith("short") then 32 else 4096
+       assertEquals(text.codePointCount(0, text.length), count, profile)
+-      val expectedBytes = if profile.startsWith("ascii") then count
+-        else if profile.startsWith("emoji") then count * 4 else count * 5 / 2
++      val expectedBytes = if profile.startsWith("ascii") || profile.startsWith("question") then count
++        else if profile.startsWith("emoji") then count * 4
++        else if profile.startsWith("latin1") then count * 2 else count * 5 / 2
+       assertEquals(text.getBytes(UTF_8).length, expectedBytes, profile)
+     }
+   }
+diff --git a/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala b/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
+index fa29369..c315339 100644
+--- a/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
++++ b/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
+@@ -5,6 +5,21 @@ import org.apache.avro.Schema
+ import munit.FunSuite
+ 
+ final class ComparisonBenchmarkSuite extends FunSuite:
++  test("explicit String readers materialize text without changing Utf8 baselines") {
++    Vector("string-ascii", "string-unicode").foreach { profile =>
++      val workload = ComparisonFixtures(profile)
++      val expected = workload.expected.asInstanceOf[Product].productElement(0)
++      Vector(workload.javaGenericStringRead().get(0), workload.javaSpecificStringRead().get(0)).foreach { value =>
++        assert(value.isInstanceOf[String])
++        assertEquals(value, expected)
++      }
++      assert(workload.javaGenericRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
++      assert(workload.javaSpecificRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
++      assert(workload.javaSpecificStringRead() ne workload.javaSpecificStringRead())
++      assert(workload.javaGenericStringRead() ne workload.javaGenericStringRead())
++    }
++  }
++
+   test("every supported comparison writer is read by every independent reader") {
+     val workloads = ComparisonFixtures.profiles.map(ComparisonFixtures.apply) ++
+       Vector(ComparisonFixtures.nested(), ComparisonFixtures.logical(), ComparisonFixtures.decimal())
+diff --git a/scripts/run-performance.py b/scripts/run-performance.py
+index a5e2a8d..7f19835 100755
+--- a/scripts/run-performance.py
++++ b/scripts/run-performance.py
+@@ -16,7 +16,8 @@ from datetime import datetime, timezone
+ PREFIX = "avro2s.wire.benchmarks."
+ MATRIX = {
+     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
+-    "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long"]},
++    "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
++                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"]},
+     "Bytes": {"byteCount": ["0", "32", "4096"]},
+     "Collections": {"collectionSize": ["0", "4", "128"]},
+     "NestedUnion": {"depth": ["0", "1", "4"]},
+@@ -27,10 +28,17 @@ MATRIX = {
+     "NestedComparison": {},
+     "LogicalComparison": {},
+     "DecimalComparison": {},
++    "DecodedString": {"profile": ["string-ascii", "string-unicode"]},
+ }
+ 
+ 
+ def groups(profile):
++    if profile == "decoded-strings":
++        return [("DecodedString", ["nativeRead", "javaPrimitivesRead", "javaGenericStringRead",
++                                    "javaSpecificStringRead", "avro2sRead"], {})]
++    if profile == "strings":
++        return [("String", [engine + op for engine in ["native", "javaPrimitives"]
++                            for op in ["Read", "Write", "Encode", "Decode"]], {})]
+     if profile == "pilot":
+         return [(name, ["nativeRead", "nativeWrite"], {}) for name in list(MATRIX)[:5]]
+     if profile == "focused":
+@@ -76,7 +84,7 @@ def main():
+     parser.add_argument("--java", type=Path, required=True, help="Absolute fork JVM executable")
+     parser.add_argument("--output", type=Path, required=True)
+     parser.add_argument("--label", required=True, help="Unique filename prefix")
+-    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison"], required=True)
++    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison", "decoded-strings", "strings"], required=True)
+     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+     parser.add_argument("--filter", default=".*", help="Regex narrowing the profile's full benchmark names")
+     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUES", help="Comma-separated parameter override; repeatable")

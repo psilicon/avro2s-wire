@@ -1,0 +1,84 @@
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
+index 09d9af2..5fa14ff 100644
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala
+@@ -103,7 +103,8 @@ object CodecWorkloads:
+   val integerDistributions = Vector("one-byte", "medium", "wide", "mixed")
+   val stringProfiles = Vector("empty", "ascii-short", "ascii-long", "multilingual-short",
+     "multilingual-long", "emoji-short", "emoji-long", "latin1-short", "latin1-long",
+-    "question-short", "question-long", "replacement-short", "replacement-long")
++    "question-short", "question-long", "replacement-short", "replacement-long",
++    "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short")
+   val integerCount = 1024
+ 
+   def ints(distribution: String): Vector[Int] =
+@@ -152,6 +153,10 @@ object CodecWorkloads:
+     */
+   def text(profile: String): String =
+     if profile == "empty" then ""
++    else if profile == "supplementary-prefix-ascii-long" then "😀" + "a".repeat(4095)
++    else if profile == "supplementary-prefix-bmp-long" then "😀" + "漢".repeat(4095)
++    else if profile == "supplementary-mixed-long" then "😀a漢".repeat(1365) + "😀"
++    else if profile == "supplementary-mixed-short" then "😀a漢".repeat(10) + "😀a"
+     else
+       val (unit, codePoints) = profile match
+         case "ascii-short" => ("Avro2026", 32)
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
+index 88a9f3d..cabe9a3 100644
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala
+@@ -11,7 +11,8 @@ import org.openjdk.jmh.annotations.*
+ @Fork(2)
+ class StringBenchmark:
+   @Param(Array("empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
+-    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"))
++    "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long",
++    "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short"))
+   var profile: String = "empty"
+ 
+   private var workload: CodecWorkload[?] = null
+diff --git a/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala b/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
+index ff67b50..9c95dd9 100644
+--- a/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
++++ b/benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala
+@@ -13,7 +13,7 @@ final class CodecWorkloadSuite extends FunSuite:
+       Vector(0, 32, 4096).map(CodecWorkloads.bytes) ++
+       Vector(0, 4, 128).map(CodecWorkloads.collections) ++
+       Vector(0, 1, 4).map(CodecWorkloads.nested)
+-    assertEquals(workloads.size, 30)
++    assertEquals(workloads.size, 34)
+     workloads.foreach(_.verifyInteroperability())
+   }
+ 
+@@ -48,9 +48,14 @@ final class CodecWorkloadSuite extends FunSuite:
+       val text = CodecWorkloads.text(profile)
+       val count = if profile == "empty" then 0 else if profile.endsWith("short") then 32 else 4096
+       assertEquals(text.codePointCount(0, text.length), count, profile)
+-      val expectedBytes = if profile.startsWith("ascii") || profile.startsWith("question") then count
+-        else if profile.startsWith("emoji") then count * 4
+-        else if profile.startsWith("latin1") then count * 2 else count * 5 / 2
++      val expectedBytes = profile match
++        case "supplementary-prefix-ascii-long" => 4099
++        case "supplementary-prefix-bmp-long" => 12289
++        case "supplementary-mixed-long" => 10924
++        case "supplementary-mixed-short" => 85
++        case _ => if profile.startsWith("ascii") || profile.startsWith("question") then count
++          else if profile.startsWith("emoji") then count * 4
++          else if profile.startsWith("latin1") then count * 2 else count * 5 / 2
+       assertEquals(text.getBytes(UTF_8).length, expectedBytes, profile)
+     }
+   }
+diff --git a/scripts/run-performance.py b/scripts/run-performance.py
+index 19893f3..ffb1229 100755
+--- a/scripts/run-performance.py
++++ b/scripts/run-performance.py
+@@ -17,7 +17,8 @@ PREFIX = "avro2s.wire.benchmarks."
+ MATRIX = {
+     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
+     "String": {"profile": ["empty", "ascii-short", "ascii-long", "multilingual-short", "multilingual-long", "emoji-short", "emoji-long",
+-                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long"]},
++                            "latin1-short", "latin1-long", "question-short", "question-long", "replacement-short", "replacement-long",
++                            "supplementary-prefix-ascii-long", "supplementary-prefix-bmp-long", "supplementary-mixed-long", "supplementary-mixed-short"]},
+     "Bytes": {"byteCount": ["0", "32", "4096"]},
+     "Collections": {"collectionSize": ["0", "4", "128"]},
+     "NestedUnion": {"depth": ["0", "1", "4"]},

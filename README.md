@@ -223,6 +223,12 @@ The [broader comparison report](docs/benchmarks/comparison-2026-09-17.md) record
 13 workload profiles plus schema evolution. It shows both gains and losses,
 including slower string paths, with longer confirmations and all raw results.
 
+The [native speed follow-up](docs/benchmarks/speed-2026-09-17.md) measures the
+numeric, string and collection improvements against that baseline, including
+Java readers explicitly configured to return Strings. Its
+[complete tables](docs/benchmarks/speed-2026-09-17/tables.md) retain timings,
+allocation and uncertainty, including the emoji-writing tradeoff.
+
 See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
 reproduction commands, and interpretation limits. Default Java models retain Utf8
 and Java collections; the Scala models return String and Scala collections. Native
