@@ -1,0 +1,147 @@
+--- a/compiler/src/main/scala/avrogen/compiler/CodeGenerator.scala
++++ b/compiler/src/main/scala/avrogen/compiler/CodeGenerator.scala
+@@ -189,10 +189,12 @@
+       val entry =
+         if isMap then s"val $key = in.readString()\nval $item: ${scalaType(element)} = ${read(element)}\n$builder += (($key, $item))"
+         else s"$builder += (${read(element)})"
+-      s"{\n  val $builder = _root_.scala.collection.immutable.$collection.newBuilder[$arguments]\n" +
+-        s"  var $remaining = in.$start()\n  while $remaining != 0L do {\n" +
+-        s"    while $remaining > 0L do {\n" + indent(entry, 6) + s"\n      $remaining -= 1L\n    }\n" +
+-        s"    $remaining = in.$next()\n  }\n  $builder.result()\n}"
++      s"{\n  var $remaining = in.$start()\n" +
++        s"  if $remaining == 0L then _root_.scala.collection.immutable.$collection.empty[$arguments]\n" +
++        s"  else {\n    val $builder = _root_.scala.collection.immutable.$collection.newBuilder[$arguments]\n" +
++        s"    while $remaining != 0L do {\n" +
++        s"      while $remaining > 0L do {\n" + indent(entry, 8) + s"\n        $remaining -= 1L\n      }\n" +
++        s"      $remaining = in.$next()\n    }\n    $builder.result()\n  }\n}"
+ 
+     def write(value: Value, expression: String): String = value match
+       case Value.Primitive(Schema.Type.NULL) => "out.writeNull()"
+--- a/runtime/src/main/scala/avrogen/runtime/BinaryInput.scala
++++ b/runtime/src/main/scala/avrogen/runtime/BinaryInput.scala
+@@ -90,8 +90,9 @@
+ 
+   override def readString(): String =
+     val size = length(limits.maxStringBytes, "string")
+-    validateUtf8(position, size)
+-    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
++    val ascii = validateUtf8(position, size)
++    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
++    val result = new String(bytes, position, size, charset)
+     position += size
+     result
+ 
+@@ -106,8 +107,9 @@
+ 
+   override def readBytesAsString(): String =
+     val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted bytes/string")
+-    validateUtf8(position, size)
+-    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
++    val ascii = validateUtf8(position, size)
++    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
++    val result = new String(bytes, position, size, charset)
+     position += size
+     result
+ 
+@@ -194,9 +196,11 @@
+       if end >= 0 then boundary = end
+     count
+ 
+-  private def validateUtf8(start: Int, size: Int): Unit =
++  /** Returns true when all bytes are ASCII; validation is identical on either path. */
++  private def validateUtf8(start: Int, size: Int): Boolean =
+     val end = start + size
+     var at = start
++    var ascii = true
+     def continuation(index: Int, minimum: Int = 0x80, maximum: Int = 0xbf): Unit =
+       if index >= end then fail("Truncated UTF-8 sequence")
+       val value = bytes(index) & 0xff
+@@ -205,15 +209,18 @@
+       val first = bytes(at) & 0xff
+       if first < 0x80 then at += 1
+       else if first >= 0xc2 && first <= 0xdf then
++        ascii = false
+         continuation(at + 1)
+         at += 2
+       else if first >= 0xe0 && first <= 0xef then
++        ascii = false
+         if first == 0xe0 then continuation(at + 1, 0xa0)
+         else if first == 0xed then continuation(at + 1, maximum = 0x9f)
+         else continuation(at + 1)
+         continuation(at + 2)
+         at += 3
+       else if first >= 0xf0 && first <= 0xf4 then
++        ascii = false
+         if first == 0xf0 then continuation(at + 1, 0x90)
+         else if first == 0xf4 then continuation(at + 1, maximum = 0x8f)
+         else continuation(at + 1)
+@@ -221,3 +228,4 @@
+         continuation(at + 3)
+         at += 4
+       else fail("Invalid UTF-8 sequence")
++    ascii
+--- a/runtime/src/main/scala/avrogen/runtime/BinaryOutput.scala
++++ b/runtime/src/main/scala/avrogen/runtime/BinaryOutput.scala
+@@ -28,20 +28,28 @@
+     put(if value then 1 else 0)
+ 
+   override def writeInt(value: Int): Unit =
+-    reserve(5)
++    if buffer.length - position < 5 then reserve(5)
++    val bytes = buffer
++    var offset = position
+     var bits = (value << 1) ^ (value >> 31)
+     while (bits & ~0x7f) != 0 do
+-      put((bits & 0x7f) | 0x80)
++      bytes(offset) = ((bits & 0x7f) | 0x80).toByte
++      offset += 1
+       bits = bits >>> 7
+-    put(bits)
++    bytes(offset) = bits.toByte
++    position = offset + 1
+ 
+   override def writeLong(value: Long): Unit =
+-    reserve(10)
++    if buffer.length - position < 10 then reserve(10)
++    val bytes = buffer
++    var offset = position
+     var bits = (value << 1) ^ (value >> 63)
+     while (bits & ~0x7fL) != 0 do
+-      put(((bits & 0x7fL) | 0x80L).toInt)
++      bytes(offset) = ((bits & 0x7fL) | 0x80L).toByte
++      offset += 1
+       bits = bits >>> 7
+-    put(bits.toInt)
++    bytes(offset) = bits.toByte
++    position = offset + 1
+ 
+   override def writeFloat(value: Float): Unit =
+     reserve(4)
+@@ -61,8 +69,9 @@
+ 
+   /** Emits UTF-8 directly, rejecting unpaired UTF-16 surrogates. */
+   override def writeString(value: String): Unit =
+-    var encodedLength = 0L
+     var index = 0
++    while index < value.length && value.charAt(index) < 0x80 do index += 1
++    var encodedLength = index.toLong
+     while index < value.length do
+       val ch = value.charAt(index).toInt
+       if ch < 0x80 then encodedLength += 1
+@@ -79,6 +88,16 @@
+     require(encodedLength <= Int.MaxValue, "UTF-8 string exceeds maximum array size")
+     writeLong(encodedLength)
+     reserve(encodedLength.toInt)
++    if encodedLength == value.length.toLong then
++      // ASCII has already been validated. Copy without per-byte position updates.
++      val destination = buffer
++      val start = position
++      index = 0
++      while index < value.length do
++        destination(start + index) = value.charAt(index).toByte
++        index += 1
++      position = start + value.length
++      return
+     index = 0
+     while index < value.length do
+       val ch = value.charAt(index).toInt

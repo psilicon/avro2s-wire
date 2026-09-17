@@ -189,10 +189,12 @@ object CodeGenerator:
       val entry =
         if isMap then s"val $key = in.readString()\nval $item: ${scalaType(element)} = ${read(element)}\n$builder += (($key, $item))"
         else s"$builder += (${read(element)})"
-      s"{\n  val $builder = _root_.scala.collection.immutable.$collection.newBuilder[$arguments]\n" +
-        s"  var $remaining = in.$start()\n  while $remaining != 0L do {\n" +
-        s"    while $remaining > 0L do {\n" + indent(entry, 6) + s"\n      $remaining -= 1L\n    }\n" +
-        s"    $remaining = in.$next()\n  }\n  $builder.result()\n}"
+      s"{\n  var $remaining = in.$start()\n" +
+        s"  if $remaining == 0L then _root_.scala.collection.immutable.$collection.empty[$arguments]\n" +
+        s"  else {\n    val $builder = _root_.scala.collection.immutable.$collection.newBuilder[$arguments]\n" +
+        s"    while $remaining != 0L do {\n" +
+        s"      while $remaining > 0L do {\n" + indent(entry, 8) + s"\n        $remaining -= 1L\n      }\n" +
+        s"      $remaining = in.$next()\n    }\n    $builder.result()\n  }\n}"
 
     def write(value: Value, expression: String): String = value match
       case Value.Primitive(Schema.Type.NULL) => "out.writeNull()"

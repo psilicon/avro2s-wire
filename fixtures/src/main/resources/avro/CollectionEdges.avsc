@@ -1,0 +1,8 @@
+{
+  "type": "record", "name": "CollectionEdges", "namespace": "avrogen.fixtures",
+  "fields": [
+    {"name": "maps", "type": {"type": "array", "items": {"type": "map", "values": "long"}}},
+    {"name": "arrays", "type": {"type": "map", "values": {"type": "array", "items": "int"}}},
+    {"name": "tail", "type": "long"}
+  ]
+}

@@ -90,8 +90,9 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readString(): String =
     val size = length(limits.maxStringBytes, "string")
-    validateUtf8(position, size)
-    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
+    val ascii = validateUtf8(position, size)
+    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
+    val result = new String(bytes, position, size, charset)
     position += size
     result
 
@@ -106,8 +107,9 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
 
   override def readBytesAsString(): String =
     val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted bytes/string")
-    validateUtf8(position, size)
-    val result = new String(bytes, position, size, StandardCharsets.UTF_8)
+    val ascii = validateUtf8(position, size)
+    val charset = if ascii then StandardCharsets.ISO_8859_1 else StandardCharsets.UTF_8
+    val result = new String(bytes, position, size, charset)
     position += size
     result
 
@@ -194,9 +196,11 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
       if end >= 0 then boundary = end
     count
 
-  private def validateUtf8(start: Int, size: Int): Unit =
+  /** Returns true when all bytes are ASCII; validation is identical on either path. */
+  private def validateUtf8(start: Int, size: Int): Boolean =
     val end = start + size
     var at = start
+    var ascii = true
     def continuation(index: Int, minimum: Int = 0x80, maximum: Int = 0xbf): Unit =
       if index >= end then fail("Truncated UTF-8 sequence")
       val value = bytes(index) & 0xff
@@ -205,15 +209,18 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
       val first = bytes(at) & 0xff
       if first < 0x80 then at += 1
       else if first >= 0xc2 && first <= 0xdf then
+        ascii = false
         continuation(at + 1)
         at += 2
       else if first >= 0xe0 && first <= 0xef then
+        ascii = false
         if first == 0xe0 then continuation(at + 1, 0xa0)
         else if first == 0xed then continuation(at + 1, maximum = 0x9f)
         else continuation(at + 1)
         continuation(at + 2)
         at += 3
       else if first >= 0xf0 && first <= 0xf4 then
+        ascii = false
         if first == 0xf0 then continuation(at + 1, 0x90)
         else if first == 0xf4 then continuation(at + 1, maximum = 0x8f)
         else continuation(at + 1)
@@ -221,3 +228,4 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
         continuation(at + 3)
         at += 4
       else fail("Invalid UTF-8 sequence")
+    ascii

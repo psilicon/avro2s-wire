@@ -22,6 +22,8 @@ sbt 'fixtures/runMain avrogen.fixtures.Demo'
 The build generates fixture sources from `.avsc` files and compiles them against
 the native runtime alone. Tests cross-read and cross-write with Java Avro's
 independent generic reader/writer, in addition to binary-format and generator tests.
+See the [test inventory and current gaps](docs/testing.md) for the coverage of the
+128 tests, including reproducible generated values and malformed-input checks.
 
 ## Generate Scala
 
@@ -200,6 +202,13 @@ The [first measured baseline](docs/benchmarks/results-2026-09-17.md), recorded
 before the union/logical/evolution additions, compares
 avro2s, Java Avro, and Avrogen with raw results and source hashes.
 
+The [expanded workload harness](docs/benchmarks/expanded-workloads.md) adds integer
+distributions, ASCII and Unicode strings, bytes, maps, nested records and unions,
+with both reused-buffer operations and allocating convenience APIs. The
+[performance follow-up](docs/benchmarks/performance-2026-09-17.md) records paired
+measurements for native integer output, empty collection readers and strict ASCII
+fast paths, along with an updated six-way comparison.
+
 See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
 reproduction commands, and interpretation limits. Default Java models retain Utf8
 and Java collections; the Scala models return String and Scala collections. Native
@@ -215,8 +224,8 @@ and policy differences are part of the measurements.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
 
-Next: broaden benchmarks to strings, bytes, nesting, unions, and evolution; use
-profiles to tune native integer output and evaluate optional primitive-backed
-collections. Add build-tool integration, streaming/container APIs, and registry
-adapters after the core API settles. See
+Next: automate exploration of schema combinations and extend measured evolution
+coverage. Optional primitive-backed collections, input reuse and bulk block
+skipping remain separate experiments. Add build-tool integration,
+streaming/container APIs, and registry adapters after the core API settles. See
 [the architecture notes](docs/architecture.md).
