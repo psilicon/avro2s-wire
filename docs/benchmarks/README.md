@@ -17,7 +17,9 @@ The [broader comparison corpus](../../benchmarks/COMPARISON.md) adds 13 input
 profiles, with genuine Java and avro2s generated baselines where supported.
 It covers 148 read/write cases, including temporal/UUID values and high-precision
 decimals. Unsupported custom coders and avro2s logical decimal models are excluded
-explicitly. The separate evolution profile contains eight cases.
+explicitly. The separate evolution profile contains eight cases. The
+[broader measured report](comparison-2026-09-17.md) records the full matrix,
+evolution, longer confirmations, raw JSON and unchanged-source checks.
 
 ## Implementations
 
