@@ -32,8 +32,12 @@ check Java interoperability in both directions, and shrink failing cases for
 replay. The default campaign covers 197 schemas and 2,174 values, with required
 coverage assertions. Additional campaigns generate writer/reader schema pairs,
 alternative legal collection blocks, malformed inputs, limits and ownership
-operations. See the [testing guide](docs/testing.md) for the 147 tests,
+operations. See the [testing guide](docs/testing.md) for the 171 tests,
 reproducible campaign commands and remaining gaps.
+
+GitHub Actions follows avro2s's PR, pre-release and release flow, using JDK 21.
+See [releasing](docs/releasing.md) for the required repository secrets and Central
+Portal upload process. Snapshot versions are not automatically published.
 
 ## Generate Scala
 

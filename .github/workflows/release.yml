@@ -1,0 +1,97 @@
+name: Release
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  check-commit-message:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message, '[release]'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release Requested
+        run: echo "Release requested on main"
+  test:
+    needs: check-commit-message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check Release Version
+        run: |
+          version=$(sed -n 's/^ThisBuild \/ version := "\(.*\)"$/\1/p' build.sbt)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable major.minor.patch version, got: $version" >&2
+            exit 1
+          fi
+      - name: Setup SBT
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:21
+          apps: sbt
+      - name: Build and Test
+        run: sbt -v test
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup SBT
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:21
+          apps: sbt
+      - name: Import GPG Key
+        run: printf '%s' "$GPG_PRIVATE_KEY" | base64 --decode | gpg --batch --yes --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      - name: Build and Publish
+        run: sbt publishSigned
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Central Portal Upload
+        run: sbt sonaUpload
+        env:
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+  prepare-snapshot:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GH_PAT }}
+      - name: Check Main Has Not Moved
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "main changed during release; prepare the next snapshot manually." >&2
+            exit 1
+          fi
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+      - name: Increment Version and Add Snapshot Suffix
+        run: bash scripts/increment-version.sh
+      - name: Extract Version Number
+        run: echo "AVRO2S_WIRE_VERSION=$(sed -n 's/^ThisBuild \/ version := "\(.*\)"$/\1/p' build.sbt)" >> "$GITHUB_ENV"
+      - name: Push Changes
+        run: |
+          git config --local user.name 'psilicon'
+          git config --local user.email 'bot@psilicon.io'
+          git add build.sbt
+          git commit -m "Version $AVRO2S_WIRE_VERSION [snapshot]"
+          git push origin HEAD:main

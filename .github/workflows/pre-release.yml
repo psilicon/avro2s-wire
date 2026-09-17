@@ -1,0 +1,41 @@
+name: Pre-Release
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+concurrency:
+  group: pre-release
+  cancel-in-progress: false
+jobs:
+  remove-snapshot:
+    runs-on: ubuntu-latest
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (!contains(github.event.head_commit.message, '[snapshot]') &&
+       !contains(github.event.head_commit.message, '[release]') &&
+       !contains(github.event.head_commit.message, '[skip release]')))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          token: ${{ secrets.GH_PAT }}
+      - name: Remove Snapshot Suffix
+        run: bash scripts/remove-snapshot.sh
+      - name: Extract Version Number
+        run: echo "AVRO2S_WIRE_VERSION=$(sed -n 's/^ThisBuild \/ version := "\(.*\)"$/\1/p' build.sbt)" >> "$GITHUB_ENV"
+      - name: Push Changes
+        run: |
+          git config --local user.name 'psilicon'
+          git config --local user.email 'bot@psilicon.io'
+          git add build.sbt
+          git commit -m "Version $AVRO2S_WIRE_VERSION [release]"
+          git push origin HEAD:main
