@@ -1,0 +1,142 @@
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala
+new file mode 100644
+--- /dev/null
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala
+@@ -0,0 +1,32 @@
++package avro2s.wire.benchmarks
++
++import _root_.avro2s.wire.benchmarks.comparison.{ComparativeWorkload, ComparisonFixtures}
++import java.util.concurrent.TimeUnit
++import org.openjdk.jmh.annotations.*
++
++/** Every timed method materializes a java.lang.String, including both Java readers. */
++@State(Scope.Thread)
++@BenchmarkMode(Array(Mode.AverageTime))
++@OutputTimeUnit(TimeUnit.NANOSECONDS)
++@Warmup(iterations = 5, time = 1)
++@Measurement(iterations = 5, time = 1)
++@Fork(2)
++class DecodedStringBenchmark:
++  @Param(Array("string-ascii", "string-unicode"))
++  var profile: String = "string-ascii"
++  private var workload: ComparativeWorkload[?] = null
++
++  @Setup(Level.Trial)
++  def setup(): Unit =
++    workload = ComparisonFixtures(profile)
++    workload.verifyInteroperability()
++    val expected = workload.expected.asInstanceOf[Product].productElement(0)
++    Vector(workload.javaGenericStringRead().get(0), workload.javaSpecificStringRead().get(0)).foreach { value =>
++      require(value.isInstanceOf[String] && value == expected)
++    }
++
++  @Benchmark def nativeRead(): Any = workload.nativeRead()
++  @Benchmark def javaPrimitivesRead(): Any = workload.javaPrimitivesRead()
++  @Benchmark def javaGenericStringRead(): Any = workload.javaGenericStringRead()
++  @Benchmark def javaSpecificStringRead(): Any = workload.javaSpecificStringRead()
++  @Benchmark def avro2sRead(): Any = workload.avro2sRead()
+diff --git a/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala b/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
+--- a/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
++++ b/benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala
+@@ -67,6 +67,14 @@
+   private val genericReader = new GenericDatumReader[GenericRecord](schema, schema, genericData)
+   private val specificWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, standardData)
+   private val specificReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, standardData)
++  // Separate reader schemas preserve the original Utf8 baselines. These variants
++  // explicitly request String materialization from Avro's normal readers.
++  private lazy val stringGenericReader =
++    val readerSchema = stringSchema(schema)
++    new GenericDatumReader[GenericRecord](schema, readerSchema, genericData)
++  private lazy val stringSpecificReader =
++    val readerSchema = stringSchema(javaSchema)
++    new SpecificDatumReader[SpecificRecordBase](javaSchema, readerSchema, standardData)
+   private val customWriter = new SpecificDatumWriter[SpecificRecordBase](javaSchema, customData)
+   private val customReader = new SpecificDatumReader[SpecificRecordBase](javaSchema, javaSchema, customData)
+   private val scalaWriter = if supportsAvro2s then new SpecificDatumWriter[SpecificRecordBase](scalaSchema, scalaData) else null
+@@ -110,6 +118,8 @@
+   def javaPrimitivesRead(): A = codec.read(new JavaAvroInput(DecoderFactory.get().binaryDecoder(payload, null)))
+   def javaGenericRead(): GenericRecord = genericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+   def javaSpecificRead(): SpecificRecordBase = specificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
++  def javaGenericStringRead(): GenericRecord = stringGenericReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
++  def javaSpecificStringRead(): SpecificRecordBase = stringSpecificReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+   def javaCustomRead(): SpecificRecordBase =
+     require(supportsCustom, "This schema has no generated Java custom coder")
+     customReader.read(null, DecoderFactory.get().binaryDecoder(payload, null))
+@@ -170,6 +180,22 @@
+     counts
+ 
+ object ComparativeWorkload:
++  private def stringSchema(original: Schema): Schema =
++    val result = new Schema.Parser().parse(original.toString)
++    val seen = new java.util.IdentityHashMap[Schema, java.lang.Boolean]()
++    def visit(schema: Schema): Unit =
++      if seen.put(schema, java.lang.Boolean.TRUE) == null then schema.getType match
++        case Schema.Type.STRING => GenericData.setStringType(schema, GenericData.StringType.String)
++        case Schema.Type.MAP =>
++          GenericData.setStringType(schema, GenericData.StringType.String)
++          visit(schema.getValueType)
++        case Schema.Type.ARRAY => visit(schema.getElementType)
++        case Schema.Type.RECORD => schema.getFields.asScala.foreach(f => visit(f.schema()))
++        case Schema.Type.UNION => schema.getTypes.asScala.foreach(visit)
++        case _ => ()
++    visit(result)
++    result
++
+   private final class JavaOutput:
+     val bytes = new ByteArrayOutputStream()
+     val encoder = EncoderFactory.get().binaryEncoder(bytes, null)
+diff --git a/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala b/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
+--- a/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
++++ b/benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala
+@@ -5,6 +5,21 @@
+ import munit.FunSuite
+ 
+ final class ComparisonBenchmarkSuite extends FunSuite:
++  test("explicit String readers materialize text without changing Utf8 baselines") {
++    Vector("string-ascii", "string-unicode").foreach { profile =>
++      val workload = ComparisonFixtures(profile)
++      val expected = workload.expected.asInstanceOf[Product].productElement(0)
++      Vector(workload.javaGenericStringRead().get(0), workload.javaSpecificStringRead().get(0)).foreach { value =>
++        assert(value.isInstanceOf[String])
++        assertEquals(value, expected)
++      }
++      assert(workload.javaGenericRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
++      assert(workload.javaSpecificRead().get(0).isInstanceOf[org.apache.avro.util.Utf8])
++      assert(workload.javaSpecificStringRead() ne workload.javaSpecificStringRead())
++      assert(workload.javaGenericStringRead() ne workload.javaGenericStringRead())
++    }
++  }
++
+   test("every supported comparison writer is read by every independent reader") {
+     val workloads = ComparisonFixtures.profiles.map(ComparisonFixtures.apply) ++
+       Vector(ComparisonFixtures.nested(), ComparisonFixtures.logical(), ComparisonFixtures.decimal())
+diff --git a/scripts/run-performance.py b/scripts/run-performance.py
+--- a/scripts/run-performance.py
++++ b/scripts/run-performance.py
+@@ -27,10 +27,17 @@
+     "NestedComparison": {},
+     "LogicalComparison": {},
+     "DecimalComparison": {},
++    "DecodedString": {"profile": ["string-ascii", "string-unicode"]},
+ }
+ 
+ 
+ def groups(profile):
++    if profile == "decoded-strings":
++        return [("DecodedString", ["nativeRead", "javaPrimitivesRead", "javaGenericStringRead",
++                                    "javaSpecificStringRead", "avro2sRead"], {})]
++    if profile == "strings":
++        return [("String", [engine + op for engine in ["native", "javaPrimitives"]
++                            for op in ["Read", "Write", "Encode", "Decode"]], {})]
+     if profile == "pilot":
+         return [(name, ["nativeRead", "nativeWrite"], {}) for name in list(MATRIX)[:5]]
+     if profile == "focused":
+@@ -76,7 +83,7 @@
+     parser.add_argument("--java", type=Path, required=True, help="Absolute fork JVM executable")
+     parser.add_argument("--output", type=Path, required=True)
+     parser.add_argument("--label", required=True, help="Unique filename prefix")
+-    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison"], required=True)
++    parser.add_argument("--profile", choices=["pilot", "focused", "api", "trade", "evolution", "comparison", "decoded-strings", "strings"], required=True)
+     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+     parser.add_argument("--filter", default=".*", help="Regex narrowing the profile's full benchmark names")
+     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUES", help="Comma-separated parameter override; repeatable")

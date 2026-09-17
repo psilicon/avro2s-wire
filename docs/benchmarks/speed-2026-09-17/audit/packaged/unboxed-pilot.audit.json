@@ -1,0 +1,105 @@
+{
+  "campaign": "unboxed-pilot",
+  "baseRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "recordedRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "manifestSha256": "e9c8cc1ae3a59cee8255cebb9b544813870374a8c9e47d4116f8042dbc64d1bc",
+  "patchSha256": "fd287fa6310d600c496c00483bcdc51c98bab384aeae37fe8b45e6bc807a8907",
+  "patches": [
+    {
+      "name": "unboxed-pilot.patch",
+      "sha256": "fd287fa6310d600c496c00483bcdc51c98bab384aeae37fe8b45e6bc807a8907"
+    }
+  ],
+  "sourceSnapshot": "commit-plus-patch",
+  "verifiedSourceFiles": 153,
+  "sourceMismatches": [],
+  "sourcesUnchanged": true,
+  "results": {
+    "cases": 26,
+    "observations": {
+      "primary": 104,
+      "gc.alloc.rate": 104,
+      "gc.alloc.rate.norm": 104,
+      "gc.count": 104,
+      "gc.time": 76
+    },
+    "runs": [
+      {
+        "name": "Comparison",
+        "cases": 20,
+        "observations": {
+          "primary": 80,
+          "gc.alloc.rate": 80,
+          "gc.alloc.rate.norm": 80,
+          "gc.count": 80,
+          "gc.time": 52
+        },
+        "resultSha256": "ccd96d93b9306eaa2e82cfc4de4a1b9b88958ad31ca65c141d0fbc6d725a2f78",
+        "logSha256": "d3482b922d94061591e20b0c276a7171fe8a1b6b90fdf1e07ba3be21edf77f9f",
+        "logArtifact": {
+          "name": "unboxed-pilot-Comparison.log.gz",
+          "compression": "gzip",
+          "sha256": "1aba1689b25b620229c14c6eb5315353f6187d86add10376c05c44394ce5acf8"
+        },
+        "knownSlf4jWarningLines": 60
+      },
+      {
+        "name": "NestedComparison",
+        "cases": 2,
+        "observations": {
+          "primary": 8,
+          "gc.alloc.rate": 8,
+          "gc.alloc.rate.norm": 8,
+          "gc.count": 8,
+          "gc.time": 8
+        },
+        "resultSha256": "9d84357398df18f4cdd4a7d408ba2fa49632040e6dfbb5b8c1088aecdec68c01",
+        "logSha256": "04448220d57f98acb499ecc180cbeef3bf53fad216751e4b963d946cb1f485b7",
+        "logArtifact": {
+          "name": "unboxed-pilot-NestedComparison.log.gz",
+          "compression": "gzip",
+          "sha256": "ce333df83b7c5f2a790a6a8b63c3415522b8bdb7e08ba31371cf0ab5dbfcdbb1"
+        },
+        "knownSlf4jWarningLines": 6
+      },
+      {
+        "name": "LogicalComparison",
+        "cases": 2,
+        "observations": {
+          "primary": 8,
+          "gc.alloc.rate": 8,
+          "gc.alloc.rate.norm": 8,
+          "gc.count": 8,
+          "gc.time": 8
+        },
+        "resultSha256": "78ff5196a1c2ba8bb29ee78cbaa4e895cb19c6cab9ce30fd1a198d7f76118aa5",
+        "logSha256": "af2b81472099303f683c776a4437a3e908b0cd021df70470d0b448166fc90793",
+        "logArtifact": {
+          "name": "unboxed-pilot-LogicalComparison.log.gz",
+          "compression": "gzip",
+          "sha256": "88514affdfce53f812c22a8e2e5edb9faedefbf1a07e4bf450484991496de21c"
+        },
+        "knownSlf4jWarningLines": 6
+      },
+      {
+        "name": "DecimalComparison",
+        "cases": 2,
+        "observations": {
+          "primary": 8,
+          "gc.alloc.rate": 8,
+          "gc.alloc.rate.norm": 8,
+          "gc.count": 8,
+          "gc.time": 8
+        },
+        "resultSha256": "cf2746077fc0b57a1b67d7fd8c067920499936b074a39623cb3d626a9369a2fe",
+        "logSha256": "cfdd2c71b33baaaa26a018a902aaee527a12c18e45f8317c1153fb6db145c5a4",
+        "logArtifact": {
+          "name": "unboxed-pilot-DecimalComparison.log.gz",
+          "compression": "gzip",
+          "sha256": "f33dd974e400cbb54701dfb27cb8feef5fa5130b737e349f34ca2d653d051cfc"
+        },
+        "knownSlf4jWarningLines": 6
+      }
+    ]
+  }
+}

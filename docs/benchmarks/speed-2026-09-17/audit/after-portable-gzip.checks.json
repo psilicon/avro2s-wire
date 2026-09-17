@@ -1,0 +1,33 @@
+{
+  "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+  "reconstructionBase": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "sourceFiles": 156,
+  "cases": 148,
+  "primaryObservations": 1480,
+  "checks": [
+    {
+      "name": "Comparison",
+      "originalLogHashPreserved": true,
+      "compressedArtifactHashVerified": true,
+      "resultHashUnchanged": true
+    },
+    {
+      "name": "NestedComparison",
+      "originalLogHashPreserved": true,
+      "compressedArtifactHashVerified": true,
+      "resultHashUnchanged": true
+    },
+    {
+      "name": "LogicalComparison",
+      "originalLogHashPreserved": true,
+      "compressedArtifactHashVerified": true,
+      "resultHashUnchanged": true
+    },
+    {
+      "name": "DecimalComparison",
+      "originalLogHashPreserved": true,
+      "compressedArtifactHashVerified": true,
+      "resultHashUnchanged": true
+    }
+  ]
+}

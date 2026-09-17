@@ -3,8 +3,8 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The source now declares **147 tests across 20 suites**, adding 13 property tests
-and six comparison-benchmark correctness tests.
+The source now declares **171 tests across 26 suites**, including 13 property
+tests, comparison-benchmark checks and focused runtime regressions.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
 
@@ -258,7 +258,7 @@ and resolved reader values; map comparisons allow differing entry order.
 
 The Trade benchmark tests check six writers against six readers at three
 collection sizes, including avro2s, Java specific/custom/generic and both
-avro2s-wire engines. The expanded workloads verify 24 configurations against Java
+avro2s-wire engines. The expanded workloads verify 34 configurations against Java
 generic codecs and check their advertised integer widths and Unicode sizes.
 The new comparison correctness suite checks 13 further workload profiles,
 implementation capability labels, genuine custom-coder dispatch, fresh reads,
@@ -270,6 +270,21 @@ decimal workload has neither that path nor an avro2s path.
 Java Avro is a compatibility reference for valid data. Native malformed-input
 rejection and resource limits are tested separately: the two engines do not
 have identical validation policies.
+
+The native speed changes add checks for every one/two-byte UTF-8 input and every
+single UTF-16 code unit against strict JDK conversion, seeded multibyte mutations,
+literal replacement characters, mixed supplementary text, string-length boundaries
+and malformed writes preserving existing output. Numeric checks cover every
+varint width, overflowing terminal bytes, physical and sized-block boundaries,
+unaligned raw float/double bits, and independent arithmetic wire encodings.
+Bulk-array checks retain generic encoder callbacks and Java blocking-encoder
+interoperability; map checks cover collisions, duplicate keys across blocks and
+multiple immutable implementations. Explicit Java String-reader checks verify
+actual String fields and map keys while leaving the default Utf8 baseline intact.
+
+The final speed candidate passed all **171 tests across 26 suites** on JDK 11
+and in a clean JDK 21 run, including the expanded seed-42 campaign above. Test declaration counts describe
+named checks, not the number of generated schemas, values or malformed inputs.
 
 ## Performance and remaining gaps
 
@@ -296,3 +311,6 @@ Correctness coverage does not establish performance across the same types. The
 [broader measured comparison](benchmarks/comparison-2026-09-17.md) covers 13 fixed
 workload profiles and a separate evolution pair; its recorded runs and uncertainty
 support conclusions for those workloads.
+The [native speed follow-up](benchmarks/speed-2026-09-17.md) keeps those comparisons
+and adds decoded-String controls and a wider text corpus. The measured cases
+remain separate from the much larger correctness corpus.

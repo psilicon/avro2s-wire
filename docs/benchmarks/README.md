@@ -1,5 +1,9 @@
 # Benchmark protocol
 
+The latest [native speed follow-up](speed-2026-09-17.md) includes the
+[complete timing and allocation tables](speed-2026-09-17/tables.md), equivalent
+String-output controls and allocating API measurements.
+
 The original measurements compare one matching-schema `Trade` workload. Its fields are
 `id: long`, `symbol: string`, `price: double`, and `quantities: array<int>`.
 Collection sizes are 0, 32, and 1024. Integer elements are outside the JVM's
@@ -134,3 +138,22 @@ python3 scripts/summarize-comparison.py /absolute/path/to/results/comparison-*.j
 
 Pass only JMH result JSON files to the summarizer, excluding `.environment.json`.
 Short smoke runs only check execution and setup invariants.
+
+The [native speed follow-up](speed-2026-09-17.md) includes explicit String-output
+Java readers and records both retained improvements and rejected experiments.
+Run those controls or the expanded text corpus with:
+
+```sh
+python3 scripts/run-performance.py --java /absolute/path/to/java --output /absolute/path/to/results --label decoded-strings --profile decoded-strings
+python3 scripts/run-performance.py --java /absolute/path/to/java --output /absolute/path/to/results --label strings --profile strings
+```
+
+`gc.alloc.rate.norm` is allocated heap bytes per operation, including temporary
+objects; it is not retained size or peak process memory. JMH takes JVM allocation
+counter snapshots around each measurement interval and divides their difference
+by the operation count. On supported JDK 21 VMs its counter covers all Java
+threads in the benchmark process; small infrastructure contributions are therefore
+possible. The isolated forks, repeated operations and recorded raw observations
+help interpret this aggregate. See the
+[JMH 1.37 implementation](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/profile/GCProfiler.java#L139-L155)
+and [JDK allocation-counter contract](https://docs.oracle.com/en/java/javase/21/docs/api/jdk.management/com/sun/management/ThreadMXBean.html#getTotalThreadAllocatedBytes()).

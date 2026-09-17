@@ -1,0 +1,31 @@
+{
+  "jdk11": {
+    "log": "final-jdk11-test.log.gz",
+    "tests": 171,
+    "suites": 26,
+    "failed": 0,
+    "errors": 0
+  },
+  "jdk21": {
+    "log": "final-jdk21-clean-test.log.gz",
+    "clean": true,
+    "tests": 171,
+    "suites": 26,
+    "failed": 0,
+    "errors": 0
+  },
+  "byteArrayAccess": {
+    "classFileMajorVersion": 55,
+    "getIntInvocationDescriptor": "([BI)I",
+    "getLongInvocationDescriptor": "([BI)J"
+  },
+  "propertyCampaign": {
+    "seed": 42,
+    "matchingSchemas": 197,
+    "matchingValues": 2174,
+    "evolutionPairs": 136,
+    "evolutionValues": 928,
+    "wireSchemas": 119,
+    "wireValues": 476
+  }
+}

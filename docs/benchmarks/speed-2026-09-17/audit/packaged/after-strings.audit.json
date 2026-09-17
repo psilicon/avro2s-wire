@@ -1,0 +1,48 @@
+{
+  "campaign": "after-strings",
+  "baseRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "recordedRevision": "6e6c0effdec43d61cd978ec1a970a645459487f2",
+  "manifestSha256": "97682c0fa8b1e4bbf0dad55695671cf1db442bf9b768085a887d25eb620f8150",
+  "patchSha256": "aae49d0a7f7b605f7109fe81ecbc7deb29116fa28ef74a0b4fd578b18e21bd66",
+  "patches": [
+    {
+      "name": "committed-6e6c0ef.patch",
+      "sha256": "aae49d0a7f7b605f7109fe81ecbc7deb29116fa28ef74a0b4fd578b18e21bd66"
+    }
+  ],
+  "sourceSnapshot": "commit-plus-patch",
+  "verifiedSourceFiles": 155,
+  "sourceMismatches": [],
+  "sourcesUnchanged": true,
+  "results": {
+    "cases": 26,
+    "observations": {
+      "primary": 260,
+      "gc.alloc.rate": 260,
+      "gc.alloc.rate.norm": 260,
+      "gc.count": 260,
+      "gc.time": 250
+    },
+    "runs": [
+      {
+        "name": "String",
+        "cases": 26,
+        "observations": {
+          "primary": 260,
+          "gc.alloc.rate": 260,
+          "gc.alloc.rate.norm": 260,
+          "gc.count": 260,
+          "gc.time": 250
+        },
+        "resultSha256": "d3bb95854cff1cde1e8227b134a28a011193265c50be8af369cbc68517c26cce",
+        "logSha256": "8c5adc3d0ab1eccd2386a2146c52b6c171ae5370f44d9194aaa277676c6bc019",
+        "logArtifact": {
+          "name": "after-strings-String.log.gz",
+          "compression": "gzip",
+          "sha256": "883b4a302d2b1a942482e6562a765e39f0ae81f0d612f0e17f983d764b7e6918"
+        },
+        "knownSlf4jWarningLines": 156
+      }
+    ]
+  }
+}

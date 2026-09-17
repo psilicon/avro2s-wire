@@ -1,0 +1,26 @@
+{
+  "supplementary-control": {
+    "sourceFiles": 155,
+    "cases": 10,
+    "observations": {
+      "primary": 40,
+      "gc.alloc.rate": 40,
+      "gc.alloc.rate.norm": 40,
+      "gc.count": 40,
+      "gc.time": 40
+    },
+    "patchSha256": "bd276ccbd9269add13cbdb770e6727311f234b4751f7bf70f9e929404a18b0b0"
+  },
+  "supplementary-direct": {
+    "sourceFiles": 156,
+    "cases": 10,
+    "observations": {
+      "primary": 40,
+      "gc.alloc.rate": 40,
+      "gc.alloc.rate.norm": 40,
+      "gc.count": 40,
+      "gc.time": 16
+    },
+    "patchSha256": "91cd401698eba3dad5c84953774f1be8a970d058dee9586873d414eccaaf16b9"
+  }
+}

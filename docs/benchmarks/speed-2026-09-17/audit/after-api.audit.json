@@ -1,0 +1,119 @@
+{
+  "campaign": "after-api",
+  "baseRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+  "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2",
+  "manifestSha256": "8849517dd72d466ed3de28a0427bb85f344d923dc35ba18fbd8d939ee6cf054c",
+  "patchSha256": null,
+  "patches": [],
+  "sourceSnapshot": "commit",
+  "verifiedSourceFiles": 156,
+  "sourceMismatches": [],
+  "sourcesUnchanged": true,
+  "results": {
+    "cases": 14,
+    "observations": {
+      "primary": 140,
+      "gc.alloc.rate": 140,
+      "gc.alloc.rate.norm": 140,
+      "gc.count": 140,
+      "gc.time": 140
+    },
+    "runs": [
+      {
+        "name": "Integer",
+        "cases": 2,
+        "observations": {
+          "primary": 20,
+          "gc.alloc.rate": 20,
+          "gc.alloc.rate.norm": 20,
+          "gc.count": 20,
+          "gc.time": 20
+        },
+        "resultSha256": "d342427b8fd555dc5559fbb4b7efd8cac20b5a2edb11089028c518fb80a0c399",
+        "logSha256": "4f1ed7ddde1debe935b8117c728ef1acf62e588ba27b28cda1806256b7436e62",
+        "logArtifact": {
+          "name": "after-api-Integer.log",
+          "compression": "none",
+          "sha256": "4f1ed7ddde1debe935b8117c728ef1acf62e588ba27b28cda1806256b7436e62"
+        },
+        "knownSlf4jWarningLines": 12
+      },
+      {
+        "name": "String",
+        "cases": 4,
+        "observations": {
+          "primary": 40,
+          "gc.alloc.rate": 40,
+          "gc.alloc.rate.norm": 40,
+          "gc.count": 40,
+          "gc.time": 40
+        },
+        "resultSha256": "a3c76b66ef770b6a11285f32d3ee6768cb69ca07cc2d9b3342546dd7730735ef",
+        "logSha256": "9eb3c03b2ef5cd99c5e44acd56d8e612fd05398288deb92b995ac410a33453cc",
+        "logArtifact": {
+          "name": "after-api-String.log",
+          "compression": "none",
+          "sha256": "9eb3c03b2ef5cd99c5e44acd56d8e612fd05398288deb92b995ac410a33453cc"
+        },
+        "knownSlf4jWarningLines": 24
+      },
+      {
+        "name": "Collections",
+        "cases": 4,
+        "observations": {
+          "primary": 40,
+          "gc.alloc.rate": 40,
+          "gc.alloc.rate.norm": 40,
+          "gc.count": 40,
+          "gc.time": 40
+        },
+        "resultSha256": "d1cb896910b01a3f3b6d3586073aba948d749eceefa214b9c725f8cf3b5f5cf5",
+        "logSha256": "e2332395f7abcc57c7ad07e642658773d83d544ffe952d602d849cad2b4f0580",
+        "logArtifact": {
+          "name": "after-api-Collections.log",
+          "compression": "none",
+          "sha256": "e2332395f7abcc57c7ad07e642658773d83d544ffe952d602d849cad2b4f0580"
+        },
+        "knownSlf4jWarningLines": 24
+      },
+      {
+        "name": "Bytes",
+        "cases": 2,
+        "observations": {
+          "primary": 20,
+          "gc.alloc.rate": 20,
+          "gc.alloc.rate.norm": 20,
+          "gc.count": 20,
+          "gc.time": 20
+        },
+        "resultSha256": "cbfc17d82d86ad95b4a5fb2d68bf57b8c11f49d9e3e4ca480fed1ec37d01b413",
+        "logSha256": "5b3fb41987074b93ff6e68cf3c44d17e9007fe324695567a1b4af0a98ecb692a",
+        "logArtifact": {
+          "name": "after-api-Bytes.log",
+          "compression": "none",
+          "sha256": "5b3fb41987074b93ff6e68cf3c44d17e9007fe324695567a1b4af0a98ecb692a"
+        },
+        "knownSlf4jWarningLines": 12
+      },
+      {
+        "name": "NestedUnion",
+        "cases": 2,
+        "observations": {
+          "primary": 20,
+          "gc.alloc.rate": 20,
+          "gc.alloc.rate.norm": 20,
+          "gc.count": 20,
+          "gc.time": 20
+        },
+        "resultSha256": "63cd3d97fb813fe566ae405ced5d34479cf32f3de1e77751d538d80380a2a392",
+        "logSha256": "89ad4ba782694e042a7145050f3644a9118c9eaa3ea8e9240fe4bc81236997fa",
+        "logArtifact": {
+          "name": "after-api-NestedUnion.log",
+          "compression": "none",
+          "sha256": "89ad4ba782694e042a7145050f3644a9118c9eaa3ea8e9240fe4bc81236997fa"
+        },
+        "knownSlf4jWarningLines": 12
+      }
+    ]
+  }
+}

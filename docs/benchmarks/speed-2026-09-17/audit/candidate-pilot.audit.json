@@ -1,0 +1,76 @@
+{
+  "status": "verified-rejected-candidate",
+  "baseRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e",
+  "manifest": "candidate-pilot.environment.json",
+  "source": {
+    "verifiedSourceFiles": 152,
+    "mismatches": []
+  },
+  "freshPatchReplay": {
+    "verifiedSourceFiles": 152,
+    "mismatches": []
+  },
+  "patchSha256": "8c1aa18da2fb68676764424c1411f4470d6f77c60cc965966f4554473af0bbb4",
+  "changedFiles": [
+    "benchmarks/src/main/scala/avro2s/wire/benchmarks/CodecWorkload.scala",
+    "benchmarks/src/main/scala/avro2s/wire/benchmarks/DecodedStringBenchmark.scala",
+    "benchmarks/src/main/scala/avro2s/wire/benchmarks/StringBenchmark.scala",
+    "benchmarks/src/main/scala/avro2s/wire/benchmarks/comparison/ComparativeWorkload.scala",
+    "benchmarks/src/test/scala/avro2s/wire/benchmarks/CodecWorkloadSuite.scala",
+    "benchmarks/src/test/scala/avro2s/wire/benchmarks/ComparisonBenchmarkSuite.scala",
+    "compiler/src/main/scala/avro2s/wire/compiler/CodeGenerator.scala",
+    "fixtures/src/test/scala/avro2s/wire/fixtures/GeneratedCollectionsSuite.scala",
+    "runtime/src/main/scala/avro2s/wire/runtime/BinaryInput.scala",
+    "runtime/src/main/scala/avro2s/wire/runtime/BinaryOutput.scala",
+    "runtime/src/main/scala/avro2s/wire/runtime/LogicalValues.scala",
+    "runtime/src/main/scala/avro2s/wire/runtime/StrictUtf8.scala",
+    "runtime/src/test/scala/avro2s/wire/runtime/LogicalValuesSuite.scala",
+    "runtime/src/test/scala/avro2s/wire/runtime/NumericBoundarySuite.scala",
+    "runtime/src/test/scala/avro2s/wire/runtime/StrictUtf8Suite.scala",
+    "scripts/run-performance.py"
+  ],
+  "results": {
+    "cases": 26,
+    "primaryObservations": 104,
+    "allocationObservations": 104,
+    "runs": [
+      {
+        "name": "Comparison",
+        "cases": 20,
+        "primaryObservations": 80,
+        "allocationObservations": 80,
+        "resultSha256": "4ec5af5f94b9c851563ef60742f9a02a468c0b946fdf891a640dbcaf415f6b4c",
+        "logSha256": "b63e7fda6d6015c87dfcfe8b1d359aaeafffd2124ff9b6a85cab747db187d71c",
+        "knownSlf4jWarningLines": 60
+      },
+      {
+        "name": "NestedComparison",
+        "cases": 2,
+        "primaryObservations": 8,
+        "allocationObservations": 8,
+        "resultSha256": "57eb414174c73b5ec63d82ad46f6156334df1a27c8cdc1df3c89d855e5e063b6",
+        "logSha256": "1e241659650ea090476a3c338971b606679508b896f47c53252de00c63707e9c",
+        "knownSlf4jWarningLines": 6
+      },
+      {
+        "name": "LogicalComparison",
+        "cases": 2,
+        "primaryObservations": 8,
+        "allocationObservations": 8,
+        "resultSha256": "40224cb300b89320606f6895d52a92c371cc4dfe82f6d428ec80923477902ad2",
+        "logSha256": "ee0272a601d1bddc0e5a3a603d9f29ba92949767e26867266246420ed0880e27",
+        "knownSlf4jWarningLines": 6
+      },
+      {
+        "name": "DecimalComparison",
+        "cases": 2,
+        "primaryObservations": 8,
+        "allocationObservations": 8,
+        "resultSha256": "b95054f638690b2823a0d99ec13f033870fa013a30c47e78120bb11bdd7b5c61",
+        "logSha256": "1d42521357b0abfa2aa265c051c4a69c25028c72fc53c08ca6aaf6b9f16bfe70",
+        "knownSlf4jWarningLines": 6
+      }
+    ]
+  },
+  "note": "Retained rejected pilot, not current candidate performance. Scala VarHandle get calls emitted Object returns and boxing; subsequent Java primitive bridge is excluded."
+}

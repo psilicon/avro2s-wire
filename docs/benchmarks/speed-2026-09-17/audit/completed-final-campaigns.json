@@ -1,0 +1,86 @@
+{
+  "after": {
+    "sourceFiles": 156,
+    "cases": 148,
+    "observations": {
+      "primary": 1480,
+      "gc.alloc.rate": 1480,
+      "gc.alloc.rate.norm": 1480,
+      "gc.count": 1480,
+      "gc.time": 1150
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  },
+  "after-trade": {
+    "sourceFiles": 156,
+    "cases": 12,
+    "observations": {
+      "primary": 120,
+      "gc.alloc.rate": 120,
+      "gc.alloc.rate.norm": 120,
+      "gc.count": 120,
+      "gc.time": 83
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  },
+  "before-api": {
+    "sourceFiles": 148,
+    "cases": 14,
+    "observations": {
+      "primary": 140,
+      "gc.alloc.rate": 140,
+      "gc.alloc.rate.norm": 140,
+      "gc.count": 140,
+      "gc.time": 140
+    },
+    "recordedRevision": "59d35ee06fe8bcb624ce448470018accaa9fcb9e"
+  },
+  "after-api": {
+    "sourceFiles": 156,
+    "cases": 14,
+    "observations": {
+      "primary": 140,
+      "gc.alloc.rate": 140,
+      "gc.alloc.rate.norm": 140,
+      "gc.count": 140,
+      "gc.time": 140
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  },
+  "after-evolution": {
+    "sourceFiles": 156,
+    "cases": 8,
+    "observations": {
+      "primary": 80,
+      "gc.alloc.rate": 80,
+      "gc.alloc.rate.norm": 80,
+      "gc.count": 80,
+      "gc.time": 80
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  },
+  "after-supplementary": {
+    "sourceFiles": 156,
+    "cases": 8,
+    "observations": {
+      "primary": 80,
+      "gc.alloc.rate": 80,
+      "gc.alloc.rate.norm": 80,
+      "gc.count": 80,
+      "gc.time": 80
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  },
+  "confirm-small-ints": {
+    "sourceFiles": 156,
+    "cases": 2,
+    "observations": {
+      "primary": 20,
+      "gc.alloc.rate": 20,
+      "gc.alloc.rate.norm": 20,
+      "gc.count": 20,
+      "gc.time": 2
+    },
+    "recordedRevision": "5e3f95f85ea397c6f3f6a478279600caa815f6b2"
+  }
+}
