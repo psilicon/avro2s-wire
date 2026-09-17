@@ -3,6 +3,23 @@ ThisBuild / organization := "io.psilicon"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
 
+ThisBuild / organizationName := "psilicon"
+ThisBuild / organizationHomepage := Some(url("https://github.com/psilicon"))
+ThisBuild / description := "Scala 3 Avro schema compiler and native binary runtime"
+ThisBuild / homepage := Some(url("https://github.com/psilicon/avro2s-wire"))
+ThisBuild / licenses := List("Apache 2" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt"))
+ThisBuild / scmInfo := Some(ScmInfo(
+  url("https://github.com/psilicon/avro2s-wire"),
+  "scm:git:git@github.com:psilicon/avro2s-wire.git"
+))
+ThisBuild / developers := List(Developer(
+  "psilicon", "Psilicon", "hello@psilicon.io", url("https://github.com/psilicon")
+))
+ThisBuild / pomIncludeRepository := { _ => false }
+// sbt 1.11 stages signed artifacts locally; the release workflow uploads them with sonaUpload.
+ThisBuild / publishTo := localStaging.value
+pgpPassphrase := sys.env.get("GPG_PASSPHRASE").map(_.toArray)
+
 val avroVersion = "1.12.1"
 val testSettings = Seq(
   libraryDependencies += "org.scalameta" %% "munit" % "1.0.4" % Test
