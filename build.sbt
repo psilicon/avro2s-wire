@@ -9,7 +9,7 @@ val testSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(runtime, compiler, javaInterop, resolution, fixtures, benchmarks)
+  .aggregate(runtime, compiler, javaInterop, resolution, fixtures, benchmarks, propertyTests)
   .settings(name := "avrogen", publish / skip := true)
 
 lazy val runtime = (project in file("runtime"))
@@ -71,3 +71,23 @@ lazy val benchmarks = (project in file("benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(testSettings)
   .settings(name := "avrogen-benchmarks", publish / skip := true)
+
+// Test-only compiler and Java oracle. Generated sources compile against runtime + Scala alone.
+lazy val propertyTests = (project in file("property-tests"))
+  .dependsOn(runtime, compiler)
+  .settings(testSettings)
+  .settings(
+    name := "avrogen-property-tests",
+    publish / skip := true,
+    libraryDependencies ++= Seq(
+      "org.scalacheck" %% "scalacheck" % "1.18.1" % Test,
+      "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Test
+    ),
+    Test / fork := true,
+    Test / parallelExecution := false,
+    Test / javaOptions ++= Seq(
+      "-Xmx2g",
+      "-Davrogen.generated.classpath=" + (runtime / Compile / fullClasspath).value.files.mkString(java.io.File.pathSeparator),
+      "-Davrogen.property.target=" + (Test / target).value.getAbsolutePath
+    )
+  )

@@ -22,8 +22,11 @@ sbt 'fixtures/runMain avrogen.fixtures.Demo'
 The build generates fixture sources from `.avsc` files and compiles them against
 the native runtime alone. Tests cross-read and cross-write with Java Avro's
 independent generic reader/writer, in addition to binary-format and generator tests.
-See the [test inventory and current gaps](docs/testing.md) for the coverage of the
-128 tests, including reproducible generated values and malformed-input checks.
+Property tests also generate schemas and values, compile the resulting Scala,
+check Java interoperability in both directions, and shrink failing cases for
+replay. The default campaign covers 197 schemas and 2,174 values, with required
+coverage assertions. See the [testing guide](docs/testing.md) for the 132 tests,
+reproducible campaign commands and remaining gaps.
 
 ## Generate Scala
 
