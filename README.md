@@ -219,6 +219,10 @@ with both reused-buffer operations and allocating convenience APIs. The
 measurements for native integer output, empty collection readers and strict ASCII
 fast paths, along with an updated six-way comparison.
 
+The [broader comparison report](docs/benchmarks/comparison-2026-09-17.md) records
+13 workload profiles plus schema evolution. It shows both gains and losses,
+including slower string paths, with longer confirmations and all raw results.
+
 See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
 reproduction commands, and interpretation limits. Default Java models retain Utf8
 and Java collections; the Scala models return String and Scala collections. Native

@@ -293,5 +293,6 @@ Remaining dimensions include:
 There is no published code-coverage percentage or repository CI matrix across
 JDK/Scala versions. The suite does not establish exhaustive Avro conformance.
 Correctness coverage does not establish performance across the same types. The
-expanded comparison harness supplies more workloads, but only recorded JMH runs
-and their uncertainty support performance conclusions for those workloads.
+[broader measured comparison](benchmarks/comparison-2026-09-17.md) covers 13 fixed
+workload profiles and a separate evolution pair; its recorded runs and uncertainty
+support conclusions for those workloads.
