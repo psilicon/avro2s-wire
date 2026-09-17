@@ -1,4 +1,4 @@
-package avro2s.wire.interop
+package avro2s.wire.javabackend
 
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer

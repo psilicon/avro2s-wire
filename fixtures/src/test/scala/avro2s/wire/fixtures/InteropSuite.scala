@@ -1,7 +1,7 @@
 package avro2s.wire.fixtures
 
 import avro2s.wire.runtime.*
-import avro2s.wire.interop.*
+import avro2s.wire.javabackend.*
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import org.apache.avro.Schema

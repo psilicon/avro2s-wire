@@ -16,7 +16,7 @@ From the project root, with JDK 11 or newer and sbt installed:
 sbt test
 ```
 
-The build pins Scala 3.3.6, sbt 1.11.0, MUnit 1.0.4, ScalaCheck 1.18.1,
+The build pins Scala 3.3.8, sbt 1.13.0, MUnit 1.0.4, ScalaCheck 1.18.1,
 and Apache Avro 1.12.1.
 It regenerates and compiles fixture models before running their integration
 tests. A clean checkout and downloaded build dependencies are sufficient; no
@@ -191,7 +191,7 @@ classes, rather than claiming exhaustive wire fuzzing.
 | --- | --- | ---: | --- |
 | `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `LogicalValuesSuite` (13) | 39 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
 | `compiler` | `CodeGeneratorSuite` (18) | 18 | Recursive definitions, unions, logical-type validation, names, metadata escaping, deterministic generation and cross-file schemas. |
-| `java-interop` | `JavaAvroInputSuite` (4), `IntegerOutputSuite` (3), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
+| `java-backend` | `JavaAvroInputSuite` (4), `IntegerOutputSuite` (3), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
 | `resolution` | `ResolvingReaderSuite` (20) | 20 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
 | `fixtures` | `InteropSuite` (12), `EvolutionSuite` (5), `UnionInteropSuite` (3), `LogicalInteropSuite` (3), `UnionLogicalSuite` (2), `EmptyCollectionsSuite` (4) | 29 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
 | `benchmarks` | `TradeBenchmarkSuite` (5), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (6) | 16 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |

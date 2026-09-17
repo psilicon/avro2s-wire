@@ -2,9 +2,10 @@
 
 A Scala 3 schema compiler and native Avro binary runtime. Generated models are
 ordinary immutable Scala values; generated codecs read and write their fields
-directly. The application runtime depends only on the Scala standard library and
-the JDK. Apache Avro is used by the schema compiler and an optional interoperability
-module.
+directly. Matching-schema applications need `avro2s-wire-runtime`, the Scala
+standard library and the JDK. Apache Avro is used by the schema compiler and the
+optional `avro2s-wire-java-backend` module. Native output is standard Avro binary
+and can be read by Java Avro without that backend.
 
 This is an early implementation with direct codecs, native Scala 3 unions, logical
 types, and an optional native schema-evolution reader. Matching-schema codecs need
@@ -17,7 +18,26 @@ their original project names, source paths and hashes.
 
 ## Build and test
 
-Requires JDK 11 or newer and sbt. The build pins Scala 3.3.6 and sbt 1.11.0.
+The native runtime requires JDK 11 or newer. The build pins Scala 3.3.8 and
+sbt 1.13.0; JDK 21 is the CI and benchmark reference environment.
+
+Scala 3.3 is an LTS line and provides the Scala 3 features used here, including unions and enums.
+Building on an older Scala 3 line allows newer Scala 3 consumers to use the
+library without requiring every consumer to move to a newer compiler. See the
+[Scala compatibility guarantees](https://www.scala-lang.org/development/).
+Exact versions are pinned for reproducible builds. Historical benchmark reports
+retain the compiler and build-tool versions used for their measurements.
+
+sbt 1.11 introduced the built-in Central Portal tasks used by the release
+workflow (`localStaging` and `sonaUpload`). These are the same publishing tasks
+used by avro2s. sbt's version controls the build tool; `scalaVersion` independently
+controls the compiler for the library and generated models. See the
+[sbt 1.11 release notes](https://github.com/sbt/sbt/releases/tag/v1.11.0).
+
+The pinned Scala compiler supports JDK 25 and 26 as well as the older JDKs
+supported by the 3.3 line. CI uses JDK 21. Consult the
+[JDK compatibility matrix](https://docs.scala-lang.org/overviews/jdk-compatibility/overview.html)
+when choosing a build JDK.
 
 ```sh
 sbt test
@@ -50,7 +70,22 @@ sbt 'compiler/run fixtures/src/main/resources/avro/Trade.avsc /tmp/avro2s-wire-g
 The two arguments are an `.avsc` file (or a directory recursively containing
 `.avsc` files) and an output directory. Directory generation resolves references
 between files. Generated sources need `avro2s-wire-runtime` on their compile/runtime
-classpath; they do not need Apache Avro. Artifacts are not published yet.
+classpath; they do not need Apache Avro. To use the current checkout in another
+local sbt project, publish the four library modules locally:
+
+```sh
+sbt 'runtime/publishLocal' 'compiler/publishLocal' 'javaBackend/publishLocal' 'resolution/publishLocal'
+```
+
+For native matching-schema use, add this dependency to the consuming build:
+
+```scala
+libraryDependencies += "io.psilicon" %% "avro2s-wire-runtime" % "0.1.0-SNAPSHOT"
+```
+
+Use the version from this project's `build.sbt`. The compiler is needed only
+during generation; the Java backend and schema resolver are optional application
+dependencies. Public release setup is described in [releasing](docs/releasing.md).
 
 The sample generates this model and a companion codec:
 
@@ -86,11 +121,32 @@ val next = Trade.codec.read(input)
 input.requireEnd()
 ```
 
-`encode` and `decode` are convenience APIs that allocate their buffers. `decode`
-requires exactly one complete datum and rejects trailing bytes. `read` and `write`
+`encode` allocates an output buffer and returns a copy of the encoded bytes.
+`decode` creates an input reader over the supplied array without copying that
+array; decoded byte fields get independent storage. `decode` requires exactly
+one complete datum and rejects trailing bytes. `read` and `write`
 provide the lower-level APIs. Codecs are shareable; mutable input/output instances
 must be confined to their caller. Raw datum bytes contain no schema identifier:
 the caller must already know the exact writer schema.
+
+### Generated-code compatibility
+
+Generated `.scala` files are source code. The current generator emits Scala
+3.3-compatible syntax, which can also be compiled by newer Scala 3 compilers.
+The generator's own compiler version does not automatically become the minimum
+version for its source output; that depends on the emitted syntax and runtime API.
+The automated suite currently compiles the generated sources with the pinned
+compiler, not a matrix of all consumer Scala versions.
+
+Compiled library JARs have a separate compatibility boundary: newer Scala 3
+compilers can consume libraries compiled with older Scala 3 versions, but the
+reverse is not generally supported. For example, a Scala 3.9 application can use
+a library built with Scala 3.3; a Scala 3.3 application cannot use a Wire runtime
+built with Scala 3.9. Updating sbt alone does not change this boundary.
+
+Use matching Wire compiler and runtime release versions. Compatibility across
+Wire releases is a separate concern from Scala compatibility and is not yet a
+published guarantee for this early implementation.
 
 ## Supported subset
 
@@ -142,16 +198,31 @@ days, and milliseconds because those calendar components cannot be reduced to a
 single elapsed-time value. Unknown logical annotations are rejected explicitly;
 this implementation does not silently fall back to the underlying primitive.
 
-`Bytes.fromArray` and `Bytes.toArray` copy to protect ownership. Decoded byte/fixed
-values own their storage. `BinaryInput` borrows its input array for the duration of
-decoding; callers must not mutate that array concurrently. Primitive values inside
-Vector, Map, and Option can still box; this prototype does not claim zero allocation.
+`Bytes` stores an immutable byte sequence with content-based `equals` and
+`hashCode`. A plain `Array[Byte]` remains mutable inside a `val` field and normally
+uses reference equality. `Bytes.fromArray` and `Bytes.toArray` copy so callers
+cannot change the stored value through an array they retain or receive. Decoded
+byte/fixed values own their storage, independently of the input buffer.
+
+This is an ownership and API choice, not an Avro format requirement. avro2s
+already obtains content-aware record equality from Java Avro's `SpecificRecordBase`;
+Wire's ordinary case classes use `Bytes` equality instead. Custom generated equality
+could also support raw arrays, but would not make them immutable. The cost of
+`Bytes` is a wrapper allocation and copying at public array boundaries. Its internal
+`unsafeWrap` transfers an array without copying and requires the caller never to
+mutate it afterward; it is not a public API.
+
+`BinaryInput` borrows its input array for the duration of decoding; callers must
+not mutate that array concurrently. Primitive values inside Vector, Map, and
+Option can still box; this implementation does not claim zero allocation.
 
 Native decoding validates bounds, varint widths, UTF-8, collection block sizes,
 and generated union/enum indices. `DecodeLimits` controls input size, string/byte
 lengths, cumulative collection item counts, and nesting depth. Limits apply to the
 input instance, so a fresh input resets the budget. Invalid input raises
-`AvroDecodingException`. Native string encoding rejects unpaired UTF-16 surrogates.
+`AvroDecodingException`. Native string encoding rejects unpaired UTF-16 surrogates
+to prevent silently replacing malformed text. The Java backend follows Java Avro's
+replacement behavior. Valid Unicode text has the same wire representation.
 
 ## Schema evolution
 
@@ -176,10 +247,12 @@ dependency. Core codecs keep their original dependency footprint. Native decode
 limits apply during resolution, including skipped fields. See
 [the evolution design and compatibility notes](docs/schema-evolution.md).
 
-## Java Avro comparison adapter
+## Optional Java Avro backend
 
-`java-interop` supplies `JavaAvroInput` and `JavaAvroOutput`, which delegate
-primitive calls to Java Avro's `Decoder` and `Encoder`. This lets the same generated
+Add `avro2s-wire-java-backend` to use Apache Avro's binary implementation with
+Wire's generated models and codecs. Its `avro2s.wire.javabackend` package supplies
+`JavaAvroInput` and `JavaAvroOutput`, which delegate primitive calls to Java Avro's
+`Decoder` and `Encoder`. This lets the same generated
 codec run on either binary engine. It is optional and is not used by native
 `encode`/`decode`. Java adapter inputs use Java's validation/resource-limit behavior,
 not `DecodeLimits`; callers own decoder configuration and encoder flushing.
@@ -243,7 +316,7 @@ and policy differences are part of the measurements.
 
 - `runtime`: owned bytes, binary I/O, codec API, decode limits; no Apache Avro dependency.
 - `compiler`: validated schema graph and deterministic Scala source generation.
-- `java-interop`: optional Java primitive adapters.
+- `java-backend`: optional Apache Avro Java encoding and decoding backend.
 - `resolution`: optional native schema parsing/resolution and cached reader plans.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
@@ -253,7 +326,9 @@ The broader [comparison corpus](benchmarks/COMPARISON.md) covers 13 input profil
 and includes a separate schema-evolution benchmark. The [testing guide](docs/testing.md)
 describes the bounded, reproducible property campaigns and their remaining gaps.
 
-Publishing, a user review of ergonomics/readability, and schema registry integration
-are deferred. Optional primitive-backed collections, input reuse and bulk block
-skipping remain separate experiments. Build-tool integration and streaming/container
-APIs are future work; see [the architecture notes](docs/architecture.md).
+Release automation is configured; repository credentials and the final Central
+Portal publication step are described in [releasing](docs/releasing.md). A review
+of ergonomics/readability and schema registry integration remain future work.
+Optional primitive-backed collections, input reuse and bulk block skipping remain
+separate experiments. A dedicated build-tool plugin and streaming/container APIs
+are future work; see [the architecture notes](docs/architecture.md).

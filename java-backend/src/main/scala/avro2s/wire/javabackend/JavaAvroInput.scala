@@ -1,4 +1,4 @@
-package avro2s.wire.interop
+package avro2s.wire.javabackend
 
 import avro2s.wire.runtime.{AvroInput, Bytes}
 import org.apache.avro.io.Decoder
