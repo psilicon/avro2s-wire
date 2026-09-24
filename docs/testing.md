@@ -337,8 +337,8 @@ named checks, not the number of generated schemas, values or malformed inputs.
 ## Performance and remaining gaps
 
 `sbt test` checks correctness, not performance thresholds. JMH measurements are
-separate; see the [benchmark protocol](benchmarks/README.md) and
-[expanded workloads](benchmarks/expanded-workloads.md). Short JMH smoke runs
+separate; see the [benchmark guide](../benchmarks/README.md) and
+[comparative workloads](../benchmarks/COMPARISON.md). Short JMH smoke runs
 establish that workloads execute, not that an optimisation is faster.
 
 Remaining dimensions include:
@@ -356,9 +356,17 @@ Remaining dimensions include:
 There is no published code-coverage percentage or repository CI matrix across
 JDK/Scala versions. The suite does not establish exhaustive Avro conformance.
 Correctness coverage does not establish performance across the same types. The
-[broader measured comparison](benchmarks/comparison-2026-09-17.md) covers 13 fixed
-workload profiles and a separate evolution pair; its recorded runs and uncertainty
-support conclusions for those workloads.
-The [native speed follow-up](benchmarks/speed-2026-09-17.md) keeps those comparisons
-and adds decoded-String controls and a wider text corpus. The measured cases
-remain separate from the much larger correctness corpus.
+[selected historical comparison](../benchmarks/reference/2026-09-17/README.md)
+covers 13 workload configurations, evolution and explicit String-output controls.
+Its raw data and uncertainty support conclusions for those workloads. The larger
+text investigations remain available in [historical evidence](benchmarks/HISTORY.md).
+Measured cases remain separate from the much larger correctness corpus.
+
+The runner and report tooling has a separate Python standard-library test suite:
+
+```sh
+python3 -m unittest discover -s scripts/tests -v
+```
+
+These checks validate case selection, provenance/output handling and reporting;
+they do not replace the Scala benchmark correctness suites or establish speed.

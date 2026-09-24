@@ -316,55 +316,22 @@ This adapter does not perform schema evolution or turn generated models into
 
 ## Benchmarks
 
-```sh
-sbt 'benchmarks/Jmh/run -prof gc .*TradeBenchmark.*'
-```
-
-The harness compares avro2s, default generated Java specific records, Java
-generated custom coders, native avro2s-wire codecs, those same codecs using Java
-binary primitives, and Java generic records. It measures reads and writes
-separately at several collection sizes, with integer values outside the JVM cache.
-Write buffers are reused, data construction is outside timing, and read paths use
-fresh inputs and result records. Test counters verify that the generated Java
-custom decoder is actually called.
-
-For a harness smoke check, not a performance conclusion:
+Use the [benchmark guide](benchmarks/README.md) for profiles, methodology and
+[the selected dated reference results](benchmarks/reference/2026-09-17/README.md).
 
 ```sh
-sbt 'benchmarks/Jmh/run -wi 1 -i 1 -w 300ms -r 300ms -f 1 -p collectionSize=32 .*TradeBenchmark.*'
+python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile comparison
 ```
 
-The comparison models are genuine, checked-in generator output. Their versions,
-options, schemas, source hashes, and regeneration instructions are in
-[baseline provenance](benchmarks/generator/README.md). Normal tests and benchmarks
-do not need an avro2s checkout or any manually inspected JAR files.
+The runner checks benchmark correctness, then records timing and allocation for
+native Wire, Wire's Java backend, avro2s and supported official Java variants.
+`--profile full` adds evolution, explicit String readers, big-decimal and allocating
+APIs. Reports, raw results and provenance go to ignored `benchmarks/results/`.
 
-The [first measured baseline](docs/benchmarks/results-2026-09-17.md), recorded
-before the union/logical/evolution additions, compares
-avro2s, Java Avro, and avro2s-wire with raw results and source hashes.
-
-The [expanded workload harness](docs/benchmarks/expanded-workloads.md) adds integer
-distributions, ASCII and Unicode strings, bytes, maps, nested records and unions,
-with both reused-buffer operations and allocating convenience APIs. The
-[performance follow-up](docs/benchmarks/performance-2026-09-17.md) records paired
-measurements for native integer output, empty collection readers and strict ASCII
-fast paths, along with an updated six-way comparison.
-
-The [broader comparison report](docs/benchmarks/comparison-2026-09-17.md) records
-13 workload profiles plus schema evolution. It shows both gains and losses,
-including slower string paths, with longer confirmations and all raw results.
-
-The [native speed follow-up](docs/benchmarks/speed-2026-09-17.md) measures the
-numeric, string and collection improvements against that baseline, including
-Java readers explicitly configured to return Strings. Its
-[complete tables](docs/benchmarks/speed-2026-09-17/tables.md) retain timings,
-allocation and uncertainty, including the emoji-writing tradeoff.
-
-See the [benchmark protocol](docs/benchmarks/README.md) for allocation profiling,
-reproduction commands, and interpretation limits. Default Java models retain Utf8
-and Java collections; the Scala models return String and Scala collections. Native
-readers also perform validation that the Java paths may not. Those representation
-and policy differences are part of the measurements.
+The generated Java and avro2s comparison models remain checked in, with
+[pinned provenance and regeneration instructions](benchmarks/generator/README.md).
+Normal tests and benchmarks need no avro2s checkout. Historical experiments remain
+recoverable through [Git history](docs/benchmarks/HISTORY.md).
 
 ## Modules and next steps
 

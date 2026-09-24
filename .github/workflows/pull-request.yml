@@ -16,5 +16,7 @@ jobs:
         with:
           jvm: temurin:21
           apps: sbt
+      - name: Check benchmark tooling
+        run: python3 -m unittest discover -s scripts/tests -v
       - name: Build and Test
         run: sbt -v test

@@ -18,3 +18,6 @@ target/
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# Local benchmark runs (survive sbt clean); curated references remain tracked
+/benchmarks/results/

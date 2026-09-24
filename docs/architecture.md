@@ -55,7 +55,7 @@ return the standard immutable empty value. String readers retain strict UTF-8
 validation and reuse its ASCII result to select a simpler JDK decoding path;
 string writers validate before emitting bytes and copy all-ASCII text with local
 indices. Unicode fallback behaviour is unchanged. See the
-[paired measurements](benchmarks/performance-2026-09-17.md) for benefits and limits.
+[historical paired measurements](benchmarks/HISTORY.md) for benefits and limits.
 
 ## Compatibility boundary
 

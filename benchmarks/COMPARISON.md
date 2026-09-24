@@ -116,14 +116,13 @@ throughput benchmark or a claim about every number size.
 Run the reference configuration with a Corretto 21 installation:
 
 ```sh
-python3 scripts/run-big-decimal-benchmark.py --java "$JAVA_HOME/bin/java"
+python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile big-decimal
 ```
 
-The script first runs `BigDecimalBenchmarkSuite`. It then verifies that all 54
-measurements completed, checks that sources stayed unchanged, and writes a report,
-raw JSON, environment details and an exact source snapshot beneath ignored
-`benchmarks/target/big-decimal-2026-09-24/`. For another run, use `--output` with
-an empty directory under `benchmarks/target/`. `sbt clean` can remove these local
-outputs. Benchmark code and commands belong in Git; development-run output is
-not committed automatically. Preserve a selected reference report separately
-when publishing a performance claim.
+The common runner first runs `benchmarks/test`, including
+`BigDecimalBenchmarkSuite`. It verifies all 54 measurements, checks unchanged
+sources, and writes the standard report, raw JSON and environment details beneath
+ignored `benchmarks/results/<run-id>/`. JDK selection is explicit; the runner also
+accepts other supported distributions and records the actual JVM. These outputs
+survive `sbt clean`. See the [benchmark guide](README.md) for controls, the complete
+comparison profile and result-retention policy.
