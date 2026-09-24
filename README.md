@@ -131,36 +131,56 @@ the caller must already know the exact writer schema.
 
 ### Generator configuration
 
-The default decimal mapping is `scala.BigDecimal`. To generate
-`java.math.BigDecimal` fields instead, pass an explicit option:
-
-```sh
-sbt 'compiler/run --decimal-type java schemas generated'
-```
-
-The same configuration is available to applications invoking the compiler:
+Options are passed at generation time. Defaults preserve Avro namespaces as Scala
+packages and convert logical values to the types listed below, using
+`scala.BigDecimal` for decimals.
 
 ```scala
-import avro2s.wire.compiler.{DecimalType, GeneratorConfig, SchemaCompiler}
+import avro2s.wire.compiler.*
 import java.nio.file.Path
 
-SchemaCompiler.generate(
-  Path.of("schemas"),
-  Path.of("generated"),
-  GeneratorConfig(decimalType = DecimalType.Java)
+val config = GeneratorConfig(
+  decimalType = DecimalType.Java,
+  namespaceMappings = Map(
+    "com.acme" -> "myapp.model",
+    "com.acme.events" -> "myapp.events"
+  ),
+  logicalTypes = Map(
+    LogicalType.Date -> LogicalTypeMode.Raw,
+    LogicalType.TimestampMicros -> LogicalTypeMode.Converted
+  )
 )
+
+SchemaCompiler.generate(Path.of("schemas"), Path.of("generated"), config)
 ```
 
-`CodeGenerator.generate(schema, config)` accepts the same options. The setting
-applies to `decimal` and `big-decimal`, including collections, unions and named
-fixed wrappers. Generated codecs carry the choice into schema resolution, so
-applications do not repeat it when reading. It changes the Scala API and equality,
-not the Avro wire format; regenerate and recompile consumers after changing it.
+`CodeGenerator.generate(schema, config)` accepts the same options. Namespace
+mappings match whole namespace components; the longest matching prefix wins.
+For example, `com.acme.orders.Order` becomes `myapp.model.orders.Order`, while
+`com.acme.events.Created` becomes `myapp.events.Created`. Avro schema names,
+aliases and schema JSON keep their original identities.
+
+`Raw` selects the physical value: for example, `date` becomes `Int` and
+`timestamp-micros` becomes `Long`. Unspecified logical types use `Converted`.
+Logical fixed types retain their named wrappers, containing `Bytes` in raw mode.
+The decimal option selects Java values for converted `decimal` and `big-decimal`.
+
+The equivalent command-line options are repeatable for namespaces and logical types:
+
+```sh
+sbt 'compiler/run --decimal-type java --namespace-map com.acme=myapp.model --namespace-map com.acme.events=myapp.events --logical-type date=raw --logical-type timestamp-micros=converted schemas generated'
+```
+
+Settings apply throughout generated records, collections, unions and named fixed
+wrappers. Generated codecs carry representation choices into schema resolution,
+including reader defaults. Regenerate and recompile consumers after changing
+options; the Avro wire format stays the same. These are generation choices,
+with no runtime option checks in matching-schema read/write methods.
 
 Scala decimal equality ignores trailing-zero scale; Java decimal `equals` includes
 scale. Avro `decimal` always decodes at its schema's scale, while `big-decimal`
-preserves each value's scale. See [logical types](docs/logical-types.md) for the
-complete list, decimal semantics, timestamp behavior and extension design.
+preserves each value's scale. See [logical types and generator options](docs/logical-types.md)
+for raw mappings, namespace edge cases, decimal semantics and extension design.
 
 ### Generated-code compatibility
 

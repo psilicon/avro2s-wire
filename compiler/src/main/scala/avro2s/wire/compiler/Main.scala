@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object Main:
-  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] <schema.avsc | schema-directory> <output-directory>"
+  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] [--namespace-map from=to] [--logical-type name=raw|converted] <schema.avsc | schema-directory> <output-directory>"
 
   def main(args: Array[String]): Unit =
     val (input, output, config) = parseArguments(args.toList)
@@ -18,6 +18,8 @@ object Main:
   private def parseArguments(args: List[String]): (Path, Path, GeneratorConfig) =
     val positional = Vector.newBuilder[String]
     var decimalType: Option[DecimalType] = None
+    val namespaceMappings = mutable.LinkedHashMap.empty[String, String]
+    val logicalTypes = mutable.LinkedHashMap.empty[LogicalType, LogicalTypeMode]
     var remaining = args
     while remaining.nonEmpty do remaining match
       case "--decimal-type" :: value :: tail =>
@@ -30,6 +32,26 @@ object Main:
         remaining = tail
       case "--decimal-type" :: Nil =>
         throw GenerationException(s"Missing --decimal-type value; expected scala or java. $usage")
+      case "--namespace-map" :: value :: tail =>
+        val (from, to) = assignment("--namespace-map", value)
+        if namespaceMappings.contains(from) then
+          throw GenerationException(s"Duplicate --namespace-map for '$from'. $usage")
+        namespaceMappings(from) = to
+        remaining = tail
+      case "--logical-type" :: value :: tail =>
+        val (name, mode) = assignment("--logical-type", value)
+        val logicalType = LogicalType.fromAvroName(name).getOrElse {
+          throw GenerationException(s"Unknown logical type '$name'. $usage")
+        }
+        if logicalTypes.contains(logicalType) then
+          throw GenerationException(s"Duplicate --logical-type for '$name'. $usage")
+        logicalTypes(logicalType) = mode match
+          case "raw" => LogicalTypeMode.Raw
+          case "converted" => LogicalTypeMode.Converted
+          case _ => throw GenerationException(s"Invalid logical type mode '$mode'; expected raw or converted. $usage")
+        remaining = tail
+      case (option @ ("--namespace-map" | "--logical-type")) :: Nil =>
+        throw GenerationException(s"Missing $option value; expected name=value. $usage")
       case option :: _ if option.startsWith("--") =>
         throw GenerationException(s"Unknown option '$option'. $usage")
       case path :: tail =>
@@ -37,12 +59,22 @@ object Main:
         remaining = tail
       case Nil => ()
     positional.result() match
-      case Vector(input, output) => (Path.of(input), Path.of(output), GeneratorConfig(decimalType.getOrElse(DecimalType.Scala)))
+      case Vector(input, output) =>
+        val config = GeneratorConfig(decimalType.getOrElse(DecimalType.Scala), namespaceMappings.toMap, logicalTypes.toMap)
+        config.validate()
+        (Path.of(input), Path.of(output), config)
       case _ => throw GenerationException(usage)
+
+  private def assignment(option: String, value: String): (String, String) =
+    val separator = value.indexOf('=')
+    if separator < 0 || separator != value.lastIndexOf('=') then
+      throw GenerationException(s"Invalid $option '$value'; expected name=value. $usage")
+    (value.substring(0, separator), value.substring(separator + 1))
 
 object SchemaCompiler:
   /** Validate every input before writing. Existing identical outputs keep their timestamps. */
   def generate(input: Path, outputDirectory: Path, config: GeneratorConfig = GeneratorConfig()): Vector[Path] =
+    config.validate()
     val inputs =
       if Files.isDirectory(input) then
         val stream = Files.walk(input)
@@ -59,6 +91,7 @@ object SchemaCompiler:
           throw GenerationException(s"Conflicting schema definitions generate the same Scala source: $path")
         sources.head
       }
+    ScalaNames.validateTypePaths(generated.map(_.relativePath.stripSuffix(".scala").replace('/', '.')))
     val output = outputDirectory.toAbsolutePath.normalize
     generated.map { source =>
       val target = output.resolve(source.relativePath).normalize

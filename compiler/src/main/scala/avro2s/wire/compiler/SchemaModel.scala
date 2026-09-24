@@ -23,6 +23,21 @@ private[compiler] object SchemaModel:
     case LocalTimestampMillis, LocalTimestampMicros, LocalTimestampNanos, Uuid, Duration, BigDecimal
     case Decimal(precision: Int, scale: Int)
 
+    def logicalType: LogicalType = this match
+      case Decimal(_, _) => LogicalType.Decimal
+      case Date => LogicalType.Date
+      case TimeMillis => LogicalType.TimeMillis
+      case TimeMicros => LogicalType.TimeMicros
+      case TimestampMillis => LogicalType.TimestampMillis
+      case TimestampMicros => LogicalType.TimestampMicros
+      case TimestampNanos => LogicalType.TimestampNanos
+      case LocalTimestampMillis => LogicalType.LocalTimestampMillis
+      case LocalTimestampMicros => LogicalType.LocalTimestampMicros
+      case LocalTimestampNanos => LogicalType.LocalTimestampNanos
+      case Uuid => LogicalType.Uuid
+      case Duration => LogicalType.Duration
+      case BigDecimal => LogicalType.BigDecimal
+
     def scalaType(decimalType: DecimalType): String = this match
       case Date => "_root_.java.time.LocalDate"
       case TimeMillis | TimeMicros => "_root_.java.time.LocalTime"
@@ -87,17 +102,19 @@ private[compiler] object SchemaModel:
 
   /** Named references terminate traversal, including mutually recursive records. */
   def definitions(schema: Schema, config: GeneratorConfig): Vector[Definition] =
+    config.validate()
     if !Set(Schema.Type.RECORD, Schema.Type.ENUM, Schema.Type.FIXED)(schema.getType) then
       throw GenerationException(s"The root schema must be a named record, enum, or fixed type; found ${schema.getType}")
     val seen = mutable.Set.empty[String]
     val result = mutable.ArrayBuffer.empty[Definition]
 
     def visit(schema: Schema, location: String): Value =
-      val logical = logicalType(schema, location)
+      // Validate the annotation before selecting its representation, including Raw mode.
+      val logical = logicalType(schema, location).filterNot(kind => config.isRaw(kind.logicalType))
       schema.getType match
         case Schema.Type.RECORD | Schema.Type.ENUM | Schema.Type.FIXED =>
           val name = schema.getFullName
-          ScalaNames.validateFullName(name)
+          ScalaNames.validateFullName(config.mappedFullName(name))
           if seen.add(name) then
             val definition = schema.getType match
               case Schema.Type.RECORD =>
@@ -141,9 +158,17 @@ private[compiler] object SchemaModel:
     visit(schema, "root")
     val definitions = result.toVector.sortBy(_.name)
     if definitions.isEmpty then throw GenerationException("The schema must contain at least one named record, enum, or fixed type")
+    val collisions = definitions.groupBy(definition => config.mappedFullName(definition.name)).toVector
+      .collect { case (target, members) if members.size > 1 =>
+        s"'$target' from ${members.map(_.name).sorted.map(name => s"'$name'").mkString(", ")}"
+      }.sorted
+    if collisions.nonEmpty then
+      throw GenerationException(s"Namespace mappings generate duplicate Scala types: ${collisions.mkString("; ")}")
+    ScalaNames.validateTypePaths(definitions.map(definition => config.mappedFullName(definition.name)))
     def validateReference(value: Value, owner: String, location: String): Unit = value match
-      case Value.Named(name) if owner.contains('.') && !name.contains('.') =>
-        throw GenerationException(s"$location: Scala cannot reference default-package type '$name' from named package '${owner.substring(0, owner.lastIndexOf('.'))}'")
+      case Value.Named(name) if config.mappedFullName(owner).contains('.') && !config.mappedFullName(name).contains('.') =>
+        val mappedOwner = config.mappedFullName(owner)
+        throw GenerationException(s"$location: Scala cannot reference default-package type '${config.mappedFullName(name)}' from named package '${mappedOwner.substring(0, mappedOwner.lastIndexOf('.'))}'")
       case Value.ArrayOf(element) => validateReference(element, owner, location)
       case Value.MapOf(element) => validateReference(element, owner, location)
       case Value.Optional(element, _, _) => validateReference(element, owner, location)
@@ -177,12 +202,26 @@ private[compiler] object ScalaNames:
     if !name.matches("[A-Za-z_][A-Za-z0-9_]*") || name == "_" || name == "_root_" then
       throw GenerationException(s"Avro identifier '$name' cannot safely be represented as a Scala identifier")
 
-  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation")
+  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation", "rawLogicalTypes")
 
   def validateFullName(name: String): Unit =
     name.split("\\.", -1).foreach(validateIdentifier)
     if !name.contains('.') && (defaultPackageMembers(name) || name.matches("(?:field|builder|remaining|key|item|iterator|entry|branch)[0-9]+")) then
       throw GenerationException(s"Default-package type '$name' conflicts with a generated Scala member; give this type an Avro namespace")
+
+  /** A named-package type and a package cannot occupy the same Scala symbol.
+    * Default-package types live in Scala's separate, unnamed empty package, so
+    * a default-package A can coexist with the root package A and its children.
+    */
+  def validateTypePaths(fullNames: Iterable[String]): Unit =
+    val names = fullNames.toSet
+    val collisions = names.toVector.sorted.flatMap { name =>
+      name.indices.iterator.filter(index => name(index) == '.').map(index => name.substring(0, index))
+        .filter(prefix => prefix.contains('.') && names(prefix))
+        .map(prefix => s"'$prefix' is both a generated type and a package required by '$name'")
+    }
+    if collisions.nonEmpty then
+      throw GenerationException(s"Scala type/package path collisions: ${collisions.mkString("; ")}")
 
   def escaped(name: String): String =
     validateIdentifier(name)

@@ -72,8 +72,8 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
       if schema eq root then rootCodec else rootCodec.namedCodec(schema.name))
 
   // Index ownership without loading codecs for unused union alternatives.
-  // Separately generated named models can choose their own decimal representation.
-  private lazy val decimalOwners: Map[Node, Node] =
+  // Separately generated named models own the representation settings for their fields.
+  private lazy val logicalOwners: Map[Node, Node] =
     val result = mutable.HashMap.empty[Node, Node]
     def visit(node: Node, inherited: Node): Unit =
       if !result.contains(node) then
@@ -86,7 +86,10 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
     result.toMap
 
   private def decimalRepresentation(schema: Node): DecimalRepresentation =
-    codec(decimalOwners(schema)).decimalRepresentation
+    codec(logicalOwners(schema)).decimalRepresentation
+
+  private def rawLogicalType(schema: Node, name: String): Boolean =
+    codec(logicalOwners(schema)).rawLogicalTypes(name)
 
   private def sameName(writer: Node, reader: Node): Boolean =
     writer.name == reader.name || reader.aliases(writer.name)
@@ -257,6 +260,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
 
   private def logicalConversion(schema: Node): Any => Any = schema.logical match
     case None => identity
+    case Some(logical) if rawLogicalType(schema, logical.name) => identity
     case Some(logical) => logical.name match
       case "date" => value => LogicalValues.dateFromDays(value.asInstanceOf[Int])
       case "time-millis" => value => LogicalValues.timeFromMillis(value.asInstanceOf[Int])
@@ -281,8 +285,9 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
       case other => invalid(s"Unsupported logical type '$other'")
 
   private def unionWrapper(union: Node, branch: Node): Any => Any =
-    val logicalNames = union.branches.flatMap(_.logical.map(_.name)).toSet
-    val tagTime = logicalNames("time-millis") && logicalNames("time-micros")
+    def convertedTime(name: String): Boolean =
+      union.branches.exists(branch => branch.logical.exists(_.name == name) && !rawLogicalType(branch, name))
+    val tagTime = convertedTime("time-millis") && convertedTime("time-micros")
     val wrapValue: Any => Any =
       if tagTime && branch.logical.exists(_.name == "time-millis") then
         value => TimeMillis(value.asInstanceOf[java.time.LocalTime])

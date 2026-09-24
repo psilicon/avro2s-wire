@@ -14,7 +14,7 @@ object CodeGenerator:
 
   private def generateDefinition(definition: Definition, definitions: Map[String, Definition], config: GeneratorConfig): GeneratedSource =
     val emitter = Emitter(config)
-    val fullName = definition.name
+    val fullName = config.mappedFullName(definition.name)
     val parts = fullName.split("\\.").toVector
     val localName = ScalaNames.escaped(parts.last)
     val qualifiedName = ScalaNames.qualified(fullName)
@@ -62,7 +62,7 @@ object CodeGenerator:
           s"new $qualifiedName(values(0).asInstanceOf[$valueType])")
 
     val references = reachableDefinitions(definition, definitions).map { name =>
-      s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(name)}.codec"
+      s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(config.mappedFullName(name))}.codec"
     }.mkString("\n")
 
     val decimalRepresentation = config.decimalType match
@@ -70,11 +70,17 @@ object CodeGenerator:
       case DecimalType.Java =>
         "    override val decimalRepresentation: _root_.avro2s.wire.runtime.DecimalRepresentation = _root_.avro2s.wire.runtime.DecimalRepresentation.Java\n\n"
 
+    val rawLogicalTypes =
+      if config.rawLogicalTypes.isEmpty then ""
+      else "    override val rawLogicalTypes: _root_.scala.collection.immutable.Set[_root_.java.lang.String] = " +
+        config.rawLogicalTypes.map(ScalaNames.literal).mkString("_root_.scala.collection.immutable.Set(", ", ", ")\n\n")
+
     val companion = s"\nobject $localName:\n" +
       s"  val schemaJson: _root_.java.lang.String = ${ScalaNames.stringExpression(json)}\n\n" +
       s"  given codec: _root_.avro2s.wire.runtime.AvroCodec[$qualifiedName] with\n" +
       s"    override val schemaJson: _root_.java.lang.String = $qualifiedName.schemaJson\n\n" +
       decimalRepresentation +
+      rawLogicalTypes +
       s"    override def read(in: _root_.avro2s.wire.runtime.AvroInput): $qualifiedName =\n" + indent(read, 6) + "\n\n" +
       s"    override def write(value: $qualifiedName, out: _root_.avro2s.wire.runtime.AvroOutput): _root_.scala.Unit =\n" +
       indent(write, 6) + "\n\n" +
@@ -120,7 +126,7 @@ object CodeGenerator:
       case Value.Primitive(other) => throw GenerationException(s"Unexpected primitive schema: $other")
       case Value.LogicalValue(logical) => logical.scalaType(config.decimalType)
       case Value.WrappedLogical(logical) => s"_root_.avro2s.wire.runtime.$logical"
-      case Value.Named(name) => ScalaNames.qualified(name)
+      case Value.Named(name) => ScalaNames.qualified(config.mappedFullName(name))
       case Value.ArrayOf(element) => s"_root_.scala.collection.immutable.Vector[${scalaType(element)}]"
       case Value.MapOf(element) => s"_root_.scala.collection.immutable.Map[_root_.java.lang.String, ${scalaType(element)}]"
       case Value.Optional(element, _, _) => s"_root_.scala.Option[${scalaType(element)}]"
@@ -167,7 +173,7 @@ object CodeGenerator:
       case Value.Primitive(kind) => s"in.read${primitiveSuffix(kind)}()"
       case Value.LogicalValue(logical) => readLogical(logical)
       case Value.WrappedLogical(logical) => s"new _root_.avro2s.wire.runtime.$logical(${readLogical(logical)})"
-      case Value.Named(name) => s"${ScalaNames.qualified(name)}.codec.read(in)"
+      case Value.Named(name) => s"${ScalaNames.qualified(config.mappedFullName(name))}.codec.read(in)"
       case Value.Optional(element, nullIndex, valueIndex) =>
         "in.readIndex() match {\n" +
           s"  case $nullIndex => in.readNull(); _root_.scala.None\n" +
@@ -219,7 +225,7 @@ object CodeGenerator:
       case Value.Primitive(kind) => s"out.write${primitiveSuffix(kind)}($expression)"
       case Value.LogicalValue(logical) => writeLogical(logical, expression)
       case Value.WrappedLogical(logical) => writeLogical(logical, s"$expression.value")
-      case Value.Named(name) => s"${ScalaNames.qualified(name)}.codec.write($expression, out)"
+      case Value.Named(name) => s"${ScalaNames.qualified(config.mappedFullName(name))}.codec.write($expression, out)"
       case Value.Optional(element, nullIndex, valueIndex) =>
         s"if $expression.isEmpty then {\n  out.writeIndex($nullIndex)\n  out.writeNull()\n} else {\n  out.writeIndex($valueIndex)\n" +
           indent(write(element, s"$expression.get"), 2) + "\n}"

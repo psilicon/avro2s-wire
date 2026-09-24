@@ -39,22 +39,22 @@ object JavaOracle:
   /** Includes the selected union branch, named identity, and floating-point bits.
     * Collection block layout and map order are deliberately not part of datum equality.
     */
-  def normalized(schema: Schema, value: AnyRef): Any =
-    if schema.getProp("logicalType") == "decimal" then
+  def normalized(schema: Schema, value: AnyRef, rawLogicalTypes: Set[String] = Set.empty): Any =
+    if schema.getProp("logicalType") == "decimal" && !rawLogicalTypes("decimal") then
       ("decimal", new java.math.BigInteger(byteVector(value).toArray), schema.getObjectProp("scale"))
-    else if schema.getProp("logicalType") == "big-decimal" then
+    else if schema.getProp("logicalType") == "big-decimal" && !rawLogicalTypes("big-decimal") then
       val decimal = bigDecimalValue(schema, value)
       ("big-decimal", decimal.unscaledValue(), decimal.scale())
     else schema.getType match
       case Schema.Type.NULL => ()
       case Schema.Type.UNION =>
         val branch = GenericData.get().resolveUnion(schema, value)
-        (branch, normalized(schema.getTypes.get(branch), value))
+        (branch, normalized(schema.getTypes.get(branch), value, rawLogicalTypes))
       case Schema.Type.RECORD =>
         val record = value.asInstanceOf[IndexedRecord]
-        (schema.getFullName, schema.getFields.asScala.map(f => normalized(f.schema(), record.get(f.pos()).asInstanceOf[AnyRef])).toVector)
-      case Schema.Type.ARRAY => value.asInstanceOf[java.util.Collection[AnyRef]].asScala.map(normalized(schema.getElementType, _)).toVector
-      case Schema.Type.MAP => value.asInstanceOf[java.util.Map[CharSequence, AnyRef]].asScala.iterator.map((k, v) => k.toString -> normalized(schema.getValueType, v)).toMap
+        (schema.getFullName, schema.getFields.asScala.map(f => normalized(f.schema(), record.get(f.pos()).asInstanceOf[AnyRef], rawLogicalTypes)).toVector)
+      case Schema.Type.ARRAY => value.asInstanceOf[java.util.Collection[AnyRef]].asScala.map(normalized(schema.getElementType, _, rawLogicalTypes)).toVector
+      case Schema.Type.MAP => value.asInstanceOf[java.util.Map[CharSequence, AnyRef]].asScala.iterator.map((k, v) => k.toString -> normalized(schema.getValueType, v, rawLogicalTypes)).toMap
       case Schema.Type.ENUM => (schema.getFullName, value.toString)
       case Schema.Type.FIXED => (schema.getFullName, byteVector(value))
       case Schema.Type.BYTES => byteVector(value)

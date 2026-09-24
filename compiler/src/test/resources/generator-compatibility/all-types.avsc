@@ -1,0 +1,217 @@
+{
+  "type": "record",
+  "name": "Root",
+  "namespace": "avro2s.wire.baseline",
+  "fields": [
+    {
+      "name": "copy",
+      "type": "long"
+    },
+    {
+      "name": "type",
+      "type": "string"
+    },
+    {
+      "name": "flag",
+      "type": "boolean"
+    },
+    {
+      "name": "i",
+      "type": "int"
+    },
+    {
+      "name": "f",
+      "type": "float"
+    },
+    {
+      "name": "d",
+      "type": "double"
+    },
+    {
+      "name": "raw",
+      "type": "bytes"
+    },
+    {
+      "name": "none",
+      "type": "null"
+    },
+    {
+      "name": "date",
+      "type": {
+        "type": "int",
+        "logicalType": "date"
+      }
+    },
+    {
+      "name": "times",
+      "type": [
+        {
+          "type": "int",
+          "logicalType": "time-millis"
+        },
+        {
+          "type": "long",
+          "logicalType": "time-micros"
+        }
+      ]
+    },
+    {
+      "name": "optionalTimes",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "time-micros"
+        },
+        {
+          "type": "int",
+          "logicalType": "time-millis"
+        }
+      ]
+    },
+    {
+      "name": "timestamp_millis",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "timestamp_micros",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "timestamp_nanos",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-nanos"
+      }
+    },
+    {
+      "name": "local_timestamp_millis",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-millis"
+      }
+    },
+    {
+      "name": "local_timestamp_micros",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-micros"
+      }
+    },
+    {
+      "name": "local_timestamp_nanos",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-nanos"
+      }
+    },
+    {
+      "name": "uuid",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "fixedUuid",
+      "type": {
+        "type": "fixed",
+        "logicalType": "uuid",
+        "name": "WireUuid",
+        "size": 16
+      }
+    },
+    {
+      "name": "decimal",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 8
+      }
+    },
+    {
+      "name": "fixedDecimal",
+      "type": {
+        "type": "fixed",
+        "logicalType": "decimal",
+        "name": "Amount",
+        "size": 16,
+        "precision": 38,
+        "scale": 8
+      }
+    },
+    {
+      "name": "bigDecimal",
+      "type": {
+        "type": "bytes",
+        "logicalType": "big-decimal"
+      }
+    },
+    {
+      "name": "duration",
+      "type": {
+        "type": "fixed",
+        "logicalType": "duration",
+        "name": "Period",
+        "size": 12
+      }
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "Status",
+        "symbols": [
+          "new",
+          "values",
+          "Green"
+        ]
+      }
+    },
+    {
+      "name": "many",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "map",
+          "values": [
+            "null",
+            {
+              "type": "int",
+              "logicalType": "date"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "choice",
+      "type": [
+        "null",
+        "int",
+        "long",
+        "float",
+        "double",
+        "boolean",
+        "string",
+        "bytes",
+        "Status",
+        "WireUuid"
+      ]
+    },
+    {
+      "name": "child",
+      "type": [
+        "null",
+        "Root"
+      ]
+    }
+  ]
+}

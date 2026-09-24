@@ -3,7 +3,7 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The source now declares **190 tests across 30 suites**, including 15 property
+The source now declares **227 tests across 35 suites**, including 21 property
 tests, comparison-benchmark checks and focused runtime regressions.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
@@ -56,7 +56,7 @@ array, map, and union contexts, including nullable branch ordering. Random cases
 explore additional nesting and combinations. Required coverage labels prevent
 passing random samples from being mistaken for coverage of every supported type.
 
-Run all four property suites, or choose a larger matching-schema campaign:
+Run all five property suites, or choose a larger matching-schema campaign:
 
 ```sh
 sbt 'propertyTests/test'
@@ -101,6 +101,37 @@ signed zero and NaN payloads.
 Generated sources are compiled against **runtime and Scala only**. The Scala
 compiler, ScalaCheck and Java reference implementation belong to the unpublished
 test project; no new dependency is added to generated applications.
+
+## Generator options
+
+`GeneratorOptionsPropertiesSuite` mechanically combines all **15 logical/storage
+variants with six contexts**, under all-converted, all-raw and two complementary
+mixed settings, for both Scala and Java decimals. These 720 configured cells are
+bundled into records to keep real Scala compilation affordable. Named logical
+unions and colliding time representations are additional composite cases.
+
+An independent renderer checks exact field types through invariant compile-time
+assertions as well as values. Each configuration checks Java-to-Wire reads,
+Wire-to-Java reads and native round trips. Exact physical bytes and union indexes
+are compared where map ordering does not intervene. Raw decimal bytes also cover
+noncanonical and logically invalid payloads, to prove conversion is skipped.
+
+Namespace cases cover longest-prefix selection, component boundaries, retained
+suffixes, default-package moves, prefix stripping, recursion, enums and fixed
+types. Evolution cases combine mapping with aliases, reordered fields, promotion,
+nested values and every logical default. All four raw/converted time combinations
+exercise nullable unions and defaults. Focused resolution tests additionally use
+separately configured named child codecs and unused union alternatives.
+
+Compiler and CLI regressions reject invalid mappings, duplicate options, type/name
+and type/package collisions, including conflicts across files before any output
+is written. `GeneratorCompatibilitySuite` compares default and Java-decimal output
+against SHA-256 manifests captured before these options were implemented, using
+a checked-in schema covering all supported types. Explicit `Converted` settings
+and identity mappings must produce the same output. The complete suite passed on
+24 September 2026; all 51 existing generated fixture sources also remained
+byte-for-byte identical. No performance benchmark was rerun for these generation
+options.
 
 ## Decimal configurations
 
@@ -207,12 +238,12 @@ classes, rather than claiming exhaustive wire fuzzing.
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
 | `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 64 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
-| `compiler` | `CodeGeneratorSuite` (23) | 23 | Recursive definitions, unions, logical-type validation, names, metadata escaping, deterministic generation and cross-file schemas. |
+| `compiler` | `CodeGeneratorSuite` (23), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 46 | Recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
-| `resolution` | `DecimalResolutionSuite` (3), `ResolvingReaderSuite` (20) | 23 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
+| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20) | 31 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
 | `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (2), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 34 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
 | `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5) | 19 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
-| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedPropertiesSuite` (5), `WirePropertiesSuite` (4) | 15 | Generated model compilation, Java differential properties, schema evolution, wire mutations, budgets, state, shrinking and replay. |
+| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 21 | Generated model compilation, Java differential properties, schema evolution, wire mutations, budgets, state, shrinking and replay. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests

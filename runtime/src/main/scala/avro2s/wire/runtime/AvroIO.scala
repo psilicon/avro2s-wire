@@ -80,6 +80,8 @@ enum DecimalRepresentation:
 trait AvroCodec[A]:
   def schemaJson: String
   def decimalRepresentation: DecimalRepresentation = DecimalRepresentation.Scala
+  /** Avro logical names decoded as their underlying storage types by this model. */
+  def rawLogicalTypes: Set[String] = Set.empty
   def read(in: AvroInput): A
   def write(value: A, out: AvroOutput): Unit
 
