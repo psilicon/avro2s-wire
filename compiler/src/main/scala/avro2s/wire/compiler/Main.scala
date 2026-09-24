@@ -8,15 +8,41 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object Main:
+  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] <schema.avsc | schema-directory> <output-directory>"
+
   def main(args: Array[String]): Unit =
-    if args.length != 2 then
-      throw GenerationException("Usage: avro2s-wire <schema.avsc | schema-directory> <output-directory>")
-    val paths = SchemaCompiler.generate(Path.of(args(0)), Path.of(args(1)))
+    val (input, output, config) = parseArguments(args.toList)
+    val paths = SchemaCompiler.generate(input, output, config)
     println(s"Generated ${paths.size} Scala source files")
+
+  private def parseArguments(args: List[String]): (Path, Path, GeneratorConfig) =
+    val positional = Vector.newBuilder[String]
+    var decimalType: Option[DecimalType] = None
+    var remaining = args
+    while remaining.nonEmpty do remaining match
+      case "--decimal-type" :: value :: tail =>
+        if decimalType.nonEmpty then throw GenerationException(s"--decimal-type may only be specified once. $usage")
+        decimalType = Some(value match
+          case "scala" => DecimalType.Scala
+          case "java" => DecimalType.Java
+          case _ => throw GenerationException(s"Invalid --decimal-type '$value'; expected scala or java. $usage")
+        )
+        remaining = tail
+      case "--decimal-type" :: Nil =>
+        throw GenerationException(s"Missing --decimal-type value; expected scala or java. $usage")
+      case option :: _ if option.startsWith("--") =>
+        throw GenerationException(s"Unknown option '$option'. $usage")
+      case path :: tail =>
+        positional += path
+        remaining = tail
+      case Nil => ()
+    positional.result() match
+      case Vector(input, output) => (Path.of(input), Path.of(output), GeneratorConfig(decimalType.getOrElse(DecimalType.Scala)))
+      case _ => throw GenerationException(usage)
 
 object SchemaCompiler:
   /** Validate every input before writing. Existing identical outputs keep their timestamps. */
-  def generate(input: Path, outputDirectory: Path): Vector[Path] =
+  def generate(input: Path, outputDirectory: Path, config: GeneratorConfig = GeneratorConfig()): Vector[Path] =
     val inputs =
       if Files.isDirectory(input) then
         val stream = Files.walk(input)
@@ -27,7 +53,7 @@ object SchemaCompiler:
       else throw GenerationException(s"Input is not an .avsc file or schema directory: $input")
 
     if inputs.isEmpty then throw GenerationException(s"No .avsc schemas found in $input")
-    val generated = parse(inputs).flatMap(CodeGenerator.generate)
+    val generated = parse(inputs).flatMap(CodeGenerator.generate(_, config))
       .groupBy(_.relativePath).toVector.sortBy(_._1).map { (path, sources) =>
         if sources.map(_.content).distinct.size != 1 then
           throw GenerationException(s"Conflicting schema definitions generate the same Scala source: $path")

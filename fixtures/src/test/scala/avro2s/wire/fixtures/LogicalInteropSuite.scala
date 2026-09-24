@@ -84,3 +84,23 @@ class LogicalInteropSuite extends munit.FunSuite:
     intercept[IllegalArgumentException](LogicalRecord.codec.encode(sample.copy(amount = BigDecimal("1.001"))))
     intercept[IllegalArgumentException](LogicalRecord.codec.encode(sample.copy(fixedAmount = WireAmount(BigDecimal("123456789012345.6789")))))
   }
+
+  test("AVRO-4269: pre-epoch fractional nanos remain negative with both binary backends") {
+    val instant = Instant.ofEpochSecond(-1L, 500000000L)
+    val expected = sample.copy(timestampNs = instant, localNs = LocalDateTime.ofInstant(instant, ZoneOffset.UTC))
+    val stream = new ByteArrayOutputStream()
+    val encoder = EncoderFactory.get().binaryEncoder(stream, null)
+    LogicalRecord.codec.write(expected, new avro2s.wire.javabackend.JavaAvroOutput(encoder))
+    encoder.flush()
+    val native = LogicalRecord.codec.encode(expected)
+    assertEquals(stream.toByteArray.toVector, native.toVector)
+    for bytes <- Vector(native, stream.toByteArray) do
+      val decoder = DecoderFactory.get().binaryDecoder(bytes, null)
+      val raw = new GenericDatumReader[GenericRecord](schema).read(null, decoder)
+      // Literal expected wire values, independent of either implementation's conversions.
+      assertEquals(raw.get("timestampNs"), Long.box(-500000000L))
+      assertEquals(raw.get("localNs"), Long.box(-500000000L))
+      assertEquals(LogicalRecord.codec.decode(bytes), expected)
+      val javaDecoder = DecoderFactory.get().binaryDecoder(bytes, null)
+      assertEquals(LogicalRecord.codec.read(new avro2s.wire.javabackend.JavaAvroInput(javaDecoder)), expected)
+  }

@@ -7,13 +7,13 @@ final case class GeneratedSource(relativePath: String, content: String)
 
 /** Schema-first generation. The emitted sources have no Apache Avro dependency. */
 object CodeGenerator:
-  def generate(schema: Schema): Vector[GeneratedSource] =
-    val definitions = SchemaModel.definitions(schema)
+  def generate(schema: Schema, config: GeneratorConfig = GeneratorConfig()): Vector[GeneratedSource] =
+    val definitions = SchemaModel.definitions(schema, config)
     val byName = definitions.map(definition => definition.name -> definition).toMap
-    definitions.map(generateDefinition(_, byName))
+    definitions.map(generateDefinition(_, byName, config))
 
-  private def generateDefinition(definition: Definition, definitions: Map[String, Definition]): GeneratedSource =
-    val emitter = Emitter()
+  private def generateDefinition(definition: Definition, definitions: Map[String, Definition], config: GeneratorConfig): GeneratedSource =
+    val emitter = Emitter(config)
     val fullName = definition.name
     val parts = fullName.split("\\.").toVector
     val localName = ScalaNames.escaped(parts.last)
@@ -53,7 +53,7 @@ object CodeGenerator:
 
       case Definition.Fixed(_, size, logical, json) =>
         val message = ScalaNames.literal(s"$fullName requires exactly $size bytes")
-        val valueType = logical.fold("_root_.avro2s.wire.runtime.Bytes")(_.scalaType)
+        val valueType = logical.fold("_root_.avro2s.wire.runtime.Bytes")(_.scalaType(config.decimalType))
         val model = s"final case class $localName(value: $valueType)" +
           logical.fold(s":\n  _root_.scala.Predef.require(value.size == $size, $message)\n")(_ => "\n")
         val read = logical.fold(s"in.readFixed($size)")(emitter.readLogical(_, Some(size)))
@@ -65,10 +65,16 @@ object CodeGenerator:
       s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(name)}.codec"
     }.mkString("\n")
 
+    val decimalRepresentation = config.decimalType match
+      case DecimalType.Scala => ""
+      case DecimalType.Java =>
+        "    override val decimalRepresentation: _root_.avro2s.wire.runtime.DecimalRepresentation = _root_.avro2s.wire.runtime.DecimalRepresentation.Java\n\n"
+
     val companion = s"\nobject $localName:\n" +
       s"  val schemaJson: _root_.java.lang.String = ${ScalaNames.stringExpression(json)}\n\n" +
       s"  given codec: _root_.avro2s.wire.runtime.AvroCodec[$qualifiedName] with\n" +
       s"    override val schemaJson: _root_.java.lang.String = $qualifiedName.schemaJson\n\n" +
+      decimalRepresentation +
       s"    override def read(in: _root_.avro2s.wire.runtime.AvroInput): $qualifiedName =\n" + indent(read, 6) + "\n\n" +
       s"    override def write(value: $qualifiedName, out: _root_.avro2s.wire.runtime.AvroOutput): _root_.scala.Unit =\n" +
       indent(write, 6) + "\n\n" +
@@ -96,7 +102,7 @@ object CodeGenerator:
   private def indent(text: String, spaces: Int): String =
     text.linesIterator.map(" " * spaces + _).mkString("\n")
 
-  private final class Emitter:
+  private final class Emitter(config: GeneratorConfig):
     private var sequence = 0
     private def fresh(prefix: String): String =
       sequence += 1
@@ -112,7 +118,7 @@ object CodeGenerator:
       case Value.Primitive(Schema.Type.STRING)  => "_root_.java.lang.String"
       case Value.Primitive(Schema.Type.BYTES)   => "_root_.avro2s.wire.runtime.Bytes"
       case Value.Primitive(other) => throw GenerationException(s"Unexpected primitive schema: $other")
-      case Value.LogicalValue(logical) => logical.scalaType
+      case Value.LogicalValue(logical) => logical.scalaType(config.decimalType)
       case Value.WrappedLogical(logical) => s"_root_.avro2s.wire.runtime.$logical"
       case Value.Named(name) => ScalaNames.qualified(name)
       case Value.ArrayOf(element) => s"_root_.scala.collection.immutable.Vector[${scalaType(element)}]"
@@ -136,9 +142,13 @@ object CodeGenerator:
       s"_root_.avro2s.wire.runtime.LogicalValues.write$method($expression, out$arguments)"
 
     private def logicalArguments(logical: Logical, fixedSize: Option[Int]): (String, String) = logical match
-      case Logical.Decimal(precision, scale) => fixedSize match
-        case Some(size) => ("FixedDecimal", s", $size, $precision, $scale")
-        case None => ("Decimal", s", $precision, $scale")
+      case Logical.Decimal(precision, scale) =>
+        val prefix = if config.decimalType == DecimalType.Java then "Java" else ""
+        fixedSize match
+          case Some(size) => (s"${prefix}FixedDecimal", s", $size, $precision, $scale")
+          case None => (s"${prefix}Decimal", s", $precision, $scale")
+      case Logical.BigDecimal =>
+        (if config.decimalType == DecimalType.Java then "JavaBigDecimal" else "BigDecimal", "")
       case Logical.Uuid if fixedSize.nonEmpty => ("FixedUuid", "")
       case other => (other.toString, "")
 

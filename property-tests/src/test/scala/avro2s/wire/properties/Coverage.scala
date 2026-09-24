@@ -13,7 +13,7 @@ object Coverage:
   private val logicalStorage = Set(
     "date:int", "time-millis:int", "time-micros:long", "timestamp-millis:long", "timestamp-micros:long",
     "timestamp-nanos:long", "local-timestamp-millis:long", "local-timestamp-micros:long", "local-timestamp-nanos:long",
-    "uuid:string", "uuid:fixed", "decimal:bytes", "decimal:fixed", "duration:fixed"
+    "uuid:string", "uuid:fixed", "decimal:bytes", "decimal:fixed", "big-decimal:bytes", "duration:fixed"
   )
   private val actualMatrix = (for
     atom <- SchemaCases.atoms
@@ -31,13 +31,15 @@ object Coverage:
     (for kind <- Set("array", "map", "bytes"); state <- Set("empty", "nonempty") yield s"value:$kind:$state") ++
     (for order <- Set("null-first", "null-last"); branch <- Set("null", "value") yield s"value:union:$order:$branch") ++
     (for storage <- Set("bytes", "fixed"); sign <- Set("zero", "positive", "negative") yield s"value:decimal:$storage:$sign") ++
+    (for sign <- Set("zero", "positive", "negative") yield s"value:big-decimal:$sign") ++
+    (for scale <- Set("zero", "positive", "negative", "minimum", "maximum") yield s"value:big-decimal:scale:$scale") ++
     (for logical <- Set("date", "timestamp-millis", "timestamp-micros", "timestamp-nanos", "local-timestamp-millis", "local-timestamp-micros", "local-timestamp-nanos"); sign <- Set("zero", "positive", "negative") yield s"value:$logical:$sign") ++
     (for logical <- Set("time-millis", "time-micros"); edge <- Set("midnight", "last-unit") yield s"value:$logical:$edge") ++
     (for storage <- Set("string", "fixed"); state <- Set("zero", "nonzero") yield s"value:uuid:$storage:$state") ++
     Set(
       "value:boolean:false", "value:boolean:true", "value:string:empty", "value:string:ascii", "value:string:ascii-control",
       "value:string:ascii-long", "value:string:two-byte", "value:string:three-byte", "value:string:four-byte", "value:string:combining-mark",
-      "value:decimal:more-than-34-digits", "value:decimal:nonzero-scale", "value:duration:zero", "value:duration:nonzero",
+      "value:decimal:more-than-34-digits", "value:decimal:nonzero-scale", "value:big-decimal:more-than-34-digits", "value:duration:zero", "value:duration:nonzero",
       "value:enum:first-symbol", "value:enum:last-symbol", "value:fixed:zero-bytes", "value:fixed:nonzero-bytes",
       "value:record:empty", "value:record:nonempty", "value:recursive-record", "value:collection:nested"
     )
@@ -102,6 +104,13 @@ object Coverage:
             mark(s"decimal:$kind:${if integer.signum() == 0 then "zero" else if integer.signum() < 0 then "negative" else "positive"}")
             if integer.abs().toString.length > 34 then mark("decimal:more-than-34-digits")
             if schema.getObjectProp("scale").asInstanceOf[Number].intValue() > 0 then mark("decimal:nonzero-scale")
+          case "big-decimal" =>
+            val decimal = JavaOracle.bigDecimalValue(schema, value)
+            mark(s"big-decimal:${sign(decimal.signum().toLong)}")
+            mark(s"big-decimal:scale:${sign(decimal.scale().toLong)}")
+            if decimal.scale() == Int.MinValue then mark("big-decimal:scale:minimum")
+            if decimal.scale() == Int.MaxValue then mark("big-decimal:scale:maximum")
+            if decimal.precision() > 34 then mark("big-decimal:more-than-34-digits")
           case "uuid" =>
             val zero = if schema.getType == Schema.Type.STRING then value.toString == "00000000-0000-0000-0000-000000000000" else rawBytes(value).forall(_ == 0)
             mark(s"uuid:$kind:${if zero then "zero" else "nonzero"}")

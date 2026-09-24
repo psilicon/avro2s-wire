@@ -71,6 +71,23 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
     codecs.getOrElseUpdate(schema.name,
       if schema eq root then rootCodec else rootCodec.namedCodec(schema.name))
 
+  // Index ownership without loading codecs for unused union alternatives.
+  // Separately generated named models can choose their own decimal representation.
+  private lazy val decimalOwners: Map[Node, Node] =
+    val result = mutable.HashMap.empty[Node, Node]
+    def visit(node: Node, inherited: Node): Unit =
+      if !result.contains(node) then
+        val owner = if node.name.nonEmpty then node else inherited
+        result(node) = owner
+        node.fields.foreach(field => visit(field.schema, owner))
+        node.branches.foreach(visit(_, owner))
+        if node.element != null then visit(node.element, owner)
+    visit(root, root)
+    result.toMap
+
+  private def decimalRepresentation(schema: Node): DecimalRepresentation =
+    codec(decimalOwners(schema)).decimalRepresentation
+
   private def sameName(writer: Node, reader: Node): Boolean =
     writer.name == reader.name || reader.aliases(writer.name)
 
@@ -252,7 +269,14 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
       case "local-timestamp-nanos" => value => LogicalValues.localDateTimeFromNanos(value.asInstanceOf[Long])
       case "uuid" if schema.kind == "fixed" => value => LogicalValues.uuidFromFixed(value.asInstanceOf[Bytes])
       case "uuid" => value => LogicalValues.uuidFromString(value.asInstanceOf[String])
-      case "decimal" => value => LogicalValues.decimalFromBytes(value.asInstanceOf[Bytes], logical.precision, logical.scale)
+      case "decimal" =>
+        if decimalRepresentation(schema) == DecimalRepresentation.Java then
+          value => LogicalValues.javaDecimalFromBytes(value.asInstanceOf[Bytes], logical.precision, logical.scale)
+        else value => LogicalValues.decimalFromBytes(value.asInstanceOf[Bytes], logical.precision, logical.scale)
+      case "big-decimal" =>
+        if decimalRepresentation(schema) == DecimalRepresentation.Java then
+          value => LogicalValues.javaBigDecimalFromBytes(value.asInstanceOf[Bytes])
+        else value => LogicalValues.bigDecimalFromBytes(value.asInstanceOf[Bytes])
       case "duration" => value => LogicalValues.durationFromBytes(value.asInstanceOf[Bytes])
       case other => invalid(s"Unsupported logical type '$other'")
 

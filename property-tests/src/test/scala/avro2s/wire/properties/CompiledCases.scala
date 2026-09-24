@@ -1,6 +1,6 @@
 package avro2s.wire.properties
 
-import avro2s.wire.compiler.CodeGenerator
+import avro2s.wire.compiler.{CodeGenerator, DecimalType, GeneratorConfig}
 import avro2s.wire.runtime.AvroCodec
 import java.net.URLClassLoader
 import java.nio.charset.StandardCharsets.UTF_8
@@ -16,18 +16,18 @@ object CompiledCases:
   private def qualified(name: String): String = "_root_." + name.split('.').map(n => s"`$n`").mkString(".")
 
   /** This is the actual pinned Scala compiler, not a source-string snapshot assertion. */
-  def compile(cases: Vector[SchemaCase], directory: Path): CompiledCases =
+  def compile(cases: Vector[SchemaCase], directory: Path, config: GeneratorConfig = GeneratorConfig()): CompiledCases =
     val sources = directory.resolve("sources")
     val classes = directory.resolve("classes")
     Files.createDirectories(sources)
     Files.createDirectories(classes)
     val files = mutable.LinkedHashMap.empty[String, String]
     cases.zipWithIndex.foreach { (c, index) =>
-      CodeGenerator.generate(c.schema).foreach { source =>
+      CodeGenerator.generate(c.schema, config).foreach { source =>
         files.get(source.relativePath).foreach(previous => require(previous == source.content, s"Conflicting generated source: ${source.relativePath}"))
         files(source.relativePath) = source.content
       }
-      val expressions = c.values.map(v => NativeValues.expression(c.schema, v))
+      val expressions = c.values.map(v => NativeValues.expression(c.schema, v, javaDecimals = config.decimalType == DecimalType.Java))
       // Separate methods keep large campaigns below the JVM method-size limit.
       val valueMethods = expressions.zipWithIndex.map((expr, i) => s"  private def value$i: Any = $expr").mkString("\n")
       files(s"probes/Probe$index.scala") = s"""package avro2s.wire.propertyprobes

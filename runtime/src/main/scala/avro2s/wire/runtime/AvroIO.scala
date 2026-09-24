@@ -72,9 +72,14 @@ trait AvroOutput:
       writeLong(iterator.next())
     writeArrayEnd()
 
+/** The generated model's decimal representation, also used by schema resolution. */
+enum DecimalRepresentation:
+  case Scala, Java
+
 /** A matching-schema codec. Writer/reader schema resolution is a separate concern. */
 trait AvroCodec[A]:
   def schemaJson: String
+  def decimalRepresentation: DecimalRepresentation = DecimalRepresentation.Scala
   def read(in: AvroInput): A
   def write(value: A, out: AvroOutput): Unit
 

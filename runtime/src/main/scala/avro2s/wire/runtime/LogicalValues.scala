@@ -159,16 +159,19 @@ object LogicalValues:
     require(scale >= 0 && scale <= precision, "Decimal scale must be between zero and precision")
 
   def decimalFromBytes(value: Bytes, precision: Int, scale: Int): BigDecimal =
+    BigDecimal.exact(javaDecimalFromBytes(value, precision, scale))
+
+  def javaDecimalFromBytes(value: Bytes, precision: Int, scale: Int): JavaDecimal =
     decimalParameters(precision, scale)
     if value.size == 0 then invalid("Decimal bytes must contain a two's-complement integer")
     val decimal = new JavaDecimal(new BigInteger(value.unsafeArray), scale)
     if decimal.precision() > precision then invalid(s"Decimal exceeds precision $precision")
-    BigDecimal.exact(decimal)
+    decimal
 
-  private def decimalBytes(value: BigDecimal, precision: Int, scale: Int): Array[Byte] =
+  private def decimalBytes(value: JavaDecimal, precision: Int, scale: Int): Array[Byte] =
     decimalParameters(precision, scale)
     val decimal =
-      try value.bigDecimal.setScale(scale, RoundingMode.UNNECESSARY)
+      try value.setScale(scale, RoundingMode.UNNECESSARY)
       catch
         case _: ArithmeticException => throw new IllegalArgumentException(s"Decimal cannot be represented exactly at scale $scale")
     require(decimal.precision() <= precision, s"Decimal exceeds precision $precision")
@@ -177,11 +180,21 @@ object LogicalValues:
   def readDecimal(in: AvroInput, precision: Int, scale: Int): BigDecimal =
     decimalFromBytes(in.readBytes(), precision, scale)
   def writeDecimal(value: BigDecimal, out: AvroOutput, precision: Int, scale: Int): Unit =
+    writeJavaDecimal(value.bigDecimal, out, precision, scale)
+
+  def readJavaDecimal(in: AvroInput, precision: Int, scale: Int): JavaDecimal =
+    javaDecimalFromBytes(in.readBytes(), precision, scale)
+  def writeJavaDecimal(value: JavaDecimal, out: AvroOutput, precision: Int, scale: Int): Unit =
     out.writeBytes(Bytes.unsafeWrap(decimalBytes(value, precision, scale)))
 
   def readFixedDecimal(in: AvroInput, size: Int, precision: Int, scale: Int): BigDecimal =
     decimalFromBytes(in.readFixed(size), precision, scale)
   def writeFixedDecimal(value: BigDecimal, out: AvroOutput, size: Int, precision: Int, scale: Int): Unit =
+    writeJavaFixedDecimal(value.bigDecimal, out, size, precision, scale)
+
+  def readJavaFixedDecimal(in: AvroInput, size: Int, precision: Int, scale: Int): JavaDecimal =
+    javaDecimalFromBytes(in.readFixed(size), precision, scale)
+  def writeJavaFixedDecimal(value: JavaDecimal, out: AvroOutput, size: Int, precision: Int, scale: Int): Unit =
     require(size > 0, "A fixed decimal requires a positive size")
     val encoded = decimalBytes(value, precision, scale)
     require(encoded.length <= size, s"Decimal does not fit fixed size $size")
@@ -189,6 +202,35 @@ object LogicalValues:
     if encoded(0) < 0 then java.util.Arrays.fill(bytes, 0xff.toByte)
     System.arraycopy(encoded, 0, bytes, size - encoded.length, encoded.length)
     out.writeFixed(Bytes.unsafeWrap(bytes))
+
+  /** Avro big-decimal stores bytes(unscaled integer), then int(scale), inside
+    * the schema's bytes value. Unlike decimal, its scale belongs to each value.
+    */
+  def bigDecimalFromBytes(value: Bytes): BigDecimal =
+    BigDecimal.exact(javaBigDecimalFromBytes(value))
+
+  def javaBigDecimalFromBytes(value: Bytes): JavaDecimal =
+    // The enclosing input has already enforced its configured bytes limit.
+    // Bound this nested decoder to the actual payload, including direct calls,
+    // so an inner length can never allocate beyond the supplied value.
+    val in = new BinaryInput(value.unsafeArray,
+      DecodeLimits(maxInputBytes = value.size, maxBytesLength = value.size))
+    val unscaled = in.readBytes()
+    if unscaled.size == 0 then invalid("Big-decimal bytes must contain a two's-complement integer")
+    val scale = in.readInt()
+    in.requireEnd()
+    new JavaDecimal(new BigInteger(unscaled.unsafeArray), scale)
+
+  def readBigDecimal(in: AvroInput): BigDecimal = bigDecimalFromBytes(in.readBytes())
+  def writeBigDecimal(value: BigDecimal, out: AvroOutput): Unit =
+    writeJavaBigDecimal(value.bigDecimal, out)
+
+  def readJavaBigDecimal(in: AvroInput): JavaDecimal = javaBigDecimalFromBytes(in.readBytes())
+  def writeJavaBigDecimal(value: JavaDecimal, out: AvroOutput): Unit =
+    val payload = new BinaryOutput()
+    payload.writeBytes(Bytes.unsafeWrap(value.unscaledValue().toByteArray))
+    payload.writeInt(value.scale())
+    out.writeBytes(Bytes.unsafeWrap(payload.toByteArray))
 
   def durationFromBytes(value: Bytes): AvroDuration =
     if value.size != 12 then invalid("An Avro duration requires exactly 12 bytes")

@@ -20,16 +20,18 @@ private[compiler] object SchemaModel:
 
   enum Logical:
     case Date, TimeMillis, TimeMicros, TimestampMillis, TimestampMicros, TimestampNanos
-    case LocalTimestampMillis, LocalTimestampMicros, LocalTimestampNanos, Uuid, Duration
+    case LocalTimestampMillis, LocalTimestampMicros, LocalTimestampNanos, Uuid, Duration, BigDecimal
     case Decimal(precision: Int, scale: Int)
 
-    def scalaType: String = this match
+    def scalaType(decimalType: DecimalType): String = this match
       case Date => "_root_.java.time.LocalDate"
       case TimeMillis | TimeMicros => "_root_.java.time.LocalTime"
       case TimestampMillis | TimestampMicros | TimestampNanos => "_root_.java.time.Instant"
       case LocalTimestampMillis | LocalTimestampMicros | LocalTimestampNanos => "_root_.java.time.LocalDateTime"
       case Uuid => "_root_.java.util.UUID"
-      case Decimal(_, _) => "_root_.scala.BigDecimal"
+      case Decimal(_, _) | BigDecimal => decimalType match
+        case DecimalType.Scala => "_root_.scala.BigDecimal"
+        case DecimalType.Java => "_root_.java.math.BigDecimal"
       case Duration => "_root_.avro2s.wire.runtime.AvroDuration"
 
   final case class Field(avroName: String, scalaName: String, value: Value)
@@ -65,6 +67,7 @@ private[compiler] object SchemaModel:
         case "local-timestamp-nanos" => Logical.LocalTimestampNanos
         case "uuid" => Logical.Uuid
         case "duration" => Logical.Duration
+        case "big-decimal" => Logical.BigDecimal
         case "decimal" =>
           val decimal = validated.asInstanceOf[LogicalTypes.Decimal]
           Logical.Decimal(decimal.getPrecision, decimal.getScale)
@@ -72,9 +75,9 @@ private[compiler] object SchemaModel:
     }
 
   /** Union dispatch must distinguish values after JVM erasure, not only Scala types. */
-  private def runtimeKey(value: Value): String = value match
+  private def runtimeKey(value: Value, config: GeneratorConfig): String = value match
     case Value.Primitive(kind) => s"primitive:$kind"
-    case Value.LogicalValue(logical) => logical.scalaType
+    case Value.LogicalValue(logical) => logical.scalaType(config.decimalType)
     case Value.WrappedLogical(logical) => s"avro2s.wire.runtime.$logical"
     case Value.Named(name) => s"named:$name"
     case Value.ArrayOf(_) => "scala.collection.immutable.Vector"
@@ -83,7 +86,7 @@ private[compiler] object SchemaModel:
       throw GenerationException("Nested Avro unions cannot be dispatched safely")
 
   /** Named references terminate traversal, including mutually recursive records. */
-  def definitions(schema: Schema): Vector[Definition] =
+  def definitions(schema: Schema, config: GeneratorConfig): Vector[Definition] =
     if !Set(Schema.Type.RECORD, Schema.Type.ENUM, Schema.Type.FIXED)(schema.getType) then
       throw GenerationException(s"The root schema must be a named record, enum, or fixed type; found ${schema.getType}")
     val seen = mutable.Set.empty[String]
@@ -125,7 +128,7 @@ private[compiler] object SchemaModel:
             case Value.LogicalValue(logical @ (Logical.TimeMillis | Logical.TimeMicros)) if ambiguousTimes => Value.WrappedLogical(logical)
             case other => other
           }
-          val collisions = values.groupBy(runtimeKey).collect { case (key, members) if members.size > 1 => key }
+          val collisions = values.groupBy(runtimeKey(_, config)).collect { case (key, members) if members.size > 1 => key }
           if collisions.nonEmpty then
             throw GenerationException(s"$location: union branches have indistinguishable Scala runtime representations: ${collisions.toVector.sorted.mkString(", ")}; use named wrappers")
           if branches.size == 2 && nullIndex >= 0 then
@@ -174,7 +177,7 @@ private[compiler] object ScalaNames:
     if !name.matches("[A-Za-z_][A-Za-z0-9_]*") || name == "_" || name == "_root_" then
       throw GenerationException(s"Avro identifier '$name' cannot safely be represented as a Scala identifier")
 
-  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "apply", "unapply", "construct", "namedCodec", "fullName")
+  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation")
 
   def validateFullName(name: String): Unit =
     name.split("\\.", -1).foreach(validateIdentifier)

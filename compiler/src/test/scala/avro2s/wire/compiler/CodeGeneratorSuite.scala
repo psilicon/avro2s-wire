@@ -5,8 +5,8 @@ import org.apache.avro.Schema
 import scala.jdk.CollectionConverters.*
 
 class CodeGeneratorSuite extends munit.FunSuite:
-  private def generate(json: String): Vector[GeneratedSource] =
-    CodeGenerator.generate(new Schema.Parser().parse(json))
+  private def generate(json: String, config: GeneratorConfig = GeneratorConfig()): Vector[GeneratedSource] =
+    CodeGenerator.generate(new Schema.Parser().parse(json), config)
 
   test("recursive references terminate and generate direct field codecs") {
     val json = """{"type":"record","name":"Node","namespace":"example","fields":[{"name":"value","type":"long"},{"name":"next","type":["null","Node"],"default":null}]}"""
@@ -66,6 +66,55 @@ class CodeGeneratorSuite extends munit.FunSuite:
       generate("""{"type":"fixed","name":"Unknown","size":16,"logicalType":"custom-type"}""")
     }
     assert(unknown.getMessage.contains("custom-type"))
+  }
+
+  test("decimal configuration applies to bytes, named fixed wrappers, and nested logical values") {
+    val json = """{"type":"record","name":"Decimals","namespace":"example","fields":[
+      {"name":"amount","type":{"type":"bytes","logicalType":"decimal","precision":18,"scale":4}},
+      {"name":"variable","type":{"type":"bytes","logicalType":"big-decimal"}},
+      {"name":"fixed","type":{"type":"fixed","name":"Money","size":8,"logicalType":"decimal","precision":18,"scale":4}},
+      {"name":"optional","type":["null",{"type":"bytes","logicalType":"big-decimal"}]},
+      {"name":"array","type":{"type":"array","items":{"type":"bytes","logicalType":"big-decimal"}}},
+      {"name":"map","type":{"type":"map","values":{"type":"bytes","logicalType":"decimal","precision":9,"scale":2}}},
+      {"name":"choice","type":["string",{"type":"bytes","logicalType":"big-decimal"},"Money"]}
+    ]}"""
+    assertEquals(generate(json), generate(json, GeneratorConfig(DecimalType.Scala)))
+    for decimalType <- DecimalType.values do
+      val sources = generate(json, GeneratorConfig(decimalType))
+      val record = sources.find(_.relativePath == "example/Decimals.scala").get.content
+      val fixed = sources.find(_.relativePath == "example/Money.scala").get.content
+      val valueType = if decimalType == DecimalType.Java then "_root_.java.math.BigDecimal" else "_root_.scala.BigDecimal"
+      val prefix = if decimalType == DecimalType.Java then "Java" else ""
+      assert(record.contains(s"amount: $valueType"))
+      assert(record.contains(s"variable: $valueType"))
+      assert(record.contains(s"optional: _root_.scala.Option[$valueType]"))
+      assert(record.contains(s"array: _root_.scala.collection.immutable.Vector[$valueType]"))
+      assert(record.contains(s"map: _root_.scala.collection.immutable.Map[_root_.java.lang.String, $valueType]"))
+      assert(record.contains(s"choice: _root_.java.lang.String | $valueType | _root_.example.Money"))
+      assert(record.contains(s"LogicalValues.read${prefix}Decimal(in, 18, 4)"))
+      assert(record.contains(s"LogicalValues.write${prefix}Decimal(value.amount, out, 18, 4)"))
+      assert(record.contains(s"LogicalValues.read${prefix}BigDecimal(in)"))
+      assert(record.contains(s"LogicalValues.write${prefix}BigDecimal(value.variable, out)"))
+      assert(record.contains(s": $valueType =>"))
+      assert(record.contains("case _ => throw new _root_.java.lang.IllegalArgumentException"))
+      assert(fixed.contains(s"final case class Money(value: $valueType)"))
+      assert(fixed.contains(s"LogicalValues.read${prefix}FixedDecimal(in, 8, 18, 4)"))
+      assert(fixed.contains(s"LogicalValues.write${prefix}FixedDecimal(value.value, out, 8, 18, 4)"))
+      assertEquals(record.contains("DecimalRepresentation.Java"), decimalType == DecimalType.Java)
+      assertEquals(fixed.contains("DecimalRepresentation.Java"), decimalType == DecimalType.Java)
+  }
+
+  test("big-decimal validates bytes storage and retains unconstrained schema metadata") {
+    for physical <- Vector("int", "long", "string", "fixed") do
+      val extra = if physical == "fixed" then "\"name\":\"InvalidDecimal\",\"size\":16," else ""
+      val error = intercept[GenerationException] {
+        generate(s"""{"type":"record","name":"R","fields":[{"name":"amount","type":{"type":"$physical",${extra}"logicalType":"big-decimal"}}]}""")
+      }
+      assert(error.getMessage.contains("R.amount: invalid logical type 'big-decimal'"))
+    val schema = new Schema.Parser().parse("""{"type":"record","name":"R","fields":[{"name":"amount","type":{"type":"bytes","logicalType":"big-decimal","precision":2,"scale":7}}]}""")
+    val source = CodeGenerator.generate(schema).head.content
+    assert(source.contains("LogicalValues.readBigDecimal(in)"))
+    assert(source.contains(ScalaNames.literal(schema.toString)))
   }
 
   test("general unions retain Scala union types and tag only colliding logical representations") {
@@ -156,10 +205,11 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(source.contains("Option[PlainRecord]"))
     assert(source.contains("PlainRecord.codec.read(in)"))
     assert(!source.contains("_root_.PlainRecord"))
-    val ambiguous = intercept[GenerationException] {
-      generate("""{"type":"record","name":"value","fields":[]}""")
-    }
-    assert(ambiguous.getMessage.contains("give this type an Avro namespace"))
+    for name <- Vector("value", "decimalRepresentation") do
+      val ambiguous = intercept[GenerationException] {
+        generate(s"""{"type":"record","name":"$name","fields":[]}""")
+      }
+      assert(ambiguous.getMessage.contains("give this type an Avro namespace"))
   }
 
   test("named packages cannot refer to default-package definitions") {
@@ -232,11 +282,45 @@ class CodeGeneratorSuite extends munit.FunSuite:
     }
   }
 
+  test("directory compilation and the CLI forward decimal configuration") {
+    withDirectory { directory =>
+      val input = directory.resolve("decimal.avsc")
+      Files.writeString(input, """{"type":"record","name":"DecimalRecord","fields":[{"name":"value","type":{"type":"bytes","logicalType":"big-decimal"}}]}""")
+      val output = directory.resolve("api")
+      val generated = SchemaCompiler.generate(input, output, GeneratorConfig(DecimalType.Java))
+      assert(Files.readString(generated.head).contains("value: _root_.java.math.BigDecimal"))
+      for (options, expectedType, index) <- Vector(
+        (Vector.empty[String], "_root_.scala.BigDecimal", 0),
+        (Vector("--decimal-type", "scala"), "_root_.scala.BigDecimal", 1),
+        (Vector("--decimal-type", "java"), "_root_.java.math.BigDecimal", 2)
+      ) do
+        val target = directory.resolve(s"cli-$index")
+        Main.main((options ++ Vector(input.toString, target.toString)).toArray)
+        assert(Files.readString(target.resolve("DecimalRecord.scala")).contains(s"value: $expectedType"))
+      val trailing = directory.resolve("trailing-option")
+      Main.main(Array(input.toString, trailing.toString, "--decimal-type", "java"))
+      assert(Files.readString(trailing.resolve("DecimalRecord.scala")).contains("value: _root_.java.math.BigDecimal"))
+    }
+  }
+
+  test("invalid CLI options fail before reading inputs or creating output") {
+    val invalid = intercept[GenerationException](Main.main(Array("--decimal-type", "kotlin", "missing.avsc", "unused")))
+    assert(invalid.getMessage.contains("Invalid --decimal-type 'kotlin'; expected scala or java"))
+    val missing = intercept[GenerationException](Main.main(Array("missing.avsc", "unused", "--decimal-type")))
+    assert(missing.getMessage.contains("Missing --decimal-type value"))
+    val duplicate = intercept[GenerationException](Main.main(Array("--decimal-type", "java", "--decimal-type", "scala", "missing.avsc", "unused")))
+    assert(duplicate.getMessage.contains("may only be specified once"))
+    val unknown = intercept[GenerationException](Main.main(Array("--unknown", "missing.avsc", "unused")))
+    assert(unknown.getMessage.contains("Unknown option '--unknown'"))
+    val positional = intercept[GenerationException](Main.main(Array("missing.avsc")))
+    assert(positional.getMessage.contains("Usage: avro2s-wire"))
+  }
+
   test("all schemas are validated before any output is written") {
     withDirectory { directory =>
       val inputs = Files.createDirectory(directory.resolve("schemas"))
       Files.writeString(inputs.resolve("good.avsc"), """{"type":"record","name":"Good","fields":[]}""")
-      Files.writeString(inputs.resolve("unsupported.avsc"), """{"type":"record","name":"Unsupported","fields":[{"name":"value","type":{"type":"bytes","logicalType":"big-decimal"}}]}""")
+      Files.writeString(inputs.resolve("unsupported.avsc"), """{"type":"record","name":"Unsupported","fields":[{"name":"value","type":{"type":"bytes","logicalType":"unknown-logical-type"}}]}""")
       val output = directory.resolve("generated")
       intercept[GenerationException](SchemaCompiler.generate(inputs, output))
       assert(!Files.exists(output))

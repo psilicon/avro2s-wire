@@ -96,3 +96,34 @@ hashes, generator settings, exclusions and actual Java custom-coder capability.
 Only namespaces change between model schemas so the classes can coexist; these
 cross-reading checks use identical raw datum layouts, not schema resolution
 between the relocated names. Evolution is a separate benchmark.
+
+## Targeted big-decimal benchmark
+
+`BigDecimalBenchmark` measures a single complete logical value, including its
+outer Avro bytes length. It compares native Wire with Scala decimal values,
+native Wire with Java decimal values, and Java Avro's actual
+`Conversions.BigDecimalConversion`. The Java-valued Wire path still uses native
+binary IO; it is not the optional Java backend.
+
+The matrix covers 6, 50 and 500 significant digits at scales 0, 6 and -6. Each
+case cycles through 16 prebuilt values, half negative. Reads create fresh input
+contexts and values. Writes reuse outer buffers and omit the final result-array
+copy; internal decimal conversion buffers and copies remain measured. Two forks,
+three 500 ms warmups, five 500 ms measurements and the JMH GC profiler record
+latency and allocation. This is a focused local comparison, not an application
+throughput benchmark or a claim about every number size.
+
+Run the reference configuration with a Corretto 21 installation:
+
+```sh
+python3 scripts/run-big-decimal-benchmark.py --java "$JAVA_HOME/bin/java"
+```
+
+The script first runs `BigDecimalBenchmarkSuite`. It then verifies that all 54
+measurements completed, checks that sources stayed unchanged, and writes a report,
+raw JSON, environment details and an exact source snapshot beneath ignored
+`benchmarks/target/big-decimal-2026-09-24/`. For another run, use `--output` with
+an empty directory under `benchmarks/target/`. `sbt clean` can remove these local
+outputs. Benchmark code and commands belong in Git; development-run output is
+not committed automatically. Preserve a selected reference report separately
+when publishing a performance claim.

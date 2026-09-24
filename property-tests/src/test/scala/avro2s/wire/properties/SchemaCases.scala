@@ -18,7 +18,7 @@ object SchemaCases:
   val atoms: Vector[String] = primitives ++ Vector(
     "enum", "fixed", "date", "time-millis", "time-micros", "timestamp-millis", "timestamp-micros",
     "timestamp-nanos", "local-timestamp-millis", "local-timestamp-micros", "local-timestamp-nanos",
-    "uuid-string", "uuid-fixed", "decimal-bytes", "decimal-fixed", "duration"
+    "uuid-string", "uuid-fixed", "decimal-bytes", "decimal-fixed", "big-decimal", "duration"
   )
   // Null cannot be combined with another null branch; its two optional contexts are omitted.
   val contexts: Vector[String] = Vector("direct", "array", "map", "null-first", "null-last", "array-map")
@@ -56,6 +56,7 @@ object SchemaCases:
       case "uuid-string" => logical(Schema.Type.STRING, "uuid")
       case "uuid-fixed" => fixed(16, Some("uuid"))
       case "duration" => fixed(12, Some("duration"))
+      case "big-decimal" => logical(Schema.Type.BYTES, kind)
       case "decimal-bytes" | "decimal-fixed" =>
         val result = if kind == "decimal-bytes" then logical(Schema.Type.BYTES, "decimal") else fixed(16, Some("decimal"))
         result.addProp("precision", Integer.valueOf(38))
@@ -211,6 +212,21 @@ object SchemaCases:
           val padded = Array.fill[Byte](schema.getFixedSize)(if unscaled.signum() < 0 then -1.toByte else 0.toByte)
           System.arraycopy(raw, 0, padded, padded.length - raw.length, raw.length)
           new GenericData.Fixed(schema, padded)
+      case Some("big-decimal") =>
+        val wide = new BigInteger("1234567890" * 8)
+        val edges = Vector(
+          java.math.BigDecimal.ZERO, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE.negate(),
+          new java.math.BigDecimal(wide, 18), new java.math.BigDecimal(wide.negate(), -18),
+          new java.math.BigDecimal(BigInteger.valueOf(12300L), 4),
+          new java.math.BigDecimal(BigInteger.ZERO, 8), new java.math.BigDecimal(BigInteger.ONE, Int.MinValue),
+          new java.math.BigDecimal(BigInteger.ONE.negate(), Int.MaxValue),
+          new java.math.BigDecimal(BigInteger.ZERO, -8)
+        )
+        val value = if fresh then
+          val magnitude = new BigInteger(1 + random.nextInt(512), new java.util.Random(random.nextLong()))
+          new java.math.BigDecimal(if random.nextBoolean() then magnitude else magnitude.negate(), random.nextInt(81) - 40)
+        else select(edges, ordinal)
+        JavaOracle.bigDecimalBytes(schema, value)
       case Some("time-millis") => Integer.valueOf(if fresh then random.nextInt(86400000) else select(Vector(0, 1, 86399999, 43200000), ordinal))
       case Some("time-micros") => java.lang.Long.valueOf(if fresh then Math.floorMod(random.nextLong(), 86400000000L) else select(Vector(0L, 1L, 86399999999L, 43200000000L), ordinal))
       case _ => schema.getType match
@@ -331,6 +347,7 @@ object SchemaCases:
         val end = string.offsetByCodePoints(0, string.codePointCount(0, string.length) / 2)
         LazyList("", string.substring(0, end))
       case Schema.Type.BYTES if logical.contains("decimal") => LazyList(ByteBuffer.wrap(Array[Byte](0)))
+      case Schema.Type.BYTES if logical.contains("big-decimal") => LazyList(JavaOracle.bigDecimalBytes(schema, java.math.BigDecimal.ZERO))
       case Schema.Type.BYTES =>
         val raw = bytes(value)
         LazyList(ByteBuffer.wrap(Array.emptyByteArray), ByteBuffer.wrap(raw.take(raw.length / 2)))

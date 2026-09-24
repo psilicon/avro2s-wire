@@ -2,13 +2,21 @@ package avro2s.wire.properties
 
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import org.apache.avro.Schema
+import org.apache.avro.{Conversions, LogicalTypes, Schema}
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericDatumWriter, IndexedRecord}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import scala.jdk.CollectionConverters.*
 
 /** Java owns the reference data and wire encoding; no avro2s-wire adapters are used. */
 object JavaOracle:
+  private val bigDecimals = new Conversions.BigDecimalConversion()
+
+  def bigDecimalBytes(schema: Schema, value: java.math.BigDecimal): ByteBuffer =
+    bigDecimals.toBytes(value, schema, LogicalTypes.bigDecimal())
+
+  def bigDecimalValue(schema: Schema, value: AnyRef): java.math.BigDecimal =
+    bigDecimals.fromBytes(value.asInstanceOf[ByteBuffer].duplicate(), schema, LogicalTypes.bigDecimal())
+
   def encode(schema: Schema, value: AnyRef): Array[Byte] =
     val stream = new ByteArrayOutputStream()
     val encoder = EncoderFactory.get().binaryEncoder(stream, null)
@@ -34,6 +42,9 @@ object JavaOracle:
   def normalized(schema: Schema, value: AnyRef): Any =
     if schema.getProp("logicalType") == "decimal" then
       ("decimal", new java.math.BigInteger(byteVector(value).toArray), schema.getObjectProp("scale"))
+    else if schema.getProp("logicalType") == "big-decimal" then
+      val decimal = bigDecimalValue(schema, value)
+      ("big-decimal", decimal.unscaledValue(), decimal.scale())
     else schema.getType match
       case Schema.Type.NULL => ()
       case Schema.Type.UNION =>
@@ -54,6 +65,8 @@ object JavaOracle:
 
   /** Scala case-class equality alone misses signed zero and cannot compare NaNs reliably. */
   def nativeEqual(left: Any, right: Any): Boolean = (left, right) match
+    case (a: java.math.BigDecimal, b: java.math.BigDecimal) => a.equals(b)
+    case (a: scala.math.BigDecimal, b: scala.math.BigDecimal) => a.bigDecimal.equals(b.bigDecimal)
     case (a: Float, b: Float) => java.lang.Float.floatToRawIntBits(a) == java.lang.Float.floatToRawIntBits(b)
     case (a: Double, b: Double) => java.lang.Double.doubleToRawLongBits(a) == java.lang.Double.doubleToRawLongBits(b)
     case (a: Map[?, ?], b: Map[?, ?]) =>

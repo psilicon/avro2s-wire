@@ -3,7 +3,7 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The source now declares **171 tests across 26 suites**, including 13 property
+The source now declares **190 tests across 30 suites**, including 15 property
 tests, comparison-benchmark checks and focused runtime regressions.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
@@ -56,7 +56,7 @@ array, map, and union contexts, including nullable branch ordering. Random cases
 explore additional nesting and combinations. Required coverage labels prevent
 passing random samples from being mistaken for coverage of every supported type.
 
-Run all three property suites, or choose a larger matching-schema campaign:
+Run all four property suites, or choose a larger matching-schema campaign:
 
 ```sh
 sbt 'propertyTests/test'
@@ -64,11 +64,11 @@ AVRO2S_WIRE_TEST_SEED=42 AVRO2S_WIRE_TEST_CASES=200 AVRO2S_WIRE_TEST_DEPTH=4 AVR
 ```
 
 The default random campaign uses 48 schemas, maximum depth 3 and 8 values per
-schema, in addition to **149 required schemas**: 142 mechanically composed
+schema, in addition to **155 required schemas**: 148 mechanically composed
 type/context cells and seven union, recursion and empty-record composites.
-The default run therefore compiles **197 schemas and exercises 2,174 values**.
+The default run therefore compiles **203 schemas and exercises 2,246 values**.
 `AVRO2S_WIRE_TEST_SEED` takes a numeric Long; the default is `20260917`.
-Coverage includes 283 required value labels checked against actual generated
+Coverage includes 299 required value labels checked against actual generated
 values as well as the schema graph, including all 13 general-union branch
 categories, signed numeric extrema,
 noncanonical NaN payloads, UTF-8 widths, nullable branch orders, empty/nonempty
@@ -101,6 +101,23 @@ signed zero and NaN payloads.
 Generated sources are compiled against **runtime and Scala only**. The Scala
 compiler, ScalaCheck and Java reference implementation belong to the unpublished
 test project; no new dependency is added to generated applications.
+
+## Decimal configurations
+
+`DecimalConfigurationSuite` compiles all 18 decimal storage/context combinations
+in both Scala and Java modes. Independent Java conversion values exercise
+`big-decimal` precision above 34 digits, signed values, trailing-zero scales,
+negative scales and both 32-bit scale boundaries. Equality checks distinguish
+unscaled value and scale even when Scala's ordinary equality would ignore scale.
+A separate assertion verifies the generated models' intended equality semantics.
+
+The suite also resolves reordered writer fields into readers with scalar, named
+fixed and nested decimal defaults. `DecimalResolutionSuite` covers mixed decimal
+representations in separately supplied named codecs and avoids requiring codecs
+for unused union alternatives. The runtime rejects malformed nested decimal
+payloads, and fixture tests check the AVRO-4269 negative-nanos regression through
+both binary backends. These additions passed with the full suite on 24 September
+2026; they do not update the historical benchmark measurements.
 
 ## Schema-evolution properties
 
@@ -189,13 +206,13 @@ classes, rather than claiming exhaustive wire fuzzing.
 
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
-| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `LogicalValuesSuite` (13) | 39 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
-| `compiler` | `CodeGeneratorSuite` (18) | 18 | Recursive definitions, unions, logical-type validation, names, metadata escaping, deterministic generation and cross-file schemas. |
-| `java-backend` | `JavaAvroInputSuite` (4), `IntegerOutputSuite` (3), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
-| `resolution` | `ResolvingReaderSuite` (20) | 20 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
-| `fixtures` | `InteropSuite` (12), `EvolutionSuite` (5), `UnionInteropSuite` (3), `LogicalInteropSuite` (3), `UnionLogicalSuite` (2), `EmptyCollectionsSuite` (4) | 29 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
-| `benchmarks` | `TradeBenchmarkSuite` (5), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (6) | 16 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
-| `property-tests` | `GeneratedPropertiesSuite` (5), `EvolutionPropertiesSuite` (4), `WirePropertiesSuite` (4) | 13 | Generated model compilation, Java differential properties, schema evolution, wire mutations, budgets, state, shrinking and replay. |
+| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 64 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
+| `compiler` | `CodeGeneratorSuite` (23) | 23 | Recursive definitions, unions, logical-type validation, names, metadata escaping, deterministic generation and cross-file schemas. |
+| `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
+| `resolution` | `DecimalResolutionSuite` (3), `ResolvingReaderSuite` (20) | 23 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
+| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (2), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 34 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
+| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5) | 19 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
+| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedPropertiesSuite` (5), `WirePropertiesSuite` (4) | 15 | Generated model compilation, Java differential properties, schema evolution, wire mutations, budgets, state, shrinking and replay. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests

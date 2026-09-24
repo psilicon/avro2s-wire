@@ -166,6 +166,7 @@ private[resolution] object SchemaModel:
         case "duration" =>
           requireKind(Set("fixed"))
           if schema.size != 12 then fail("Duration must have fixed size 12")
+        case "big-decimal" => requireKind(Set("bytes"))
         case "decimal" =>
           requireKind(Set("bytes", "fixed"))
           val precision = integer(json, "precision")

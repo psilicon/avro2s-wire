@@ -49,10 +49,10 @@ the native runtime alone. Tests cross-read and cross-write with Java Avro's
 independent generic reader/writer, in addition to binary-format and generator tests.
 Property tests also generate schemas and values, compile the resulting Scala,
 check Java interoperability in both directions, and shrink failing cases for
-replay. The default campaign covers 197 schemas and 2,174 values, with required
+replay. The default campaign covers 203 schemas and 2,246 values, with required
 coverage assertions. Additional campaigns generate writer/reader schema pairs,
 alternative legal collection blocks, malformed inputs, limits and ownership
-operations. See the [testing guide](docs/testing.md) for the 171 tests,
+operations. See the [testing guide](docs/testing.md) for the test suites,
 reproducible campaign commands and remaining gaps.
 
 GitHub Actions follows avro2s's PR, pre-release and release flow, using JDK 21.
@@ -67,7 +67,7 @@ From this project's root:
 sbt 'compiler/run fixtures/src/main/resources/avro/Trade.avsc /tmp/avro2s-wire-generated'
 ```
 
-The two arguments are an `.avsc` file (or a directory recursively containing
+The two positional arguments are an `.avsc` file (or a directory recursively containing
 `.avsc` files) and an output directory. Directory generation resolves references
 between files. Generated sources need `avro2s-wire-runtime` on their compile/runtime
 classpath; they do not need Apache Avro. To use the current checkout in another
@@ -129,6 +129,39 @@ provide the lower-level APIs. Codecs are shareable; mutable input/output instanc
 must be confined to their caller. Raw datum bytes contain no schema identifier:
 the caller must already know the exact writer schema.
 
+### Generator configuration
+
+The default decimal mapping is `scala.BigDecimal`. To generate
+`java.math.BigDecimal` fields instead, pass an explicit option:
+
+```sh
+sbt 'compiler/run --decimal-type java schemas generated'
+```
+
+The same configuration is available to applications invoking the compiler:
+
+```scala
+import avro2s.wire.compiler.{DecimalType, GeneratorConfig, SchemaCompiler}
+import java.nio.file.Path
+
+SchemaCompiler.generate(
+  Path.of("schemas"),
+  Path.of("generated"),
+  GeneratorConfig(decimalType = DecimalType.Java)
+)
+```
+
+`CodeGenerator.generate(schema, config)` accepts the same options. The setting
+applies to `decimal` and `big-decimal`, including collections, unions and named
+fixed wrappers. Generated codecs carry the choice into schema resolution, so
+applications do not repeat it when reading. It changes the Scala API and equality,
+not the Avro wire format; regenerate and recompile consumers after changing it.
+
+Scala decimal equality ignores trailing-zero scale; Java decimal `equals` includes
+scale. Avro `decimal` always decodes at its schema's scale, while `big-decimal`
+preserves each value's scale. See [logical types](docs/logical-types.md) for the
+complete list, decimal semantics, timestamp behavior and extension design.
+
 ### Generated-code compatibility
 
 Generated `.scala` files are source code. The current generator emits Scala
@@ -166,7 +199,8 @@ published guarantee for this early implementation.
 | date; time-millis/time-micros | java.time.LocalDate; java.time.LocalTime |
 | timestamps and local timestamps, millis/micros/nanos | java.time.Instant and java.time.LocalDateTime |
 | UUID string; UUID fixed | java.util.UUID; named wrapper around UUID |
-| decimal bytes; decimal fixed | Scala BigDecimal; named wrapper around BigDecimal |
+| decimal bytes; decimal fixed | Scala BigDecimal (or configured Java BigDecimal); named wrapper for fixed |
+| big-decimal bytes | Scala BigDecimal (or configured Java BigDecimal), preserving per-value scale |
 | duration fixed | named wrapper around AvroDuration |
 | recursive named records | direct references to named codecs |
 

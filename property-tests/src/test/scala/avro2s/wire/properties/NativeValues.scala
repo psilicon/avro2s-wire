@@ -14,13 +14,13 @@ import scala.jdk.CollectionConverters.*
  * public value constructors, the Scala collections API, and JDK conversions.
  */
 object NativeValues:
-  def expression(schema: Schema, value: AnyRef): String =
+  def expression(schema: Schema, value: AnyRef, javaDecimals: Boolean = false): String =
     schema.getType match
-      case Schema.Type.UNION => unionExpression(schema, value)
+      case Schema.Type.UNION => unionExpression(schema, value, javaDecimals)
       case Schema.Type.RECORD =>
         val record = value.asInstanceOf[IndexedRecord]
         val fields = schema.getFields.asScala.map { field =>
-          expression(field.schema, record.get(field.pos))
+          expression(field.schema, record.get(field.pos), javaDecimals)
         }
         s"new ${namedType(schema)}(${fields.mkString(", ")})"
       case Schema.Type.ENUM =>
@@ -29,24 +29,24 @@ object NativeValues:
         s"${namedType(schema)}.fromOrdinal($ordinal)"
       case Schema.Type.FIXED =>
         val inner = logicalName(schema) match
-          case Some(name) => logicalExpression(schema, name, value)
+          case Some(name) => logicalExpression(schema, name, value, javaDecimals)
           case None => bytesExpression(physicalBytes(value))
         s"new ${namedType(schema)}($inner)"
       case Schema.Type.ARRAY =>
         val items = value.asInstanceOf[java.util.Collection[?]].asScala.iterator
-          .map(item => expression(schema.getElementType, item.asInstanceOf[AnyRef])).mkString(", ")
-        s"_root_.scala.collection.immutable.Vector[${nativeType(schema.getElementType)}]($items)"
+          .map(item => expression(schema.getElementType, item.asInstanceOf[AnyRef], javaDecimals)).mkString(", ")
+        s"_root_.scala.collection.immutable.Vector[${nativeType(schema.getElementType, javaDecimals)}]($items)"
       case Schema.Type.MAP =>
         // Ordering is not significant in Avro maps. Stable source makes a failing
         // property case easy to compare and reproduce.
         val entries = value.asInstanceOf[java.util.Map[?, ?]].asScala.iterator
           .map((key, item) => (key.toString, item.asInstanceOf[AnyRef])).toVector.sortBy(_._1)
           .map { (key, item) =>
-            s"(${stringLiteral(key)}, ${expression(schema.getValueType, item)})"
+            s"(${stringLiteral(key)}, ${expression(schema.getValueType, item, javaDecimals)})"
           }.mkString(", ")
-        s"_root_.scala.collection.immutable.Map[_root_.java.lang.String, ${nativeType(schema.getValueType)}]($entries)"
+        s"_root_.scala.collection.immutable.Map[_root_.java.lang.String, ${nativeType(schema.getValueType, javaDecimals)}]($entries)"
       case primitive => logicalName(schema) match
-        case Some(name) => logicalExpression(schema, name, value)
+        case Some(name) => logicalExpression(schema, name, value, javaDecimals)
         case None => primitive match
           case Schema.Type.NULL =>
             require(value == null, "An Avro null datum must be null")
@@ -64,7 +64,7 @@ object NativeValues:
           case Schema.Type.BYTES => bytesExpression(physicalBytes(value))
           case other => throw new IllegalArgumentException(s"Unsupported physical schema: $other")
 
-  private def unionExpression(schema: Schema, value: AnyRef): String =
+  private def unionExpression(schema: Schema, value: AnyRef, javaDecimals: Boolean): String =
     val branches = schema.getTypes.asScala.toVector
     require(branches.nonEmpty, "An empty union has no values")
     val selected = branches(GenericData.get().resolveUnion(schema, value))
@@ -72,7 +72,7 @@ object NativeValues:
     if selected.getType == Schema.Type.NULL then
       if optional then "_root_.scala.None" else "null"
     else
-      val raw = expression(selected, value)
+      val raw = expression(selected, value, javaDecimals)
       val tagged = if ambiguousTimes(branches) then logicalName(selected) match
         case Some("time-millis") => s"new _root_.avro2s.wire.runtime.TimeMillis($raw)"
         case Some("time-micros") => s"new _root_.avro2s.wire.runtime.TimeMicros($raw)"
@@ -80,7 +80,7 @@ object NativeValues:
       else raw
       if optional then s"_root_.scala.Some($tagged)" else tagged
 
-  private def logicalExpression(schema: Schema, logical: String, value: AnyRef): String =
+  private def logicalExpression(schema: Schema, logical: String, value: AnyRef, javaDecimals: Boolean): String =
     def numeric = value.asInstanceOf[java.lang.Number].longValue
     logical match
       case "date" => s"_root_.java.time.LocalDate.ofEpochDay(${longLiteral(numeric)})"
@@ -109,9 +109,8 @@ object NativeValues:
         require(bytes.nonEmpty, "A decimal needs a two's-complement integer")
         val unscaled = new BigInteger(bytes)
         val scale = Option(schema.getObjectProp("scale")).fold(0)(_.asInstanceOf[java.lang.Number].intValue)
-        // exact(java.math.BigDecimal) preserves values longer than Scala's
-        // default 34-digit arithmetic context, including their original scale.
-        s"_root_.scala.BigDecimal.exact(new _root_.java.math.BigDecimal(new _root_.java.math.BigInteger(${stringLiteral(unscaled.toString)}), $scale))"
+        decimalExpression(new java.math.BigDecimal(unscaled, scale), javaDecimals)
+      case "big-decimal" => decimalExpression(JavaOracle.bigDecimalValue(schema, value), javaDecimals)
       case "duration" =>
         val bytes = physicalBytes(value)
         require(bytes.length == 12, "An Avro duration must have 12 bytes")
@@ -122,16 +121,21 @@ object NativeValues:
         s"new _root_.avro2s.wire.runtime.AvroDuration(${longLiteral(months)}, ${longLiteral(days)}, ${longLiteral(millis)})"
       case other => throw new IllegalArgumentException(s"Unsupported logical type '$other' on ${schema.getType}")
 
+  private def decimalExpression(value: java.math.BigDecimal, javaDecimals: Boolean): String =
+    val raw = s"new _root_.java.math.BigDecimal(new _root_.java.math.BigInteger(${stringLiteral(value.unscaledValue.toString)}), ${intLiteral(value.scale)})"
+    // exact preserves precision beyond Scala's default 34-digit arithmetic context.
+    if javaDecimals then raw else s"_root_.scala.BigDecimal.exact($raw)"
+
   private def instantExpression(unit: String, value: Long): String = unit match
     case "millis" => s"_root_.java.time.Instant.ofEpochMilli(${longLiteral(value)})"
     case "micros" => s"_root_.java.time.Instant.EPOCH.plus(${longLiteral(value)}, _root_.java.time.temporal.ChronoUnit.MICROS)"
     case "nanos" => s"_root_.java.time.Instant.EPOCH.plus(${longLiteral(value)}, _root_.java.time.temporal.ChronoUnit.NANOS)"
     case other => throw new IllegalArgumentException(s"Unsupported timestamp unit '$other'")
 
-  private def nativeType(schema: Schema): String = schema.getType match
+  private def nativeType(schema: Schema, javaDecimals: Boolean): String = schema.getType match
     case Schema.Type.RECORD | Schema.Type.ENUM | Schema.Type.FIXED => namedType(schema)
-    case Schema.Type.ARRAY => s"_root_.scala.collection.immutable.Vector[${nativeType(schema.getElementType)}]"
-    case Schema.Type.MAP => s"_root_.scala.collection.immutable.Map[_root_.java.lang.String, ${nativeType(schema.getValueType)}]"
+    case Schema.Type.ARRAY => s"_root_.scala.collection.immutable.Vector[${nativeType(schema.getElementType, javaDecimals)}]"
+    case Schema.Type.MAP => s"_root_.scala.collection.immutable.Map[_root_.java.lang.String, ${nativeType(schema.getValueType, javaDecimals)}]"
     case Schema.Type.UNION =>
       val branches = schema.getTypes.asScala.toVector
       val nonNull = branches.filterNot(_.getType == Schema.Type.NULL)
@@ -139,8 +143,8 @@ object NativeValues:
         if ambiguousTimes(branches) then logicalName(branch) match
           case Some("time-millis") => "_root_.avro2s.wire.runtime.TimeMillis"
           case Some("time-micros") => "_root_.avro2s.wire.runtime.TimeMicros"
-          case _ => nativeType(branch)
-        else nativeType(branch)
+          case _ => nativeType(branch, javaDecimals)
+        else nativeType(branch, javaDecimals)
       }
       if typeNames.isEmpty then "_root_.scala.Null"
       else if nonNull.size != branches.size then s"_root_.scala.Option[${typeNames.mkString(" | ")}]"
@@ -151,7 +155,7 @@ object NativeValues:
       case Some("timestamp-millis" | "timestamp-micros" | "timestamp-nanos") => "_root_.java.time.Instant"
       case Some("local-timestamp-millis" | "local-timestamp-micros" | "local-timestamp-nanos") => "_root_.java.time.LocalDateTime"
       case Some("uuid") => "_root_.java.util.UUID"
-      case Some("decimal") => "_root_.scala.BigDecimal"
+      case Some("decimal" | "big-decimal") => if javaDecimals then "_root_.java.math.BigDecimal" else "_root_.scala.BigDecimal"
       case Some(other) => throw new IllegalArgumentException(s"Unsupported logical type '$other'")
       case None => primitive match
         case Schema.Type.NULL => "_root_.scala.Null"
