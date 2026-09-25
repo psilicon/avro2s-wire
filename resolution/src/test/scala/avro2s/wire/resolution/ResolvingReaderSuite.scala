@@ -174,7 +174,7 @@ final class ResolvingReaderSuite extends FunSuite:
     }
     val resolving = ResolvingReader(writer, row(reader))
     assertEquals(resolving.decode(bytes), Vector[Any](Some(Vector[Any](None, 2L, "new")), 1L, "new"))
-    intercept[AvroDecodingException](resolving.decode(bytes, DecodeLimits(maxNestingDepth = 1)))
+    intercept[AvroDecodingException](resolving.decode(bytes, DecodeLimits(maxNestingDepth = Some(1))))
     intercept[AvroDecodingException](resolving.decode(bytes.dropRight(1)))
   }
 

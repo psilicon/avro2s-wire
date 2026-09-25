@@ -43,7 +43,8 @@ and requires exactly one complete datum.
   can match renamed types or fields. Ambiguous field aliases are rejected.
 - Writer fields absent from the reader are skipped. Strings, bytes and fixed data
   can be skipped without allocating their values. Collection and record structure
-  is still traversed, with native count, depth, bounds and UTF-8 checks.
+  is still traversed, with native bounds and UTF-8 validation, plus any configured
+  count and depth ceilings.
 - Missing reader fields use their Avro defaults. A missing required field fails.
   Complex defaults produce reader models, including named types and unions.
   Defaults do not allow a writer to omit a field from its own schema.
@@ -91,8 +92,11 @@ Malformed data and native resource-limit violations use `AvroDecodingException`.
 Some compatibility errors are reported when reading the offending branch or enum
 symbol because they depend on the data.
 
-DecodeLimits bounds data consumed from the input, including skipped fields. Native
-string/bytes promotions enforce both source and destination byte limits. Defaults
+`DecodeLimits` optionally bounds data consumed from the input, including skipped
+fields. Each field defaults to `None`; `Some(n)` enables that ceiling and
+`Some(0)` is an actual zero ceiling. Native string/bytes promotions enforce any
+configured source and destination byte ceilings. Mandatory malformed-input,
+bounds and representability checks remain independent of these options. Defaults
 come from the trusted reader schema and are not charged against the input's
 collection/depth budgets; they may construct more output than those wire budgets
 allow. Default-plan construction rejects cyclic expansion and nesting beyond 256

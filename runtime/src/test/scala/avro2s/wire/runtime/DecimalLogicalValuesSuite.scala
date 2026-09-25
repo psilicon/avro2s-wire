@@ -111,12 +111,12 @@ final class DecimalLogicalValuesSuite extends FunSuite:
     val bytes = encoded(out => LogicalValues.writeJavaBigDecimal(value, out))
     assertEquals(bytes.length, 5)
     intercept[AvroDecodingException] {
-      LogicalValues.readJavaBigDecimal(new BinaryInput(bytes, DecodeLimits(maxBytesLength = 3)))
+      LogicalValues.readJavaBigDecimal(new BinaryInput(bytes, DecodeLimits(maxBytesLength = Some(3))))
     }
     intercept[AvroDecodingException] {
-      LogicalValues.readJavaBigDecimal(new BinaryInput(bytes, DecodeLimits(maxInputBytes = 4)))
+      LogicalValues.readJavaBigDecimal(new BinaryInput(bytes, DecodeLimits(maxInputBytes = Some(4))))
     }
-    val in = new BinaryInput(bytes, DecodeLimits(maxInputBytes = 5, maxBytesLength = 4))
+    val in = new BinaryInput(bytes, DecodeLimits(maxInputBytes = Some(5), maxBytesLength = Some(4)))
     assertEquals(LogicalValues.readJavaBigDecimal(in), value)
     in.requireEnd()
   }

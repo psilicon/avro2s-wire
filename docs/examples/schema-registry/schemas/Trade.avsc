@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "Trade",
+  "namespace": "example.trading",
+  "fields": [
+    {"name": "id", "type": "long"},
+    {"name": "symbol", "type": "string"},
+    {"name": "price", "type": "double"}
+  ]
+}

@@ -16,12 +16,15 @@ private[runtime] object LittleEndianNumbers:
 final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.default) extends AvroInput:
   private var position = 0
   private var boundary = bytes.length
-  private var nesting = 0
+  private var nesting = 0L
   private var totalItems = 0L
   private final class Block(val isMap: Boolean, val parentBoundary: Int, var end: Int, val previous: Block)
   private var blocks: Block = null
   private var nextBlockEnd = -1
-  if bytes.length > limits.maxInputBytes then fail("Input exceeds maxInputBytes")
+  private val promotedBytesLimit = (limits.maxStringBytes, limits.maxBytesLength) match
+    case (Some(string), Some(bytes)) => Some(math.min(string, bytes))
+    case (string, bytes) => string.orElse(bytes)
+  if limits.maxInputBytes.exists(bytes.length > _) then fail("Input exceeds maxInputBytes")
 
   def remaining: Int = bytes.length - position
 
@@ -173,9 +176,12 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     position += 8
     java.lang.Double.longBitsToDouble(bits)
 
-  private def length(maximum: Int, kind: String): Int =
+  private def length(maximum: Option[Int], kind: String): Int =
     val size = readLong()
-    if size < 0 || size > maximum.toLong then fail(s"Invalid $kind length $size (limit $maximum)")
+    // Lengths are encoded as longs, but this input uses Int-indexed byte arrays.
+    // Validate before narrowing even when no resource ceiling is configured.
+    if size < 0 || size > Int.MaxValue then fail(s"Invalid $kind length $size")
+    if maximum.exists(size > _.toLong) then fail(s"$kind length $size exceeds configured limit")
     requireAvailable(size.toInt)
     size.toInt
 
@@ -190,14 +196,14 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
   override def readBytes(): Bytes = readFixed(length(limits.maxBytesLength, "bytes"))
 
   override def readStringAsBytes(): Bytes =
-    val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted string/bytes")
+    val size = length(promotedBytesLimit, "promoted string/bytes")
     validateUtf8(position, size)
     val result = Bytes.unsafeWrap(Arrays.copyOfRange(bytes, position, position + size))
     position += size
     result
 
   override def readBytesAsString(): String =
-    val size = length(math.min(limits.maxStringBytes, limits.maxBytesLength), "promoted bytes/string")
+    val size = length(promotedBytesLimit, "promoted bytes/string")
     if size == 0 then return ""
     val result = new String(bytes, position, size, StandardCharsets.UTF_8)
     if StrictUtf8.mayHaveDecodingReplacement(result) then validateUtf8(position, size)
@@ -214,12 +220,14 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     position += size
 
   override def skipFixed(size: Int): Unit =
-    if size < 0 || size > limits.maxBytesLength then fail(s"Invalid fixed size $size")
+    if size < 0 then fail(s"Invalid fixed size $size")
+    if limits.maxBytesLength.exists(size > _) then fail("Fixed size exceeds maxBytesLength")
     requireAvailable(size)
     position += size
 
   override def readFixed(size: Int): Bytes =
-    if size < 0 || size > limits.maxBytesLength then fail(s"Invalid fixed size $size")
+    if size < 0 then fail(s"Invalid fixed size $size")
+    if limits.maxBytesLength.exists(size > _) then fail("Fixed size exceeds maxBytesLength")
     requireAvailable(size)
     val result = Bytes.unsafeWrap(Arrays.copyOfRange(bytes, position, position + size))
     position += size
@@ -241,7 +249,8 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     nesting -= 1
 
   private def enterContainer(): Unit =
-    if nesting >= limits.maxNestingDepth then fail("Nesting exceeds maxNestingDepth")
+    if limits.maxNestingDepth.exists(nesting >= _.toLong) then fail("Nesting exceeds maxNestingDepth")
+    if nesting == Long.MaxValue then fail("Nesting depth cannot be represented")
     nesting += 1
 
   override def readArrayStart(): Long = startBlock(isMap = false)
@@ -253,8 +262,10 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     val encodedCount = readLong()
     if encodedCount == Long.MinValue then fail("Invalid collection count")
     val count = if encodedCount < 0 then -encodedCount else encodedCount
-    if count > limits.maxCollectionItems - totalItems then fail("Collection items exceed maxCollectionItems")
-    totalItems += count
+    limits.maxCollectionItems.foreach { maximum =>
+      if count > maximum - totalItems then fail("Collection items exceed maxCollectionItems")
+      totalItems += count
+    }
     nextBlockEnd =
       if encodedCount < 0 then
         val size = readLong()

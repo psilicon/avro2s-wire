@@ -100,9 +100,9 @@ class EvolutionSuite extends munit.FunSuite:
     val bytes = OldAccount.codec.encode(old(Some(1)))
     for end <- 0 until bytes.length do
       intercept[AvroDecodingException](reader.decode(bytes.take(end)))
-    intercept[AvroDecodingException](reader.decode(bytes, DecodeLimits(maxBytesLength = 16)))
+    intercept[AvroDecodingException](reader.decode(bytes, DecodeLimits(maxBytesLength = Some(16))))
     val recursive = (1 to 5).foldLeft(old(None))((child, _) => old(None, Some(child)))
-    intercept[AvroDecodingException](reader.decode(OldAccount.codec.encode(recursive), DecodeLimits(maxNestingDepth = 2)))
+    intercept[AvroDecodingException](reader.decode(OldAccount.codec.encode(recursive), DecodeLimits(maxNestingDepth = Some(2))))
   }
 
   test("identical-schema resolution uses generated codecs normally") {

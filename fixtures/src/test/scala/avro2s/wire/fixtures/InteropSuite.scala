@@ -139,9 +139,11 @@ class InteropSuite extends munit.FunSuite:
     assertEquals(Node.codec.decode(Node.codec.encode(value)), value)
   }
 
-  test("recursive record depth is limited") {
+  test("recursive record depth has an optional explicit limit") {
     val value = (1 to 200).foldLeft(Node(0, None))((tail, i) => Node(i, Some(tail)))
-    intercept[AvroDecodingException](Node.codec.decode(Node.codec.encode(value)))
+    val bytes = Node.codec.encode(value)
+    assertEquals(Node.codec.decode(bytes), value)
+    intercept[AvroDecodingException](Node.codec.decode(bytes, DecodeLimits(maxNestingDepth = Some(128))))
   }
 
   test("truncated generated records fail at every byte boundary") {

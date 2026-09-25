@@ -2,50 +2,32 @@ package avro2s.wire.registry
 
 import avro2s.wire.runtime.AvroCodec
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
-import java.util.{Map as JMap}
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.Serializer
-import scala.jdk.CollectionConverters.*
 
 /** Classic Confluent framing around the bytes produced by a generated codec.
+  * The role and settings are fixed at construction; Kafka configure is unnecessary.
   * An injected client remains caller-owned. Calls and close are synchronized.
   */
 final class RegistrySerializer[A] private[registry] (
     codec: AvroCodec[A],
     client: SchemaRegistryClient,
-    settings: RegistrySettings,
+    settings: SerializerSettings,
+    role: RegistryRole,
     private val ownsClient: Boolean
 ) extends Serializer[A]:
-  def this(codec: AvroCodec[A], client: SchemaRegistryClient, settings: RegistrySettings) =
-    this(codec, client, settings, false)
-
-  def this(codec: AvroCodec[A], client: SchemaRegistryClient) =
-    this(codec, client, RegistrySettings(), false)
-
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
   private val schema = RegistrySupport.namedSchema(codec)
   private val ids = new BoundedCache[String, Int](settings.cacheCapacity)
-  private var isKey = false
-  private var used = false
   private var closed = false
-
-  override def configure(configs: JMap[String, ?], isKey: Boolean): Unit = synchronized {
-    RegistrySupport.guard("configuration") {
-      ensureOpen()
-      if used then throw new IllegalStateException("Cannot reconfigure a serializer after use")
-      RegistrySupport.validateConfig(configs, settings)
-      this.isKey = isKey
-    }
-  }
 
   override def serialize(topic: String, data: A): Array[Byte] = synchronized {
     RegistrySupport.guard("serialization") {
       ensureOpen()
-      used = true
       if data == null then null
       else
-        val subject = settings.subjectNameStrategy.subject(topic, schema.rawSchema(), isKey)
+        val subject = settings.subjectNameStrategy.subject(topic, schema.rawSchema(), role)
         val id = ids.getOrLoad(subject) {
           val found =
             if settings.autoRegisterSchemas then client.register(subject, schema, settings.normalizeSchemas)
@@ -68,8 +50,7 @@ final class RegistrySerializer[A] private[registry] (
   override def serialize(topic: String, headers: Headers, data: A): Array[Byte] = synchronized {
     RegistrySupport.guard("serialization") {
       ensureOpen()
-      val header = if isKey then "__key_schema_id" else "__value_schema_id"
-      if data != null && headers != null && headers.lastHeader(header) != null then
+      if data != null && headers != null && headers.lastHeader(role.schemaIdHeader) != null then
         throw new IllegalArgumentException("Schema ID header framing is unsupported")
       serialize(topic, data)
     }
@@ -86,18 +67,40 @@ final class RegistrySerializer[A] private[registry] (
     if closed then throw new IllegalStateException("Serializer is closed")
 
 object RegistrySerializer:
-  /** Creates an adapter that closes its own cached registry client. */
-  def fromConfig[A](
+  /** A ready-to-use key serializer borrowing an application-owned client. */
+  def forKey[A](
       codec: AvroCodec[A],
-      urls: List[String],
-      capacity: Int = 1024,
-      config: Map[String, AnyRef] = Map.empty,
-      settings: RegistrySettings = RegistrySettings()
+      client: SchemaRegistryClient,
+      settings: SerializerSettings = SerializerSettings()
   ): RegistrySerializer[A] =
-    RegistrySupport.validateConfig(config.asJava, settings)
-    val client = RegistrySupport.ownedClient(urls, capacity, config)
-    try new RegistrySerializer(codec, client, settings, ownsClient = true)
-    catch
-      case scala.util.control.NonFatal(e) =>
-        client.close()
-        throw e
+    new RegistrySerializer(codec, client, settings, RegistryRole.Key, ownsClient = false)
+
+  /** A ready-to-use value serializer borrowing an application-owned client. */
+  def forValue[A](
+      codec: AvroCodec[A],
+      client: SchemaRegistryClient,
+      settings: SerializerSettings = SerializerSettings()
+  ): RegistrySerializer[A] =
+    new RegistrySerializer(codec, client, settings, RegistryRole.Value, ownsClient = false)
+
+  /** A key serializer that creates and owns its registry client. */
+  def forKey[A](codec: AvroCodec[A], connection: RegistryConnection): RegistrySerializer[A] =
+    forKey(codec, connection, SerializerSettings())
+
+  def forKey[A](
+      codec: AvroCodec[A], connection: RegistryConnection, settings: SerializerSettings
+  ): RegistrySerializer[A] =
+    RegistrySupport.withOwnedClient(connection) { client =>
+      new RegistrySerializer(codec, client, settings, RegistryRole.Key, ownsClient = true)
+    }
+
+  /** A value serializer that creates and owns its registry client. */
+  def forValue[A](codec: AvroCodec[A], connection: RegistryConnection): RegistrySerializer[A] =
+    forValue(codec, connection, SerializerSettings())
+
+  def forValue[A](
+      codec: AvroCodec[A], connection: RegistryConnection, settings: SerializerSettings
+  ): RegistrySerializer[A] =
+    RegistrySupport.withOwnedClient(connection) { client =>
+      new RegistrySerializer(codec, client, settings, RegistryRole.Value, ownsClient = true)
+    }

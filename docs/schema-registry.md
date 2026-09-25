@@ -29,89 +29,99 @@ codecs and the runtime.
 
 ## Use as a Kafka serializer or deserializer
 
+For a complete generated Avro key and value example, see
+[Avro keys and values](schema-registry-examples.md).
+
 Supply an adapter instance to Kafka's `KafkaProducer` or `KafkaConsumer`
-constructor. The adapters are configured instances; the no-argument configured
-class-name path cannot supply a generated codec and is unsupported.
+constructor. Use `forKey` or `forValue` to choose its role and pass immutable
+settings when constructing it. The adapter is ready to use immediately; there is
+no separate configuration step. The no-argument class-name path cannot supply a
+generated codec and is unsupported.
 
 This example injects a shared Confluent client. The client remains owned by the
 application, while Kafka calls `close` on the serializer when the producer closes.
-Closing an injected adapter does not close that client.
+Closing an injected adapter does not close that client. The `trades` topic and
+its `trades-value` schema must already exist; the example looks up the schema
+without registering it.
 
 ```scala
 import avro2s.wire.fixtures.Trade
-import avro2s.wire.registry.{RegistrySerializer, RegistrySettings, SubjectNameStrategy}
+import avro2s.wire.registry.{RegistrySerializer, SerializerSettings, SubjectNameStrategy}
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
-import java.util.Properties
 import scala.jdk.CollectionConverters.*
+import scala.util.Using
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.serialization.StringSerializer
 
-val registryUrl = "http://localhost:18081"
-val registry = new CachedSchemaRegistryClient(registryUrl, 256)
-val settings = RegistrySettings(
+val settings = SerializerSettings(
   subjectNameStrategy = SubjectNameStrategy.TopicName,
-  autoRegisterSchemas = true
+  autoRegisterSchemas = false
 )
-val serializer = new RegistrySerializer(Trade.codec, registry, settings)
+val kafkaConfig = Map[String, AnyRef](
+  "bootstrap.servers" -> "localhost:19092"
+).asJava
 
-val kafkaConfig = new Properties()
-kafkaConfig.put("bootstrap.servers", "localhost:19092")
-kafkaConfig.put("schema.registry.url", registryUrl)
-serializer.configure(kafkaConfig.stringPropertyNames().asScala
-  .map(key => key -> kafkaConfig.getProperty(key)).toMap.asJava, false)
-val producer = new KafkaProducer[String, Trade](
-  kafkaConfig, new StringSerializer(), serializer
-)
-try
+Using.Manager { use =>
+  val registry = use(new CachedSchemaRegistryClient("http://localhost:18081", 256))
+  val serializer = RegistrySerializer.forValue(Trade.codec, registry, settings)
+  val producer = use(new KafkaProducer[String, Trade](
+    kafkaConfig, new StringSerializer(), serializer
+  ))
   producer.send(new ProducerRecord("trades", "key", Trade(42L, "ABC", 12.5, Vector(1, 2))))
-finally
-  producer.close()
-  registry.close()
+    .get()
+}.get
 ```
 
-For example, construct a consumer with the same injected client and settings:
+The producer uses lookup-only schema selection, which is also the default.
+For a producer and consumer specifying every Wire setting, see the
+[complete configuration example](schema-registry-examples.md).
+
+Construct a consumer with a corresponding reader codec:
 
 ```scala
 import avro2s.wire.fixtures.Trade
-import avro2s.wire.registry.{RegistryDeserializer, RegistrySettings}
+import avro2s.wire.registry.RegistryDeserializer
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
-import java.util.Properties
 import scala.jdk.CollectionConverters.*
+import scala.util.Using
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.serialization.StringDeserializer
 
-val registry = new CachedSchemaRegistryClient("http://localhost:18081", 256)
-val deserializer = new RegistryDeserializer(Trade.codec, registry, RegistrySettings())
-val consumerConfig = new Properties()
-consumerConfig.put("bootstrap.servers", "localhost:19092")
-consumerConfig.put("schema.registry.url", "http://localhost:18081")
-consumerConfig.put("group.id", "trade-reader")
-deserializer.configure(consumerConfig.stringPropertyNames().asScala
-  .map(key => key -> consumerConfig.getProperty(key)).toMap.asJava, false)
-val consumer = new KafkaConsumer[String, Trade](
-  consumerConfig, new StringDeserializer(), deserializer
-)
-try
+val kafkaConfig = Map[String, AnyRef](
+  "bootstrap.servers" -> "localhost:19092",
+  "group.id" -> "trade-reader"
+).asJava
+
+Using.Manager { use =>
+  val registry = use(new CachedSchemaRegistryClient("http://localhost:18081", 256))
+  val deserializer = RegistryDeserializer.forValue(Trade.codec, registry)
+  val consumer = use(new KafkaConsumer[String, Trade](
+    kafkaConfig, new StringDeserializer(), deserializer
+  ))
   consumer.subscribe(java.util.List.of("trades"))
   val records = consumer.poll(java.time.Duration.ofSeconds(1))
-finally
-  consumer.close()
-  registry.close()
+  records.asScala.foreach(record => println(record.value()))
+}.get
 ```
+
+`Using.Manager` closes resources in reverse order, so each Kafka client closes
+before the registry client. Its final `.get` propagates any operation or cleanup
+failure.
 
 When you inject a client, pass authentication and TLS properties to that client
 when constructing it. Kafka properties do not reconfigure an injected client.
 For example:
 
 ```scala
-val registryConfig = new java.util.HashMap[String, Object]()
-registryConfig.put("basic.auth.credentials.source", "USER_INFO")
-registryConfig.put("basic.auth.user.info", "<api-key>:<api-secret>")
-val registry = new CachedSchemaRegistryClient(registryUrl, 256, registryConfig)
+val registryConfig = Map[String, AnyRef](
+  "basic.auth.credentials.source" -> "USER_INFO",
+  "basic.auth.user.info" -> "<api-key>:<api-secret>"
+).asJava
+val registry = new CachedSchemaRegistryClient("https://registry.example", 256, registryConfig)
 ```
 
-Alternatively, pass those settings in the `config` map to
-`RegistrySerializer.fromConfig` or `RegistryDeserializer.fromConfig`.
+Alternatively, use `RegistryConnection` to let an adapter create and own its
+registry client, as shown below.
 
 The client accepts standard Confluent Schema Registry settings, including TLS
 settings. See Confluent's [Schema Registry client configuration reference](https://docs.confluent.io/platform/current/schema-registry/sr-client-configs.html).
@@ -122,45 +132,56 @@ Pass an existing `SchemaRegistryClient` to the adapter when the application owns
 client lifecycle or shares one client across serializers and deserializers:
 
 ```scala
-val registry = new CachedSchemaRegistryClient(registryUrl, 256)
-val serializer = new RegistrySerializer(Trade.codec, registry, settings)
-val deserializer = new RegistryDeserializer(Trade.codec, registry, settings)
+val registry = new CachedSchemaRegistryClient("http://localhost:18081", 256)
+val serializer = RegistrySerializer.forValue(Trade.codec, registry, SerializerSettings())
+val deserializer = RegistryDeserializer.forValue(Trade.codec, registry)
 ```
 
 The supplied client is caller-owned. Closing either adapter does not close that
 client; close the shared client yourself after all Kafka clients and adapters
 have closed.
 
-`RegistrySerializer.fromConfig` and `RegistryDeserializer.fromConfig` create and
-own a cached registry client. They accept registry URLs, the Confluent client
-capacity, a map of Confluent client properties, and `RegistrySettings`. Close the
-adapter to close its owned registry client. The URL list sets the client's
-registry endpoints; the properties map is for authentication, TLS and other
-client properties.
+The same `forKey` and `forValue` factories also accept a `RegistryConnection`.
+Each such call creates and owns a cached registry client. Closing the adapter
+closes that client. The connection describes registry endpoints, client cache
+capacity, authentication, TLS and other registry-client properties.
 
 For example, the adapter can own an authenticated client:
 
 ```scala
-val serializer = RegistrySerializer.fromConfig(
-  Trade.codec,
-  List("https://registry.example"),
-  config = Map[String, AnyRef](
+import avro2s.wire.registry.{RegistryConnection, RegistrySerializer}
+
+val connection = RegistryConnection(
+  urls = List("https://registry.example"),
+  cacheCapacity = 256,
+  properties = Map[String, AnyRef](
     "basic.auth.credentials.source" -> "USER_INFO",
     "basic.auth.user.info" -> "<api-key>:<api-secret>"
-  ),
-  settings = settings
+  )
 )
+val serializer = RegistrySerializer.forValue(Trade.codec, connection)
 ```
 
 In this form, closing the producer closes the serializer and its registry client.
+For direct use outside Kafka, close the adapter yourself, for example with
+`Using.resource`. Reusing a `RegistryConnection` shares connection settings;
+it does not share a client. To share one actual client across keys, values or
+Kafka clients, inject an application-owned `SchemaRegistryClient` instead.
+
+Put URLs in `RegistryConnection.urls`. Its `properties` map accepts registry-client
+properties only; serializer behavior belongs to `SerializerSettings`. Supplying
+`schema.registry.url`, `auto.register.schemas` or `normalize.schemas` in the map
+fails at connection construction. There is no duplicated configuration to keep in
+sync, and Kafka's producer/consumer property maps do not configure Wire adapters.
 
 Each adapter has a bounded access-order cache. The serializer caches schema IDs
 by subject; the deserializer caches compiled writer-to-reader plans by schema ID.
-`RegistrySettings.cacheCapacity` controls each adapter cache and defaults to 1024.
-The underlying `CachedSchemaRegistryClient` has its own separately bounded cache.
-Each adapter synchronizes configuration, cache access, serialization and
-deserialization. Configure it before first use; configuration after a message has
-been handled fails.
+`SerializerSettings.cacheCapacity` and `DeserializerSettings.cacheCapacity` control
+their respective adapter caches and default to 1024. The underlying
+`CachedSchemaRegistryClient` has its own separately bounded cache, controlled by
+`RegistryConnection.cacheCapacity` when the adapter creates it. Each adapter
+synchronizes cache access, serialization and deserialization. Its role and
+settings are immutable.
 
 ## Subjects and registration
 
@@ -172,23 +193,37 @@ The supported subject strategies follow Confluent's standard naming forms:
 | `RecordName` | Avro record fullname | Avro record fullname |
 | `TopicRecordName` | `<topic>-<record-fullname>` | `<topic>-<record-fullname>` |
 
-Kafka does not call `configure` on serializer or deserializer instances supplied
-to its constructors. Call it explicitly before constructing the Kafka client:
-`configure(config, false)` for values and `configure(config, true)` for keys.
-This also validates registry-related properties against the typed settings.
-An adapter used without configuration defaults to values. Topic-based
-strategies require a non-empty topic. Record name strategies derive the name from
-the generated Avro schema.
+`RegistrySerializer.forKey` selects the key subject;
+`RegistrySerializer.forValue` selects the value subject. The role is fixed when
+the adapter is created. Topic-based strategies require a non-empty topic. Record
+name strategies derive the name from the generated Avro schema.
 
-`RegistrySettings.autoRegisterSchemas` defaults to `true`: the serializer registers
-the codec's schema under the selected subject and lets Schema Registry apply that
-subject's compatibility policy. With `false`, it only looks up the ID of that
-exact schema under the subject. Pre-register the same schema under that subject
-before sending data; a missing match is an error. The setting controls Wire's
-serializer and must agree with `auto.register.schemas` in the map passed to
-`configure` or `fromConfig` when present.
-`normalizeSchemas` similarly controls lookup/registration normalization and must
-agree with `normalize.schemas` when present.
+`SerializerSettings.autoRegisterSchemas` defaults to `false`: the serializer only
+looks up the ID of the codec's exact schema under the selected subject.
+Pre-register that schema under that subject before sending data; a missing match
+is an error. Setting `autoRegisterSchemas = true` explicitly opts into registering
+the schema and lets Schema Registry apply the subject's compatibility policy.
+`normalizeSchemas` controls lookup/registration normalization and defaults to
+`false`. Normalization makes representation differences such as JSON property
+order and qualified names consistent for registry schema identity; it does not
+change record-field order, encoded data or compatibility rules. See Confluent's
+[schema normalization documentation](https://docs.confluent.io/platform/7.9/schema-registry/fundamentals/serdes-develop/index.html#schema-normalization).
+
+```scala
+val settings = SerializerSettings(
+  autoRegisterSchemas = false,
+  normalizeSchemas = true,
+  subjectNameStrategy = SubjectNameStrategy.TopicName
+)
+val serializer = RegistrySerializer.forValue(Trade.codec, registry, settings)
+```
+
+Readers use `DeserializerSettings` for cache capacity and optional native
+`decodeLimits`. Every `DecodeLimits` field defaults to `None`; `Some(n)` opts into
+that ceiling, and `Some(0)` is a zero ceiling rather than an off switch.
+They fetch the writer schema by the ID in the message and resolve it into the
+generated reader model. They do not select subjects or register schemas, so they
+have no registration, normalization or subject-strategy settings.
 
 Registry IDs are the identity used by the classic frame and deserializer cache.
 Avro parsing-canonical fingerprints omit data such as defaults and aliases that
@@ -211,9 +246,12 @@ and unnamed unions are rejected. This also excludes Avro's special raw-bytes
 payload case. Standard Avro logical types supported by the generated model work
 through native codec handling and Wire's resolver.
 
-The adapters reject configuration for unsupported Confluent modes, including
-schema GUIDs in Kafka headers, latest-schema selection, fixed schema IDs, custom
-subject/context naming and rule executors. Use plain Avro subjects without
+`RegistryConnection` rejects properties for unsupported Confluent modes, including
+schema GUIDs in Kafka headers, latest-schema selection, fixed schema IDs or GUIDs,
+custom subject/context naming and rule executors. Inactive selector defaults
+(`use.latest.version = false`, `use.schema.id = -1`, `use.schema.guid = null`) are
+accepted for migration and omitted from the underlying client properties.
+Use plain Avro subjects without
 registry-attached rules: the serializer does not execute those rules, and the
 deserializer rejects writer schemas carrying registry metadata or rules.
 Only TopicName, RecordName and TopicRecordName subject naming is supported.
@@ -226,8 +264,27 @@ Malformed/truncated frames, unsupported magic bytes, unknown IDs, incompatible
 writer data, unsupported logical types and decode-limit violations fail with a
 Kafka `SerializationException` whose cause describes the underlying failure.
 Interrupted registry work restores the thread's interrupt flag before failing.
-Native decode limits still apply to the framed Avro datum; the five framing bytes
-are outside the datum limit.
+Configured native decode limits apply to the framed Avro datum; the five framing
+bytes are outside `maxInputBytes`. All five ceilings are disabled by default.
+Byte sizes and collection counts are independent of nesting depth. Mandatory
+checks for malformed encodings, available input, arithmetic overflow and JVM
+representability remain enabled regardless of these options. The [complete
+configuration example](schema-registry-examples.md) explicitly supplies every
+setting and explains these distinctions.
+
+## Migrating from the initial API
+
+Replace public constructor calls with `forKey` or `forValue`, and remove manual
+`configure` calls. The Kafka interfaces still expose `configure`, but Wire
+inherits their no-op implementation; it does not change an adapter's role,
+settings or connection.
+
+Replace `RegistrySettings` with `SerializerSettings` for writers and
+`DeserializerSettings` for readers. Replace `fromConfig` with a `forKey` or
+`forValue` call accepting `RegistryConnection`. Move registration and
+normalization choices out of property maps into `SerializerSettings`; put
+registry endpoints in `RegistryConnection.urls` and connection/authentication/TLS
+properties in `RegistryConnection.properties`.
 
 ## Verification
 

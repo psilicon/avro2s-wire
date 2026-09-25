@@ -262,12 +262,12 @@ final class BinaryRuntimeSuite extends FunSuite:
   }
 
   test("configured byte and string limits reject oversized data") {
-    intercept[AvroDecodingException](new BinaryInput(Array[Byte](0), DecodeLimits(maxInputBytes = 0)))
+    intercept[AvroDecodingException](new BinaryInput(Array[Byte](0), DecodeLimits(maxInputBytes = Some(0))))
     val string = encoded(_.writeString("large"))
-    intercept[AvroDecodingException](new BinaryInput(string, DecodeLimits(maxStringBytes = 4)).readString())
+    intercept[AvroDecodingException](new BinaryInput(string, DecodeLimits(maxStringBytes = Some(4))).readString())
     val bytes = encoded(_.writeBytes(Bytes.fromArray(Array[Byte](1, 2))))
-    intercept[AvroDecodingException](new BinaryInput(bytes, DecodeLimits(maxBytesLength = 1)).readBytes())
-    intercept[AvroDecodingException](new BinaryInput(Array[Byte](1, 2), DecodeLimits(maxBytesLength = 1)).readFixed(2))
+    intercept[AvroDecodingException](new BinaryInput(bytes, DecodeLimits(maxBytesLength = Some(1))).readBytes())
+    intercept[AvroDecodingException](new BinaryInput(Array[Byte](1, 2), DecodeLimits(maxBytesLength = Some(1))).readFixed(2))
   }
 
   test("collection budget is cumulative across blocks and collections") {
@@ -277,21 +277,21 @@ final class BinaryRuntimeSuite extends FunSuite:
       out.writeLong(2)
       out.writeLong(0)
     }
-    val in = new BinaryInput(bytes, DecodeLimits(maxCollectionItems = 3))
+    val in = new BinaryInput(bytes, DecodeLimits(maxCollectionItems = Some(3L)))
     assertEquals(in.readArrayStart(), 2L) // Two null items consume no bytes.
     assertEquals(in.arrayNext(), 0L)
     intercept[AvroDecodingException](in.readArrayStart())
-    val blocks = new BinaryInput(encoded { out => out.writeLong(2); out.writeLong(2) }, DecodeLimits(maxCollectionItems = 3))
+    val blocks = new BinaryInput(encoded { out => out.writeLong(2); out.writeLong(2) }, DecodeLimits(maxCollectionItems = Some(3L)))
     assertEquals(blocks.readArrayStart(), 2L)
     intercept[AvroDecodingException](blocks.arrayNext())
   }
 
   test("record and collection depth share a bounded budget") {
-    val in = new BinaryInput(encoded(_.writeLong(1)), DecodeLimits(maxNestingDepth = 1))
+    val in = new BinaryInput(encoded(_.writeLong(1)), DecodeLimits(maxNestingDepth = Some(1)))
     in.enterRecord()
     intercept[AvroDecodingException](in.readArrayStart())
     in.leaveRecord()
-    val records = new BinaryInput(Array.emptyByteArray, DecodeLimits(maxNestingDepth = 1))
+    val records = new BinaryInput(Array.emptyByteArray, DecodeLimits(maxNestingDepth = Some(1)))
     records.enterRecord()
     intercept[AvroDecodingException](records.enterRecord())
     records.leaveRecord()
@@ -323,5 +323,5 @@ final class BinaryRuntimeSuite extends FunSuite:
       intercept[AvroDecodingException](codec.decode(bytes.take(length)))
     }
     intercept[AvroDecodingException](codec.decode(bytes ++ Array[Byte](0)))
-    intercept[AvroDecodingException](codec.decode(bytes, DecodeLimits(maxStringBytes = 1)))
+    intercept[AvroDecodingException](codec.decode(bytes, DecodeLimits(maxStringBytes = Some(1))))
   }

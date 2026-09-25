@@ -7,25 +7,37 @@ import org.apache.avro.Schema
 enum SubjectNameStrategy:
   case TopicName, RecordName, TopicRecordName
 
-  def subject(topic: String, schema: Schema, isKey: Boolean): String =
+  private[registry] def subject(topic: String, schema: Schema, role: RegistryRole): String =
     val fullName = schema.getFullName
     this match
       case TopicName =>
         require(topic != null && topic.nonEmpty, "TopicName requires a nonempty topic")
-        s"$topic-${if isKey then "key" else "value"}"
+        s"$topic-${role.subjectSuffix}"
       case RecordName => fullName
       case TopicRecordName =>
         require(topic != null && topic.nonEmpty, "TopicRecordName requires a nonempty topic")
         s"$topic-$fullName"
 
-/** The same settings apply to each serializer or deserializer instance. */
-final case class RegistrySettings(
-    autoRegisterSchemas: Boolean = true,
+/** Immutable settings for writing generated values to Schema Registry subjects. */
+final case class SerializerSettings(
+    autoRegisterSchemas: Boolean = false,
     normalizeSchemas: Boolean = false,
     subjectNameStrategy: SubjectNameStrategy = SubjectNameStrategy.TopicName,
+    cacheCapacity: Int = 1024
+):
+  require(cacheCapacity > 0, "cacheCapacity must be positive")
+  require(subjectNameStrategy != null, "subjectNameStrategy must be non-null")
+
+/** Immutable settings for reading framed values into a generated model. */
+final case class DeserializerSettings(
     cacheCapacity: Int = 1024,
     decodeLimits: DecodeLimits = DecodeLimits.default
 ):
   require(cacheCapacity > 0, "cacheCapacity must be positive")
-  require(subjectNameStrategy != null, "subjectNameStrategy must be non-null")
   require(decodeLimits != null, "decodeLimits must be non-null")
+
+private[registry] enum RegistryRole(val subjectSuffix: String):
+  case Key extends RegistryRole("key")
+  case Value extends RegistryRole("value")
+
+  def schemaIdHeader: String = s"__${subjectSuffix}_schema_id"

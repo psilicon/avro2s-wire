@@ -1,0 +1,6 @@
+{
+  "type": "record",
+  "name": "TradeKey",
+  "namespace": "example.trading",
+  "fields": [{"name": "id", "type": "long"}]
+}

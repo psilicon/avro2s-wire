@@ -176,14 +176,15 @@ final class WirePropertiesSuite extends munit.FunSuite:
 
   private def exactLimits(c: SchemaCase, bytes: Array[Byte]): DecodeLimits =
     val resources = WireLayouts.resources(c.schema, c.values.head)
-    DecodeLimits(bytes.length, resources.stringBytes, resources.bytesLength, resources.collectionItems, resources.nestingDepth)
+    DecodeLimits(Some(bytes.length), Some(resources.stringBytes), Some(resources.bytesLength),
+      Some(resources.collectionItems), Some(resources.nestingDepth))
 
   private def lower(limits: DecodeLimits, dimension: String): DecodeLimits = dimension match
-    case "input" => limits.copy(maxInputBytes = limits.maxInputBytes - 1)
-    case "string" => limits.copy(maxStringBytes = limits.maxStringBytes - 1)
-    case "bytes" => limits.copy(maxBytesLength = limits.maxBytesLength - 1)
-    case "items" => limits.copy(maxCollectionItems = limits.maxCollectionItems - 1)
-    case "depth" => limits.copy(maxNestingDepth = limits.maxNestingDepth - 1)
+    case "input" => limits.copy(maxInputBytes = limits.maxInputBytes.map(_ - 1))
+    case "string" => limits.copy(maxStringBytes = limits.maxStringBytes.map(_ - 1))
+    case "bytes" => limits.copy(maxBytesLength = limits.maxBytesLength.map(_ - 1))
+    case "items" => limits.copy(maxCollectionItems = limits.maxCollectionItems.map(_ - 1))
+    case "depth" => limits.copy(maxNestingDepth = limits.maxNestingDepth.map(_ - 1))
 
   test("generated codecs enforce exact input, length, cumulative item and nesting budgets") {
     val observed = mutable.Set.empty[String]
@@ -202,8 +203,8 @@ final class WirePropertiesSuite extends munit.FunSuite:
           val scenario = Scenario("limit:exact", Layout.SizedNegative, seed + caseIndex * 1009L + valueIndex)
           val limits = exactLimits(one, image(one, scenario).bytes)
           check(one, oneCode, scenario)
-          val dimensions = Vector("input" -> limits.maxInputBytes.toLong, "string" -> limits.maxStringBytes.toLong,
-            "bytes" -> limits.maxBytesLength.toLong, "items" -> limits.maxCollectionItems, "depth" -> limits.maxNestingDepth.toLong)
+          val dimensions = Vector("input" -> limits.maxInputBytes.get.toLong, "string" -> limits.maxStringBytes.get.toLong,
+            "bytes" -> limits.maxBytesLength.get.toLong, "items" -> limits.maxCollectionItems.get, "depth" -> limits.maxNestingDepth.get.toLong)
           dimensions.filter(_._2 > 0).foreach { (dimension, _) =>
             observed += dimension
             check(one, oneCode, scenario.copy(operation = s"limit:$dimension"))

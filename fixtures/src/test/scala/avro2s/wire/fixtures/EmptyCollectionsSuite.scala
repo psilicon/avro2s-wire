@@ -62,21 +62,21 @@ class EmptyCollectionsSuite extends munit.FunSuite:
   test("empty collections respect collection and nesting budgets without consuming item budget") {
     val empty = CollectionEdges(Vector.empty, Map.empty, 31L)
     assertEquals(CollectionEdges.codec.decode(CollectionEdges.codec.encode(empty),
-      DecodeLimits(maxCollectionItems = 0, maxNestingDepth = 1)), empty)
+      DecodeLimits(maxCollectionItems = Some(0L), maxNestingDepth = Some(1))), empty)
     val nested = CollectionEdges(Vector(Map.empty), Map("empty" -> Vector.empty), 17L)
     val bytes = CollectionEdges.codec.encode(nested)
     assertEquals(CollectionEdges.codec.decode(bytes,
-      DecodeLimits(maxCollectionItems = 2, maxNestingDepth = 2)), nested)
+      DecodeLimits(maxCollectionItems = Some(2L), maxNestingDepth = Some(2))), nested)
     intercept[AvroDecodingException] {
-      CollectionEdges.codec.decode(bytes, DecodeLimits(maxCollectionItems = 1))
+      CollectionEdges.codec.decode(bytes, DecodeLimits(maxCollectionItems = Some(1L)))
     }
     intercept[AvroDecodingException] {
-      CollectionEdges.codec.decode(bytes, DecodeLimits(maxNestingDepth = 1))
+      CollectionEdges.codec.decode(bytes, DecodeLimits(maxNestingDepth = Some(1)))
     }
     // The empty first array must not bypass the following nonempty map's limit.
     val followingMap = CollectionEdges(Vector.empty, Map("key" -> Vector.empty), 1L)
     intercept[AvroDecodingException] {
       CollectionEdges.codec.decode(CollectionEdges.codec.encode(followingMap),
-        DecodeLimits(maxCollectionItems = 0))
+        DecodeLimits(maxCollectionItems = Some(0L)))
     }
   }

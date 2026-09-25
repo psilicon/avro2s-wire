@@ -110,9 +110,9 @@ final class StringEncodingSuite extends FunSuite:
       val encoded = out.toByteArray
       val byteLength = value.getBytes(UTF_8).length
       intercept[AvroDecodingException] {
-        new BinaryInput(encoded, DecodeLimits(maxStringBytes = byteLength - 1)).readString()
+        new BinaryInput(encoded, DecodeLimits(maxStringBytes = Some(byteLength - 1))).readString()
       }
-      assertEquals(new BinaryInput(encoded, DecodeLimits(maxStringBytes = byteLength)).readString(), value)
+      assertEquals(new BinaryInput(encoded, DecodeLimits(maxStringBytes = Some(byteLength))).readString(), value)
       (0 until encoded.length).foreach { end =>
         intercept[AvroDecodingException](new BinaryInput(encoded.take(end)).readString())
       }

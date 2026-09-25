@@ -273,9 +273,12 @@ not mutate that array concurrently. Primitive values inside Vector, Map, and
 Option can still box; this implementation does not claim zero allocation.
 
 Native decoding validates bounds, varint widths, UTF-8, collection block sizes,
-and generated union/enum indices. `DecodeLimits` controls input size, string/byte
-lengths, cumulative collection item counts, and nesting depth. Limits apply to the
-input instance, so a fresh input resets the budget. Invalid input raises
+and generated union/enum indices. These checks are always enabled.
+`DecodeLimits` separately offers optional input-size, string/byte-length,
+cumulative collection-item and nesting-depth ceilings. Every field defaults to
+`None`, meaning no application-imposed ceiling. Set a field to `Some(n)` to enable
+it; `Some(0)` is a real zero limit. Configured ceilings apply to the input
+instance, so a fresh input resets the budget. Invalid input raises
 `AvroDecodingException`. Native string encoding rejects unpaired UTF-16 surrogates
 to prevent silently replacing malformed text. The Java backend follows Java Avro's
 replacement behavior. Valid Unicode text has the same wire representation.
@@ -299,8 +302,8 @@ constructs generated Scala models directly; it does not create Java GenericRecor
 or re-encode the datum. Identical schema JSON uses the generated direct codec.
 
 The optional module uses Jackson to parse JSON and has no Apache Avro runtime
-dependency. Core codecs keep their original dependency footprint. Native decode
-limits apply during resolution, including skipped fields. See
+dependency. Core codecs keep their original dependency footprint. Optional native
+decode limits also apply during resolution, including skipped fields. See
 [the evolution design and compatibility notes](docs/schema-evolution.md).
 
 ## Optional Java Avro backend

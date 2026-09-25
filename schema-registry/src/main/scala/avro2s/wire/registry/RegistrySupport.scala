@@ -33,37 +33,45 @@ private[registry] object RegistrySupport:
       raw.toString
     case _ => throw new IllegalArgumentException("Registry schema is not Avro")
 
-  def validateConfig(config: JMap[String, ?], settings: RegistrySettings): Unit =
-    if config == null then throw new IllegalArgumentException("Kafka configuration must be non-null")
-    def bool(key: String, expected: Boolean): Unit =
-      if config.containsKey(key) && config.get(key).toString.toBooleanOption != Some(expected) then
-        throw new IllegalArgumentException(s"$key conflicts with RegistrySettings")
-    bool("auto.register.schemas", settings.autoRegisterSchemas)
-    bool("normalize.schemas", settings.normalizeSchemas)
+  def clientProperties(properties: Map[String, AnyRef]): Map[String, AnyRef] =
+    require(properties.keys.forall(_ != null), "Registry client property names must be non-null")
+    for key <- Seq("auto.register.schemas", "normalize.schemas") if properties.contains(key) do
+      throw new IllegalArgumentException(s"Set $key through SerializerSettings, not RegistryConnection.properties")
+    if properties.contains("schema.registry.url") then
+      throw new IllegalArgumentException("Set Schema Registry URLs through RegistryConnection.urls")
     val unsupported = Seq(
-      "use.latest.version", "use.latest.with.metadata", "use.schema.id",
+      "use.latest.version", "use.latest.with.metadata", "use.schema.id", "use.schema.guid",
       "id.compatibility.strict", "latest.compatibility.strict", "key.subject.name.strategy",
       "value.subject.name.strategy", "context.name.strategy", "schema.reflection",
       "avro.reflection.allow.null", "avro.use.logical.type.converters"
     )
-    for key <- unsupported if config.containsKey(key) do
-      val value = config.get(key)
+    for key <- unsupported if properties.contains(key) do
+      val value = properties(key)
       val harmless = key match
-        case "use.latest.version" => value.toString.equalsIgnoreCase("false")
-        case "use.schema.id" => value.toString == "-1"
+        case "use.latest.version" => value != null && value.toString.equalsIgnoreCase("false")
+        case "use.schema.id" => value != null && value.toString == "-1"
+        case "use.schema.guid" => value == null
         case _ => false
       if !harmless then throw new IllegalArgumentException(s"Unsupported registry configuration: $key")
-    for key <- config.keySet().asScala if key.startsWith("rule.") || key.startsWith("rules.") do
+    for key <- properties.keys if key.startsWith("rule.") || key.startsWith("rules.") do
       throw new IllegalArgumentException(s"Unsupported registry configuration: $key")
-    for key <- config.keySet().asScala if key.contains(".schema.id.") ||
+    for key <- properties.keys if key.contains(".schema.id.") ||
         key == "key.schema.id" || key == "value.schema.id" do
       throw new IllegalArgumentException(s"Unsupported registry configuration: $key")
+    // Inactive SerDe selectors are accepted for migration, but have no client meaning.
+    // In particular, forwarding the null GUID default breaks the client's config copying.
+    properties -- unsupported
 
-  def ownedClient(urls: List[String], capacity: Int, config: Map[String, AnyRef]): SchemaRegistryClient =
-    require(urls != null && urls.nonEmpty && urls.forall(url => url != null && url.nonEmpty),
-      "At least one Schema Registry URL is required")
-    require(capacity > 0, "Registry client capacity must be positive")
-    new CachedSchemaRegistryClient(urls.asJava, capacity, config.asJava)
+  def withOwnedClient[A](connection: RegistryConnection)(create: SchemaRegistryClient => A): A =
+    require(connection != null, "connection must be non-null")
+    val client = new CachedSchemaRegistryClient(
+      connection.urls.asJava, connection.cacheCapacity, connection.clientProperties.asJava)
+    try create(client)
+    catch
+      case NonFatal(error) =>
+        try client.close()
+        catch case NonFatal(closeError) => error.addSuppressed(closeError)
+        throw error
 
   def guard[A](operation: String)(body: => A): A =
     try body

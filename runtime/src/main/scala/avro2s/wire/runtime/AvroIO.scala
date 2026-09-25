@@ -113,19 +113,23 @@ trait AvroCodec[A]:
 object AvroCodec:
   def apply[A](using codec: AvroCodec[A]): AvroCodec[A] = codec
 
-/** All limits apply to a single input instance; collection items are cumulative. */
+/** Optional resource ceilings for native decoding. None imposes no policy ceiling;
+  * Some(0) permits no consumption of that resource. These are not Avro format limits.
+  * Native readers validate buffer bounds and malformed encodings independently.
+  * All limits apply to a single input instance; collection items are cumulative.
+  */
 final case class DecodeLimits(
-    maxInputBytes: Int = 64 * 1024 * 1024,
-    maxStringBytes: Int = 16 * 1024 * 1024,
-    maxBytesLength: Int = 64 * 1024 * 1024,
-    maxCollectionItems: Long = 1000000L,
-    maxNestingDepth: Int = 128
+    maxInputBytes: Option[Int] = None,
+    maxStringBytes: Option[Int] = None,
+    maxBytesLength: Option[Int] = None,
+    maxCollectionItems: Option[Long] = None,
+    maxNestingDepth: Option[Int] = None
 ):
-  require(maxInputBytes >= 0, "maxInputBytes must be non-negative")
-  require(maxStringBytes >= 0, "maxStringBytes must be non-negative")
-  require(maxBytesLength >= 0, "maxBytesLength must be non-negative")
-  require(maxCollectionItems >= 0, "maxCollectionItems must be non-negative")
-  require(maxNestingDepth >= 0, "maxNestingDepth must be non-negative")
+  require(maxInputBytes.forall(_ >= 0), "maxInputBytes must be non-negative")
+  require(maxStringBytes.forall(_ >= 0), "maxStringBytes must be non-negative")
+  require(maxBytesLength.forall(_ >= 0), "maxBytesLength must be non-negative")
+  require(maxCollectionItems.forall(_ >= 0), "maxCollectionItems must be non-negative")
+  require(maxNestingDepth.forall(_ >= 0), "maxNestingDepth must be non-negative")
 
 object DecodeLimits:
   val default: DecodeLimits = DecodeLimits()

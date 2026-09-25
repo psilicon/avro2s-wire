@@ -163,9 +163,9 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
     withTopic("wire-adapter") { subject =>
       // The generated Trade codec is a real fixture codec. Use a per-test topic to isolate its subject.
       val topic = subject
-      val settings = RegistrySettings(subjectNameStrategy = SubjectNameStrategy.TopicName)
-      val serializer = new RegistrySerializer[Trade](Trade.codec, client, settings)
-      val deserializer = new RegistryDeserializer[Trade](Trade.codec, client, settings)
+      val settings = SerializerSettings(autoRegisterSchemas = true, subjectNameStrategy = SubjectNameStrategy.TopicName)
+      val serializer = RegistrySerializer.forValue(Trade.codec, client, settings)
+      val deserializer = RegistryDeserializer.forValue(Trade.codec, client)
       try
         val expected = Trade(101L, "AVRO", 37.5, Vector(1, -2, 9))
         val bytes = serializer.serialize(topic, expected)
@@ -177,10 +177,9 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
     }
   }
 
-  test("autoRegisterSchemas=false fails on a missing subject and succeeds after real preregistration") {
+  test("default serializer settings fail on a missing subject and succeed after real preregistration") {
     withTopic("no-auto-register") { subject =>
-      val settings = RegistrySettings(autoRegisterSchemas = false, subjectNameStrategy = SubjectNameStrategy.TopicName)
-      val serializer = new RegistrySerializer[Trade](Trade.codec, client, settings)
+      val serializer = RegistrySerializer.forValue(Trade.codec, client)
       val value = Trade(5L, "PRE", 1.25, Vector(8))
       try
         val missing = intercept[SerializationException] { serializer.serialize(subject, value) }
@@ -190,7 +189,8 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
         val schemaId = register(s"$subject-value", schema(Trade.codec.schemaJson))
         assert(schemaId > 0)
         val bytes = serializer.serialize(subject, value)
-        val reader = new RegistryDeserializer[Trade](Trade.codec, client, settings)
+        assertEquals(client.getAllVersions(s"$subject-value").asScala.toVector, Vector(Int.box(1)))
+        val reader = RegistryDeserializer.forValue(Trade.codec, client)
         try assertEquals(reader.deserialize(subject, bytes), value)
         finally reader.close()
       finally serializer.close()
@@ -206,9 +206,9 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
       val confluentDeserializer = new KafkaAvroDeserializer(client)
       confluentSerializer.configure(config, false)
       confluentDeserializer.configure(config, false)
-      val settings = RegistrySettings(subjectNameStrategy = SubjectNameStrategy.TopicName)
-      val wireSerializer = new RegistrySerializer[Trade](Trade.codec, client, settings)
-      val wireDeserializer = new RegistryDeserializer[Trade](Trade.codec, client, settings)
+      val settings = SerializerSettings(autoRegisterSchemas = true, subjectNameStrategy = SubjectNameStrategy.TopicName)
+      val wireSerializer = RegistrySerializer.forValue(Trade.codec, client, settings)
+      val wireDeserializer = RegistryDeserializer.forValue(Trade.codec, client)
       try
         val expected = Trade(77L, "CROSS", 12.75, Vector(3, 4, 5))
 
@@ -243,7 +243,7 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
       config.put("schema.registry.url", registryUrl)
       val confluentSerializer = new KafkaAvroSerializer(client)
       confluentSerializer.configure(config, false)
-      val wireDeserializer = new RegistryDeserializer[Trade](Trade.codec, client)
+      val wireDeserializer = RegistryDeserializer.forValue(Trade.codec, client)
       val writerSchema = tradeSchemaWithWriterOnlyField()
       val writer = new GenericData.Record(writerSchema)
       writer.put("id", 88L)
@@ -315,7 +315,7 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
         val framed = Array[Byte](0, (id >>> 24).toByte, (id >>> 16).toByte, (id >>> 8).toByte, id.toByte) ++ datum
 
         val freshClient = new CachedSchemaRegistryClient(registryUrl, 32)
-        val deserializer = new RegistryDeserializer[Trade](Trade.codec, freshClient)
+        val deserializer = RegistryDeserializer.forValue(Trade.codec, freshClient)
         try
           assertEquals(deserializer.deserialize(topic, framed), Trade(90L, "REFERENCE", 11.25, Vector(7, 8)))
         finally

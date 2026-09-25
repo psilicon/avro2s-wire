@@ -23,8 +23,8 @@ class BinarySkippingSuite extends munit.FunSuite:
   test("skipping still enforces lengths, resource limits and truncation") {
     intercept[AvroDecodingException](new BinaryInput(Array[Byte](8, 1, 2)).skipBytes())
     intercept[AvroDecodingException](new BinaryInput(Array[Byte](1)).skipBytes())
-    intercept[AvroDecodingException](new BinaryInput(Array[Byte](4, 97, 98), DecodeLimits(maxStringBytes = 1)).skipString())
-    intercept[AvroDecodingException](new BinaryInput(Array[Byte](4, 1, 2), DecodeLimits(maxBytesLength = 1)).skipBytes())
+    intercept[AvroDecodingException](new BinaryInput(Array[Byte](4, 97, 98), DecodeLimits(maxStringBytes = Some(1))).skipString())
+    intercept[AvroDecodingException](new BinaryInput(Array[Byte](4, 1, 2), DecodeLimits(maxBytesLength = Some(1))).skipBytes())
     intercept[AvroDecodingException](new BinaryInput(Array[Byte](1)).skipFixed(2))
     intercept[AvroDecodingException](new BinaryInput(Array[Byte](1)).skipFixed(-1))
   }
@@ -35,7 +35,7 @@ class BinarySkippingSuite extends munit.FunSuite:
     val bytes = out.toByteArray
     assertEquals(new BinaryInput(bytes).readBytesAsString(), "λ🚀")
     assertEquals(new BinaryInput(bytes).readStringAsBytes(), Bytes.fromArray("λ🚀".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-    for limits <- Vector(DecodeLimits(maxStringBytes = 1), DecodeLimits(maxBytesLength = 1)) do
+    for limits <- Vector(DecodeLimits(maxStringBytes = Some(1)), DecodeLimits(maxBytesLength = Some(1))) do
       intercept[AvroDecodingException](new BinaryInput(bytes, limits).readBytesAsString())
       intercept[AvroDecodingException](new BinaryInput(bytes, limits).readStringAsBytes())
     intercept[AvroDecodingException](new BinaryInput(Array[Byte](4, -64, -128)).readBytesAsString())

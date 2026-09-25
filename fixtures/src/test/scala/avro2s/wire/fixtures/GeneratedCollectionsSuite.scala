@@ -1,7 +1,7 @@
 package avro2s.wire.fixtures
 
 import avro2s.wire.javabackend.JavaAvroOutput
-import avro2s.wire.runtime.{AvroDecodingException, BinaryInput, DecodeLimits}
+import avro2s.wire.runtime.{AvroDecodingException, BinaryInput, BinaryOutput, DecodeLimits}
 import java.io.ByteArrayOutputStream
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
@@ -16,6 +16,21 @@ final class GeneratedCollectionsSuite extends munit.FunSuite:
     write(encoder)
     encoder.flush()
     buffer.toByteArray
+
+  test("generated codecs decode collections larger than the former million-item ceiling") {
+    val count = 1000001
+    val out = new BinaryOutput()
+    out.writeArrayStart(count)
+    val prefix = out.toByteArray
+    // Each long zero occupies one byte; the array and following empty map each
+    // end with one zero byte. Construct no second million-element collection.
+    val bytes = new Array[Byte](prefix.length + count + 2)
+    System.arraycopy(prefix, 0, bytes, 0, prefix.length)
+    val value = Blocks.codec.decode(bytes)
+    assertEquals(value.values.size, count)
+    assert(value.values.forall(_ == 0L))
+    assertEquals(value.labels, Map.empty[String, String])
+  }
 
   test("map builders preserve duplicate keys across blocks and colliding String hashes") {
     // Aa and BB have the same String hash. Equal-length combinations preserve
@@ -52,7 +67,7 @@ final class GeneratedCollectionsSuite extends munit.FunSuite:
       input.requireEnd()
       // Duplicate wire entries still count towards the input's item budget.
       intercept[AvroDecodingException] {
-        Blocks.codec.decode(bytes, DecodeLimits.default.copy(maxCollectionItems = entries.size - 1L))
+        Blocks.codec.decode(bytes, DecodeLimits.default.copy(maxCollectionItems = Some(entries.size - 1L)))
       }
   }
 

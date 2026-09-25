@@ -210,7 +210,8 @@ rejects the pair; Wire continues to require matching names or reader aliases.
 
 `schemaRegistry/test` uses Confluent's serializers and mock client to check exact
 framing and interoperability, named roots, subject strategies, normalization,
-registration versus lookup, bounded cache eviction, concurrent use, retries,
+registration versus lookup, immutable key/value factories, typed settings,
+connection-property validation, bounded cache eviction, concurrent use, retries,
 tombstones, limits, malformed data, unsupported options and client ownership.
 The mock client is not used to establish real-server registration policy.
 
@@ -223,8 +224,9 @@ bash scripts/test-schema-registry.sh
 This starts isolated Confluent 8.1.5 Kafka and Schema Registry containers, runs
 `registryIntegration/test`, then removes the test containers, network and volumes.
 The suite tests actual registration compatibility policies, references and
-Wire/Confluent interoperability; broker tests send messages and tombstones in both
-directions through Kafka producers and consumers. PR and release CI run this
+Wire/Confluent interoperability; broker tests pass owned key/value adapters directly
+to Kafka producers and consumers and send messages and tombstones in both directions,
+checking both registered subjects. PR and release CI run this
 command after the ordinary tests. See [registry usage](schema-registry.md) for
 ports and configuration. The integration project is deliberately not part of
 the root `sbt test` aggregate.
@@ -249,8 +251,10 @@ Its four tests cover:
   up to 64 bytes; longer encodings use endpoints plus 24 seeded cuts. Trailing
   bytes must also fail. Arbitrary bit changes are not assumed invalid.
 - **Resource budgets:** independently calculate input bytes, maximum string/byte
-  lengths, cumulative collection items and nesting depth. Exact limits admit the
-  value; lowering each applicable dimension by one rejects it.
+  lengths, cumulative collection items and nesting depth. These ceilings are
+  optional and disabled by default. Explicit `Some` limits admit the value at its
+  exact size; lowering each applicable dimension by one rejects it. `None`
+  disables that policy while mandatory malformed-input checks still apply.
 - **State and ownership:** generate write/reset/export sequences at initial
   capacities 0, 1, 7 and 64, retain output snapshots, mutate exported arrays and
   original decode buffers, and verify retained values stay unchanged.
@@ -277,14 +281,14 @@ classes, rather than claiming exhaustive wire fuzzing.
 
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
-| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 64 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
+| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 74 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges. |
 | `compiler` | `CodeGeneratorSuite` (23), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 46 | Recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
 | `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7) | 38 | Aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits. |
-| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (2), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 34 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
+| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 35 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit and malformed records. |
 | `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5) | 19 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
 | `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 24 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
-| `schema-registry` | `RegistrySuite` (18) | 18 | Confluent interoperability, framing, subjects, configuration, caches, failures, resource limits and lifecycle. |
+| `schema-registry` | `RegistrySuite` (25) | 25 | Confluent interoperability, framing, immutable key/value factories, default exact-schema lookup, typed settings, connection validation, caches, failures, resource limits and lifecycle. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests

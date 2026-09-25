@@ -210,11 +210,9 @@ object LogicalValues:
     BigDecimal.exact(javaBigDecimalFromBytes(value))
 
   def javaBigDecimalFromBytes(value: Bytes): JavaDecimal =
-    // The enclosing input has already enforced its configured bytes limit.
-    // Bound this nested decoder to the actual payload, including direct calls,
-    // so an inner length can never allocate beyond the supplied value.
-    val in = new BinaryInput(value.unsafeArray,
-      DecodeLimits(maxInputBytes = value.size, maxBytesLength = value.size))
+    // BinaryInput always validates lengths against the actual payload before
+    // allocating, independently of any optional policy on the enclosing input.
+    val in = new BinaryInput(value.unsafeArray)
     val unscaled = in.readBytes()
     if unscaled.size == 0 then invalid("Big-decimal bytes must contain a two's-complement integer")
     val scale = in.readInt()
