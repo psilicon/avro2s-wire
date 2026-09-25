@@ -21,12 +21,14 @@ ThisBuild / publishTo := localStaging.value
 pgpPassphrase := sys.env.get("GPG_PASSPHRASE").map(_.toArray)
 
 val avroVersion = "1.12.1"
+val confluentVersion = "8.1.5"
+ThisBuild / resolvers += "Confluent" at "https://packages.confluent.io/maven/"
 val testSettings = Seq(
   libraryDependencies += "org.scalameta" %% "munit" % "1.0.4" % Test
 )
 
 lazy val root = (project in file("."))
-  .aggregate(runtime, compiler, javaBackend, resolution, fixtures, benchmarks, propertyTests)
+  .aggregate(runtime, compiler, javaBackend, resolution, schemaRegistry, fixtures, benchmarks, propertyTests)
   .settings(name := "avro2s-wire", publish / skip := true)
 
 lazy val runtime = (project in file("runtime"))
@@ -84,6 +86,31 @@ lazy val fixtures = (project in file("fixtures"))
       ).get
       (out ** "*.scala").get
     }.taskValue
+  )
+
+// Registry networking is optional; generated values still use Wire's native codecs.
+lazy val schemaRegistry = (project in file("schema-registry"))
+  .dependsOn(resolution, fixtures % "test->compile")
+  .settings(testSettings)
+  .settings(
+    name := "avro2s-wire-schema-registry",
+    libraryDependencies ++= Seq(
+      "io.confluent" % "kafka-schema-registry-client" % confluentVersion,
+      "org.apache.avro" % "avro" % avroVersion,
+      "io.confluent" % "kafka-avro-serializer" % confluentVersion % Test
+    )
+  )
+
+// Explicitly invoked against an isolated real registry; ordinary `test` needs no Docker.
+lazy val registryIntegration = (project in file("registry-integration"))
+  .dependsOn(schemaRegistry, fixtures)
+  .settings(testSettings)
+  .settings(
+    name := "avro2s-wire-registry-integration",
+    publish / skip := true,
+    Test / fork := true,
+    Test / parallelExecution := false,
+    libraryDependencies += "io.confluent" % "kafka-avro-serializer" % confluentVersion % Test
   )
 
 lazy val benchmarks = (project in file("benchmarks"))

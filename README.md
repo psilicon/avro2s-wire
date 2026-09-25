@@ -8,8 +8,9 @@ optional `avro2s-wire-java-backend` module. Native output is standard Avro binar
 and can be read by Java Avro without that backend.
 
 This is an early implementation with direct codecs, native Scala 3 unions, logical
-types, and an optional native schema-evolution reader. Matching-schema codecs need
-only the runtime; schema resolution adds a separate JSON-parsing dependency.
+types, an optional native schema-evolution reader, and an optional Confluent Schema
+Registry adapter. Matching-schema codecs need only the runtime; schema resolution
+and registry access are separate optional dependencies.
 
 The former `avrogen` prototype is now `avro2s-wire`, with packages under
 `avro2s.wire` and artifact names such as `avro2s-wire-runtime`. Regenerate existing
@@ -71,10 +72,10 @@ The two positional arguments are an `.avsc` file (or a directory recursively con
 `.avsc` files) and an output directory. Directory generation resolves references
 between files. Generated sources need `avro2s-wire-runtime` on their compile/runtime
 classpath; they do not need Apache Avro. To use the current checkout in another
-local sbt project, publish the four library modules locally:
+local sbt project, publish the five library modules locally:
 
 ```sh
-sbt 'runtime/publishLocal' 'compiler/publishLocal' 'javaBackend/publishLocal' 'resolution/publishLocal'
+sbt 'runtime/publishLocal' 'compiler/publishLocal' 'javaBackend/publishLocal' 'resolution/publishLocal' 'schemaRegistry/publishLocal'
 ```
 
 For native matching-schema use, add this dependency to the consuming build:
@@ -84,8 +85,9 @@ libraryDependencies += "io.psilicon" %% "avro2s-wire-runtime" % "0.1.0-SNAPSHOT"
 ```
 
 Use the version from this project's `build.sbt`. The compiler is needed only
-during generation; the Java backend and schema resolver are optional application
-dependencies. Public release setup is described in [releasing](docs/releasing.md).
+during generation; the Java backend, schema resolver and Schema Registry adapter
+are optional application dependencies. See [Schema Registry](docs/schema-registry.md)
+for setup and limits. Public release setup is described in [releasing](docs/releasing.md).
 
 The sample generates this model and a companion codec:
 
@@ -339,6 +341,7 @@ recoverable through [Git history](docs/benchmarks/HISTORY.md).
 - `compiler`: validated schema graph and deterministic Scala source generation.
 - `java-backend`: optional Apache Avro Java encoding and decoding backend.
 - `resolution`: optional native schema parsing/resolution and cached reader plans.
+- `schema-registry`: optional Confluent classic-frame Kafka serializer/deserializer adapters.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
 - `property-tests`: generated schemas, schema evolution, wire layouts, limits and ownership properties.
@@ -348,8 +351,9 @@ and includes a separate schema-evolution benchmark. The [testing guide](docs/tes
 describes the bounded, reproducible property campaigns and their remaining gaps.
 
 Release automation is configured; repository credentials and the final Central
-Portal publication step are described in [releasing](docs/releasing.md). A review
-of ergonomics/readability and schema registry integration remain future work.
+Portal publication step are described in [releasing](docs/releasing.md). See the
+[Schema Registry guide](docs/schema-registry.md) for supported framing, usage and
+the optional Docker-backed interoperability check.
 Optional primitive-backed collections, input reuse and bulk block skipping remain
 separate experiments. A dedicated build-tool plugin and streaming/container APIs
 are future work; see [the architecture notes](docs/architecture.md).

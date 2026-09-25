@@ -41,6 +41,8 @@ jobs:
           apps: sbt
       - name: Build and Test
         run: sbt -v test
+      - name: Kafka and Schema Registry integration
+        run: bash scripts/test-schema-registry.sh
   publish:
     needs: test
     runs-on: ubuntu-latest

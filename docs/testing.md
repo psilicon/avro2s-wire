@@ -3,8 +3,9 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The source now declares **227 tests across 35 suites**, including 21 property
-tests, comparison-benchmark checks and focused runtime regressions.
+The ordinary correctness suite now declares **255 tests across 38 suites**,
+including 24 property tests, comparison-benchmark checks and focused runtime and
+registry regressions. The separate real-service registry project is opt-in locally.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
 
@@ -160,10 +161,11 @@ Checks compare the full resolved model, encode it using the reader schema, and
 reuse one resolution plan across concatenated records to detect incorrect
 skipping or record boundaries.
 
-The default campaign contains **40 required pairs plus 32 random pairs**, with
-four values per pair: **72 pairs and 288 values**. The required corpus applies
-20 local evolution rules directly and in either an array or map context. It is
-not an exhaustive rule-by-context cross-product. Rules cover all six numeric
+The default campaign contains **60 required pairs plus 32 random pairs**, with
+four values per pair: **92 pairs and 368 values**. The required corpus applies
+each of 20 local evolution rules in all three contexts: direct, array and map.
+Coverage assertions require exactly one mandatory case per rule/context cell.
+This finite matrix does not exhaust arbitrary schema compositions. Rules cover all six numeric
 promotions, string/bytes promotion, enum reorder/defaults, fixed aliases, union
 reorder/promotion and exact-branch selection, metadata-only changes, logical-time
 unions, named union aliases, recursive records and selected logical conversions.
@@ -188,6 +190,44 @@ all possible compatible schema pairs. The other three suite tests check generate
 pairs and shrinks, save/load/compile replay, and deliberately corrupt numeric
 branch identity to verify the oracle. A selected incompatible union branch must
 fail without poisoning subsequent valid reads through the cached plan.
+
+`EvolutionMatrixSuite` adds explicit old/new reader-writer directions for field
+additions, removals, defaults and aliases; all numeric promotions and forbidden
+demotions; enum/fixed names; and union branch selection and promotion ordering.
+`GeneratedEvolutionPropertiesSuite` compiles schema versions in separate class
+loaders so identical Avro fullnames can evolve without changing their identity.
+It checks native generated writers against generated evolved readers, including
+enum/fixed roots and three-version histories. A nullable field without a default
+is explicitly incompatible when missing from the writer.
+
+Whole-schema compatibility and the ability to decode one datum are distinct.
+Tests use Java's `SchemaCompatibility` for schema-level expectations and its
+datum reader for resolved values. Java's datum reader can accept structurally
+identical records with unrelated names even when its compatibility checker
+rejects the pair; Wire continues to require matching names or reader aliases.
+
+## Schema Registry and Kafka
+
+`schemaRegistry/test` uses Confluent's serializers and mock client to check exact
+framing and interoperability, named roots, subject strategies, normalization,
+registration versus lookup, bounded cache eviction, concurrent use, retries,
+tombstones, limits, malformed data, unsupported options and client ownership.
+The mock client is not used to establish real-server registration policy.
+
+Run real service checks with Docker, sbt and curl installed:
+
+```sh
+bash scripts/test-schema-registry.sh
+```
+
+This starts isolated Confluent 8.1.5 Kafka and Schema Registry containers, runs
+`registryIntegration/test`, then removes the test containers, network and volumes.
+The suite tests actual registration compatibility policies, references and
+Wire/Confluent interoperability; broker tests send messages and tombstones in both
+directions through Kafka producers and consumers. PR and release CI run this
+command after the ordinary tests. See [registry usage](schema-registry.md) for
+ports and configuration. The integration project is deliberately not part of
+the root `sbt test` aggregate.
 
 ## Wire-layout, malformed-input and state properties
 
@@ -240,10 +280,11 @@ classes, rather than claiming exhaustive wire fuzzing.
 | `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 64 | Binary wire bytes, malformed input, truncation, block boundaries, resource limits, ownership, skipping, logical-type precision and ranges. |
 | `compiler` | `CodeGeneratorSuite` (23), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 46 | Recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
-| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20) | 31 | Aliases, reordered/skipped fields, defaults, promotions, union selection, enums, fixed values, recursion, logical types and limits. |
+| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7) | 38 | Aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits. |
 | `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (2), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 34 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections and malformed records. |
 | `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5) | 19 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
-| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 21 | Generated model compilation, Java differential properties, schema evolution, wire mutations, budgets, state, shrinking and replay. |
+| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 24 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
+| `schema-registry` | `RegistrySuite` (18) | 18 | Confluent interoperability, framing, subjects, configuration, caches, failures, resource limits and lifecycle. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests

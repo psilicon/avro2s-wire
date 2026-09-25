@@ -121,6 +121,9 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
     val labels = cases.flatMap(_.labels).toSet
     if !sys.env.contains("AVRO2S_WIRE_EVOLUTION_REPLAY") then
       assertEquals(EvolutionCases.required -- EvolutionCases.mandatory.flatMap(_.labels).toSet, Set.empty[String])
+      val mandatoryCells = EvolutionCases.mandatory.flatMap(_.labels).filter(_.startsWith("cell:")).toSet
+      assertEquals(mandatoryCells, EvolutionCases.matrixCells, "Mandatory corpus must contain every rule/context cell exactly by label")
+      assertEquals(EvolutionCases.mandatory.size, EvolutionCases.matrixCells.size, "Mandatory rule/context corpus must have one case per cell")
       assertEquals(requiredBranches -- EvolutionCases.mandatory.flatMap(selectedBranches).toSet, Set.empty[String],
         "Mandatory evolution corpus must actually select every required writer union branch")
     val report = s"seed=$seed\npairs=${cases.size}\nvalues=${cases.map(_.values.size).sum}\nrandomPairs=$count\ndepth=$depth\n" +

@@ -20,3 +20,5 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Build and Test
         run: sbt -v test
+      - name: Kafka and Schema Registry integration
+        run: bash scripts/test-schema-registry.sh

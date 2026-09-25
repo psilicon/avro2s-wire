@@ -44,14 +44,15 @@ The PR workflow uses no publishing secrets. Set up the secrets before merging
 release-triggering changes. Use `[skip release]` on the merge/push commit to defer
 release preparation, then manually dispatch Pre-Release on `main` when ready.
 
-Only `avro2s-wire-runtime_3`, `avro2s-wire-compiler_3`, `avro2s-wire-java-backend_3`
-and `avro2s-wire-resolution_3` are published, under `io.psilicon`. Root, fixtures,
-benchmarks and property-test modules retain `publish / skip := true`.
+The published libraries are `avro2s-wire-runtime_3`, `avro2s-wire-compiler_3`,
+`avro2s-wire-java-backend_3`, `avro2s-wire-resolution_3` and
+`avro2s-wire-schema-registry_3`, under `io.psilicon`. Root, fixtures, benchmarks,
+registry integration and property-test modules retain `publish / skip := true`.
 
 Local checks that do not upload anything:
 
 ```sh
-sbt test 'runtime/makePom' 'compiler/makePom' 'javaBackend/makePom' 'resolution/makePom'
+sbt test 'runtime/makePom' 'compiler/makePom' 'javaBackend/makePom' 'resolution/makePom' 'schemaRegistry/makePom'
 ```
 
 The signing and upload steps require the repository secrets and Central service;

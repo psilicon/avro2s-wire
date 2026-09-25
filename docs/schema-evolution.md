@@ -98,6 +98,7 @@ collection/depth budgets; they may construct more output than those wire budgets
 allow. Default-plan construction rejects cyclic expansion and nesting beyond 256
 levels. Reader schemas should be controlled by the application.
 
-Object containers, compression, schema registry lookup/framing, and streaming input
-are not implemented here. The original Trade benchmark predates these additions;
+Object containers, compression and streaming input are not implemented here.
+[Schema registry lookup and framing](schema-registry.md) are provided by a separate
+optional module. The original Trade benchmark predates these additions;
 it does not measure evolved-schema reads or logical-type costs.

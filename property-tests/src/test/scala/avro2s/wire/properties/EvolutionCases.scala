@@ -26,8 +26,9 @@ object EvolutionCases:
     "union-times", "union-named-aliases", "recursive-record", "logical-date", "logical-fixed-alias"
   )
   val contexts: Vector[String] = Vector("direct", "array", "map")
+  val matrixCells: Set[String] = rules.flatMap(rule => contexts.map(context => s"cell:$rule:$context")).toSet
   val defaults: Vector[String] = Vector("primitive", "logical-date", "logical-decimal", "array", "map", "fixed", "record", "nullable")
-  val required: Set[String] = rules.map("rule:" + _).toSet ++ contexts.map("context:" + _) ++
+  val required: Set[String] = matrixCells ++ rules.map("rule:" + _).toSet ++ contexts.map("context:" + _) ++
     defaults.map("default:" + _) ++ Set("record-alias", "field-alias", "remove-field", "reorder-fields", "recursive-nonterminal")
 
   private final case class Payload(writer: Schema, reader: Schema, datum: Int => AnyRef)
@@ -179,11 +180,13 @@ object EvolutionCases:
     EvolutionCase(writer, reader, values, labels)
 
   lazy val mandatory: Vector[EvolutionCase] = rules.zipWithIndex.flatMap { (rule, index) =>
-    Vector.tabulate(2) { variant =>
-      val common = SchemaCases.randomCase(1, 4).apply(Gen.Parameters.default, Seed(700000L + index * 2 + variant)).get
-      build(s"m${index}v$variant", rule, if variant == 0 then "direct" else contexts(1 + index % 2), common, 4,
-        aliasRecord = variant == 1, aliasField = index % 2 == 0, drop = true, order = 1 + index % 2,
-        defaultKinds = Vector(defaults((index * 2 + variant) % defaults.size), defaults((index * 2 + variant + 3) % defaults.size)))
+    contexts.zipWithIndex.map { (context, contextIndex) =>
+      val cell = index * contexts.size + contextIndex
+      val common = SchemaCases.randomCase(1, 4).apply(Gen.Parameters.default, Seed(700000L + cell)).get
+      val base = build(s"m${index}c$contextIndex", rule, context, common, 4,
+        aliasRecord = contextIndex == 2, aliasField = index % 2 == 0, drop = true, order = 1 + (index + contextIndex) % 2,
+        defaultKinds = Vector(defaults((cell * 2) % defaults.size), defaults((cell * 2 + 3) % defaults.size)))
+      base.copy(labels = base.labels + s"cell:$rule:$context")
     }
   }
 
