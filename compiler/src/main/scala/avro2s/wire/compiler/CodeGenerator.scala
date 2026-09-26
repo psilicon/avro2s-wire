@@ -13,7 +13,7 @@ object CodeGenerator:
     definitions.map(generateDefinition(_, byName, config))
 
   private def generateDefinition(definition: Definition, definitions: Map[String, Definition], config: GeneratorConfig): GeneratedSource =
-    val emitter = Emitter(config)
+    val emitter = Emitter(config, definitions)
     val fullName = config.mappedFullName(definition.name)
     val parts = fullName.split("\\.").toVector
     val localName = ScalaNames.escaped(parts.last)
@@ -90,21 +90,16 @@ object CodeGenerator:
 
     // Generate the alternative separately so direct codec code, including fresh
     // local names and specialised collection hooks, stays byte-for-byte stable.
-    val safeEmitter = Emitter(config)
+    val safeEmitter = Emitter(config, definitions, Some(definition.name))
+    val selfReference = definition match
+      case Definition.Record(_, fields, _) => fields.exists(field => safeEmitter.refersToSelf(field.value))
+      case _ => false
     val (safeRead, safeWrite) = definition match
-      case Definition.Record(_, fields, _) =>
-        val constructor = s"new $qualifiedName(${fields.indices.map(i => s"field$i").mkString(", ")})"
-        val readFields = fields.zipWithIndex.foldRight(s"${safeEmitter.step}.delay { $constructor }") {
-          case ((field, index), rest) =>
-            safeEmitter.readStep(field.value) + s".flatMap { (field$index: ${safeEmitter.scalaType(field.value)}) =>\n" +
-              indent(rest, 2) + "\n}"
-        }
-        val writeFields = fields.foldRight(s"${safeEmitter.step}.done(())") { (field, rest) =>
-          safeEmitter.writeStep(field.value, s"value.${ScalaNames.escaped(field.scalaName)}") +
-            ".flatMap { _ =>\n" + indent(rest, 2) + "\n}"
-        }
-        (s"${safeEmitter.stackSafe}.readRecord(in) {\n" + indent(readFields, 2) + "\n}", writeFields)
+      case Definition.Record(_, fields, _) if fields.exists(field => !safeEmitter.isDirectLeaf(field.value)) =>
+        (safeEmitter.readFrame(qualifiedName, fields), safeEmitter.writeFrame(qualifiedName, fields))
       case _ =>
+        // A leaf record has no recursive child traversal. One suspended direct
+        // body keeps primitive fields unboxed and retains its try/finally hooks.
         (s"${safeEmitter.step}.delay {\n" + indent(read, 2) + "\n}",
           s"${safeEmitter.step}.delay {\n" + indent(write, 2) + "\n}")
 
@@ -113,7 +108,8 @@ object CodeGenerator:
     }.mkString("\n")
     val safeCompanion =
       s"\n  lazy val stackSafeCodec: _root_.avro2s.wire.runtime.codegen.StackSafeCodec[$qualifiedName] =\n" +
-      s"    new _root_.avro2s.wire.runtime.codegen.StackSafeCodec[$qualifiedName]:\n" +
+      s"    new _root_.avro2s.wire.runtime.codegen.StackSafeCodec[$qualifiedName]" +
+      (if selfReference then " { codecSelf =>\n" else ":\n") +
       s"      override val schemaJson: _root_.java.lang.String = $qualifiedName.schemaJson\n\n" +
       (if decimalRepresentation.isEmpty then "" else indent(decimalRepresentation.stripTrailing(), 2) + "\n\n") +
       (if rawLogicalTypes.isEmpty then "" else indent(rawLogicalTypes.stripTrailing(), 2) + "\n\n") +
@@ -124,7 +120,8 @@ object CodeGenerator:
       s"      override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" +
       indent(construct, 8) + "\n\n" +
       "      override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
-      "        fullName match {\n" + indent(safeReferences, 10) + "\n          case _ => super.namedCodec(fullName)\n        }\n"
+      "        fullName match {\n" + indent(safeReferences, 10) + "\n          case _ => super.namedCodec(fullName)\n        }\n" +
+      (if selfReference then "    }\n" else "")
     GeneratedSource(parts.mkString("/") + ".scala", header + model + companion + safeCompanion)
 
   private def reachableDefinitions(root: Definition, definitions: Map[String, Definition]): Vector[String] =
@@ -146,13 +143,179 @@ object CodeGenerator:
   private def indent(text: String, spaces: Int): String =
     text.linesIterator.map(" " * spaces + _).mkString("\n")
 
-  private final class Emitter(config: GeneratorConfig):
+  private final class Emitter(config: GeneratorConfig, definitions: Map[String, Definition], selfName: Option[String] = None):
     val step = "_root_.avro2s.wire.runtime.codegen.Step"
     val stackSafe = "_root_.avro2s.wire.runtime.codegen.StackSafe"
     private var sequence = 0
     private def fresh(prefix: String): String =
       sequence += 1
       s"${prefix}$sequence"
+
+    def refersToSelf(value: Value): Boolean = value match
+      case Value.Named(name) => selfName.contains(name)
+      case Value.ArrayOf(element) => refersToSelf(element)
+      case Value.MapOf(element) => refersToSelf(element)
+      case Value.Optional(element, _, _) => refersToSelf(element)
+      case Value.Union(branches) => branches.exists(refersToSelf)
+      case _ => false
+
+    // A writer frame otherwise needs no owning-codec capture, so only recursive
+    // reads use the self alias; writers retain the companion lookup.
+    private def readStepCodec(name: String): String =
+      if selfName.contains(name) then "codecSelf"
+      else s"${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec"
+
+    /** Scalar leaves never traverse a record or collection. Option and union
+      * dispatch can stay in the current state when every branch is scalar.
+      */
+    private def isScalarLeaf(value: Value): Boolean = value match
+      case Value.Named(name) => definitions(name) match
+        case Definition.Record(_, _, _) => false
+        case _ => true
+      case Value.ArrayOf(_) | Value.MapOf(_) => false
+      case Value.Optional(element, _, _) => isScalarLeaf(element)
+      case Value.Union(branches) => branches.forall(isScalarLeaf)
+      case _ => true
+
+    /** Batch scalar IO and one collection layer with scalar elements. Nested
+      * collections must return to the driver: direct collection writers nest
+      * foreach callbacks even when their schemas contain no named records.
+      */
+    def isDirectLeaf(value: Value): Boolean = value match
+      case Value.ArrayOf(element) => isScalarLeaf(element)
+      case Value.MapOf(element) => isScalarLeaf(element)
+      case Value.Optional(element, _, _) => isDirectLeaf(element)
+      case Value.Union(branches) => branches.forall(isDirectLeaf)
+      case _ => isScalarLeaf(value)
+
+    /** A frame is private to one operation. Typed slots avoid boxing primitive
+      * fields while the driver retains the same frame across child operations.
+      */
+    private final class States:
+      private val bodies = scala.collection.mutable.ArrayBuffer.empty[String]
+      def reserve(): Int =
+        val index = bodies.size
+        bodies += ""
+        index
+      def update(index: Int, body: String): Unit = bodies(index) = body
+      def add(body: String): Int =
+        val index = reserve()
+        update(index, body)
+        index
+      def dispatch: String =
+        val cases = bodies.zipWithIndex.map { (body, index) =>
+          s"case $index =>\n" + indent(body, 2)
+        }.mkString("\n")
+        "while true do {\n  phase match {\n" + indent(cases, 4) +
+          "\n    case _ => throw new _root_.java.lang.IllegalStateException(\"Invalid generated codec phase\")\n  }\n}\n" +
+          "throw new _root_.java.lang.IllegalStateException(\"Unreachable generated codec phase\")"
+
+    private def initialValue(value: Value): String = value match
+      case Value.Primitive(Schema.Type.BOOLEAN) => "false"
+      case Value.Primitive(Schema.Type.INT) => "0"
+      case Value.Primitive(Schema.Type.LONG) => "0L"
+      case Value.Primitive(Schema.Type.FLOAT) => "0.0f"
+      case Value.Primitive(Schema.Type.DOUBLE) => "0.0d"
+      case _ => s"null.asInstanceOf[${scalaType(value)}]"
+
+    def readFrame(qualifiedName: String, fields: Vector[SchemaModel.Field]): String =
+      val states = new States
+      def fieldsFrom(from: Int): Int =
+        val state = states.reserve()
+        var index = from
+        val prefix = Vector.newBuilder[String]
+        if from == 0 then prefix += "in.enterRecord()\nentered = true"
+        while index < fields.size && isDirectLeaf(fields(index).value) do
+          prefix += s"field$index = ${read(fields(index).value)}"
+          index += 1
+        if index == fields.size then
+          prefix += s"answer = new $qualifiedName(${fields.indices.map(i => s"field$i").mkString(", ")})\nreturn null"
+        else
+          val following = fieldsFrom(index + 1)
+          prefix += readFrameValue(fields(index).value, result => s"field$index = $result", following, states)
+        states.update(state, prefix.result().mkString("\n"))
+        state
+      fieldsFrom(0)
+      val slots = fields.zipWithIndex.map { (field, index) =>
+        s"private var field$index: ${scalaType(field.value)} = ${initialValue(field.value)}"
+      }.mkString("\n")
+      s"new $step.Frame[$qualifiedName] {\n" +
+        "  private var phase: _root_.scala.Int = 0\n  private var entered: _root_.scala.Boolean = false\n" +
+        s"  private var answer: $qualifiedName = null\n" + indent(slots, 2) + "\n\n" +
+        s"  override def advance(completed: _root_.scala.Any): $step[?] = {\n" + indent(states.dispatch, 4) + "\n  }\n\n" +
+        s"  override def result: $qualifiedName = answer\n\n" +
+        "  override def cleanup(): _root_.scala.Unit = {\n    if entered then {\n      entered = false\n      in.leaveRecord()\n    }\n  }\n}"
+
+    private def readFrameValue(value: Value, store: String => String, following: Int, states: States): String =
+      if isDirectLeaf(value) then store(read(value)) + s"\nphase = $following"
+      else value match
+        case Value.Optional(element, nullIndex, valueIndex) =>
+          "in.readIndex() match {\n" +
+            s"  case $nullIndex =>\n    in.readNull()\n" + indent(store("_root_.scala.None") + s"\nphase = $following", 4) + "\n" +
+            s"  case $valueIndex =>\n" + indent(readFrameValue(element, result => store(s"_root_.scala.Some($result)"), following, states), 4) +
+            "\n  case index => throw new _root_.avro2s.wire.runtime.AvroDecodingException(\"Invalid nullable union index: \" + index)\n}"
+        case Value.Union(branches) =>
+          val optional = branches.size > 1 && branches.exists(isNull)
+          val cases = branches.zipWithIndex.map { (branch, index) =>
+            val body =
+              if optional && isNull(branch) then "in.readNull()\n" + store("_root_.scala.None") + s"\nphase = $following"
+              else readFrameValue(branch, result => store(if optional then s"_root_.scala.Some($result)" else result), following, states)
+            s"case $index =>\n" + indent(body, 2)
+          }.mkString("\n")
+          "in.readIndex() match {\n" + indent(cases, 2) +
+            "\n  case index => throw new _root_.avro2s.wire.runtime.AvroDecodingException(\"Invalid union index: \" + index)\n}"
+        case _ =>
+          val resume = states.add(store(s"completed.asInstanceOf[${scalaType(value)}]") + s"\nphase = $following")
+          s"phase = $resume\nreturn ${readStep(value)}"
+
+    def writeFrame(qualifiedName: String, fields: Vector[SchemaModel.Field]): String =
+      val states = new States
+      def fieldsFrom(from: Int): Int =
+        val state = states.reserve()
+        var index = from
+        val prefix = Vector.newBuilder[String]
+        while index < fields.size && isDirectLeaf(fields(index).value) do
+          val field = fields(index)
+          prefix += write(field.value, s"value.${ScalaNames.escaped(field.scalaName)}")
+          index += 1
+        if index == fields.size then prefix += "return null"
+        else
+          val following = fieldsFrom(index + 1)
+          val field = fields(index)
+          prefix += writeFrameValue(field.value, s"value.${ScalaNames.escaped(field.scalaName)}", following)
+        states.update(state, prefix.result().mkString("\n"))
+        state
+      fieldsFrom(0)
+      s"new $step.Frame[_root_.scala.Unit] {\n  private var phase: _root_.scala.Int = 0\n\n" +
+        s"  override def advance(completed: _root_.scala.Any): $step[?] = {\n" + indent(states.dispatch, 4) + "\n  }\n\n" +
+        "  override def result: _root_.scala.Unit = ()\n}"
+
+    private def writeFrameValue(value: Value, expression: String, following: Int): String =
+      if isDirectLeaf(value) then write(value, expression) + s"\nphase = $following"
+      else value match
+        case Value.Optional(element, nullIndex, valueIndex) =>
+          s"if $expression.isEmpty then {\n  out.writeIndex($nullIndex)\n  out.writeNull()\n  phase = $following\n} else {\n  out.writeIndex($valueIndex)\n" +
+            indent(writeFrameValue(element, s"$expression.get", following), 2) + "\n}"
+        case Value.Union(branches) =>
+          val nullIndex = branches.indexWhere(isNull)
+          if branches.size == 1 then "out.writeIndex(0)\n" + writeFrameValue(branches.head, expression, following)
+          else if nullIndex >= 0 then
+            s"if $expression.isEmpty then {\n  out.writeIndex($nullIndex)\n  out.writeNull()\n  phase = $following\n} else {\n" +
+              indent(writeFrameUnion(branches.zipWithIndex.filterNot((branch, _) => isNull(branch)), s"$expression.get", following), 2) + "\n}"
+          else writeFrameUnion(branches.zipWithIndex, expression, following)
+        case _ => s"phase = $following\nreturn ${writeStep(value, expression)}"
+
+    private def writeFrameUnion(branches: Vector[(Value, Int)], expression: String, following: Int): String =
+      val cases = branches.map { (branch, index) =>
+        val binding = fresh("branch")
+        val (pattern, typed) = branch match
+          case Value.ArrayOf(_) => ("_root_.scala.collection.immutable.Vector[?]", s"$binding.asInstanceOf[${scalaType(branch)}]")
+          case Value.MapOf(_) => ("_root_.scala.collection.immutable.Map[?, ?]", s"$binding.asInstanceOf[${scalaType(branch)}]")
+          case _ => (scalaType(branch), binding)
+        s"case $binding: $pattern =>\n" + indent(s"out.writeIndex($index)\n" + writeFrameValue(branch, typed, following), 2)
+      }.mkString("\n")
+      s"($expression: _root_.scala.Any) match {\n" + indent(cases, 2) +
+        "\n  case _ => throw new _root_.java.lang.IllegalArgumentException(\"Value does not match any Avro union branch\")\n}"
 
     def scalaType(value: Value): String = value match
       case Value.Primitive(Schema.Type.NULL)    => "_root_.scala.Null"
@@ -260,13 +423,15 @@ object CodeGenerator:
         s"      while $remaining > 0L do {\n" + indent(entry, 8) + s"\n        $remaining -= 1L\n      }\n" +
         s"      $remaining = in.$next()\n    }\n    $builder.result()\n  }\n}"
 
-    /** Every named child joins the caller's trampoline, including children in
-      * unions and collections. Calling a child's public read/write here would
-      * start a nested runner and bring back JVM-stack recursion.
+    /** Every generated step method suspends before visiting fields or children,
+      * so named child steps can join the caller's driver without another defer.
+      * Calling a child's public read/write here would start a nested runner and
+      * bring back JVM-stack recursion.
       */
     def readStep(value: Value): String = value match
+      case leaf if isDirectLeaf(leaf) => s"$step.delay {\n" + indent(read(leaf), 2) + "\n}"
       case Value.Named(name) =>
-        s"$step.defer { ${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec.readStep(in) }"
+        s"${readStepCodec(name)}.readStep(in)"
       case Value.ArrayOf(element) =>
         s"$stackSafe.readArray[${scalaType(element)}](in) {\n" + indent(readStep(element), 2) + "\n}"
       case Value.MapOf(element) =>
@@ -290,15 +455,12 @@ object CodeGenerator:
       case _ => s"$step.delay { ${read(value)} }"
 
     def writeStep(value: Value, expression: String): String = value match
+      case leaf if isDirectLeaf(leaf) => s"$step.delay {\n" + indent(write(leaf, expression), 2) + "\n}"
       case Value.Named(name) =>
-        s"$step.defer { ${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec.writeStep($expression, out) }"
+        s"${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec.writeStep($expression, out)"
       case Value.Optional(element, nullIndex, valueIndex) =>
         s"$step.defer {\n  if $expression.isEmpty then {\n    out.writeIndex($nullIndex)\n    out.writeNull()\n    $step.done(())\n  } else {\n    out.writeIndex($valueIndex)\n" +
           indent(writeStep(element, s"$expression.get"), 4) + "\n  }\n}"
-      // Primitive whole-array output is iterative already and retains the
-      // native binary encoder's bulk-write optimisation.
-      case Value.ArrayOf(Value.Primitive(Schema.Type.INT | Schema.Type.LONG)) =>
-        s"$step.delay { ${write(value, expression)} }"
       case Value.ArrayOf(element) => writeCollectionStep(element, expression, isMap = false)
       case Value.MapOf(element) => writeCollectionStep(element, expression, isMap = true)
       case Value.Union(branches) =>

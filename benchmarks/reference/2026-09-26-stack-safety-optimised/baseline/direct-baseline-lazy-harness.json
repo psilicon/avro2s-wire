@@ -1,0 +1,22 @@
+{
+  "baseCommit": "419c58b51d93650788d1a784110ebccd6daca649",
+  "path": "benchmarks/src/main/scala/avro2s/wire/benchmarks/StackSafetyBenchmark.scala",
+  "previousSha256": "eff34bc8481c65cb4b4ed501407eeb51c3b2bbb675694337f4a19ae42a86c801",
+  "refinedSha256": "fd76458385781274b5020fa74551de273f395d56ea64df37e8b1cd2d1128290b",
+  "adaptations": [
+    {
+      "original": "safe: AvroCodec[A]",
+      "replacement": "safe: => AvroCodec[A]"
+    },
+    {
+      "original": "readerSafe: AvroCodec[B]",
+      "replacement": "readerSafe: => AvroCodec[B]"
+    }
+  ],
+  "notes": [
+    "Setup-only refinement matching the main benchmark harness: unused safe/readerSafe arguments are by-name.",
+    "Original baseline replacements all refer to the already-loaded direct codec; no stack-safe implementation exists at the baseline revision.",
+    "Fixture values, timed method bodies, output ownership and end-of-input contracts are unchanged.",
+    "Campaigns 20260926T150325.170477Z, 20260926T151229.376205Z and 20260926T151350.294945Z ran before this refinement. Their retained source snapshots contain the exact prior harness."
+  ]
+}

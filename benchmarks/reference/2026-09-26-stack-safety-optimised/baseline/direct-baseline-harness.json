@@ -1,0 +1,78 @@
+{
+  "baseCommit": "419c58b51d93650788d1a784110ebccd6daca649",
+  "sourceCheckout": "/Users/sam/AI/avro2s-wire",
+  "baselineCheckout": "/Users/sam/.codex/worktrees/direct-baseline/avro2s-wire",
+  "purpose": "Original direct implementation measured with the same stack-safety benchmark harness; library implementation is untouched.",
+  "files": [
+    {
+      "path": "fixtures/src/main/resources/avro/StackNode.avsc",
+      "originalSha256": "9d8a979bd7997fb7e39f08f1e126bb831e736b8e291787522aa3034ad27c25a5",
+      "adaptedSha256": "9d8a979bd7997fb7e39f08f1e126bb831e736b8e291787522aa3034ad27c25a5",
+      "adaptations": []
+    },
+    {
+      "path": "fixtures/src/main/resources/avro/StackNodeV2.avsc",
+      "originalSha256": "433264858448fb84f54d3dc2af33215328f7be816cae877b965b10bcf29c3105",
+      "adaptedSha256": "433264858448fb84f54d3dc2af33215328f7be816cae877b965b10bcf29c3105",
+      "adaptations": []
+    },
+    {
+      "path": "fixtures/src/main/resources/avro/StackHead.avsc",
+      "originalSha256": "8369527844571835abcbc47f0a74a570115656a4c1c11d4a3dfd636b3c17d0e0",
+      "adaptedSha256": "8369527844571835abcbc47f0a74a570115656a4c1c11d4a3dfd636b3c17d0e0",
+      "adaptations": []
+    },
+    {
+      "path": "fixtures/src/main/resources/avro/MutualLeft.avsc",
+      "originalSha256": "68768466aed31313d06c3fb77881ae7db2c2e8c5393c183258de796daeb5fa8c",
+      "adaptedSha256": "68768466aed31313d06c3fb77881ae7db2c2e8c5393c183258de796daeb5fa8c",
+      "adaptations": []
+    },
+    {
+      "path": "fixtures/src/main/resources/avro/RecursiveContainers.avsc",
+      "originalSha256": "6c322614db6dac2f403975f37d86b2110259461c2ce05c1f60d8fccd7f892604",
+      "adaptedSha256": "6c322614db6dac2f403975f37d86b2110259461c2ce05c1f60d8fccd7f892604",
+      "adaptations": []
+    },
+    {
+      "path": "benchmarks/src/main/scala/avro2s/wire/benchmarks/StackSafetyBenchmark.scala",
+      "originalSha256": "291bd4031024c70b29226a8fa9f99b15db975ba8bf6cfe81f8cde17194def45a",
+      "adaptedSha256": "eff34bc8481c65cb4b4ed501407eeb51c3b2bbb675694337f4a19ae42a86c801",
+      "adaptations": [
+        {
+          "original": ".stackSafeCodec",
+          "replacement": ".codec",
+          "occurrences": 4
+        },
+        {
+          "original": "@Param(Array(\"direct\", \"stack-safe\"))",
+          "replacement": "@Param(Array(\"direct\"))",
+          "occurrences": 1
+        },
+        {
+          "original": "val executions: Vector[String] = Vector(\"direct\", \"stack-safe\")",
+          "replacement": "val executions: Vector[String] = Vector(\"direct\")",
+          "occurrences": 1
+        }
+      ]
+    },
+    {
+      "path": "scripts/run-performance.py",
+      "originalSha256": "8dc8707d9cc10c1e8d40f80fb82c2d2fffaa8aab6b9ceab4da92c0906145eef2",
+      "adaptedSha256": "8dc8707d9cc10c1e8d40f80fb82c2d2fffaa8aab6b9ceab4da92c0906145eef2",
+      "adaptations": []
+    },
+    {
+      "path": "scripts/benchmark_report.py",
+      "originalSha256": "6d13944eafb695393e4da312630777ce83364163ab0f7998841aaa2a207cd87b",
+      "adaptedSha256": "6d13944eafb695393e4da312630777ce83364163ab0f7998841aaa2a207cd87b",
+      "adaptations": []
+    }
+  ],
+  "notes": [
+    "Only benchmark harness, runner/report tooling and additional fixture schemas copied.",
+    "New stack-safe codec references replaced by original direct codec references so the harness compiles on the pre-stack-safe baseline.",
+    "Execution choices restricted to direct; operations, fixture values and allocating API contracts unchanged.",
+    "Existing benchmarks/test correctness gate runs; each JMH trial also calls workload.verify."
+  ]
+}

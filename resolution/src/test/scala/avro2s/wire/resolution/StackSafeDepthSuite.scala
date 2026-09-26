@@ -115,6 +115,75 @@ final class StackSafeDepthSuite extends FunSuite:
     }
   }
 
+  test("batched scalar collections preserve blocks, union wrapping and field order around a child record") {
+    val childWriter = record("Child", """{"name":"value","type":"int"}""")
+    val childReader = record("Child", """{"name":"value","type":"long"}""")
+    def schema(child: String, number: String): String = record("Root", s"""
+      {"name":"numbers","type":{"type":"array","items":"$number"}},
+      {"name":"choice","type":["null",{"type":"array","items":"string"}]},
+      {"name":"child","type":$child},
+      {"name":"lookup","type":{"type":"map","values":"$number"}},
+      {"name":"last","type":"$number"}""")
+    val out = new BinaryOutput()
+    out.writeLong(2)
+    out.writeInt(1)
+    out.writeInt(2)
+    out.writeLong(1)
+    out.writeInt(3)
+    out.writeArrayEnd()
+    out.writeIndex(1)
+    out.writeArrayStart(1)
+    out.writeString("before child")
+    out.writeArrayEnd()
+    out.writeInt(4)
+    out.writeLong(1)
+    out.writeString("same")
+    out.writeInt(5)
+    out.writeLong(2)
+    out.writeString("same")
+    out.writeInt(6)
+    out.writeString("other")
+    out.writeInt(7)
+    out.writeMapEnd()
+    out.writeInt(8)
+    val reader = row(schema(childReader, "long"), Map("Child" -> row(childReader)))
+    assertEquals(ResolvingReader(schema(childWriter, "int"), reader).decode(out.toByteArray),
+      Vector[Any](Vector(1L, 2L, 3L), Some(Vector("before child")), Vector(4L),
+        Map("same" -> 6L, "other" -> 7L), 8L))
+  }
+
+  test("batched scalar failures still balance record entry and exit") {
+    val writer = record("Root", """{"name":"value","type":"int"},{"name":"flag","type":"boolean"}""")
+    val reader = record("Root", """{"name":"value","type":"long"},{"name":"flag","type":"boolean"}""")
+    val in = new BinaryInput(Array[Byte](2, 2))
+    intercept[AvroDecodingException](ResolvingReader(writer, row(reader)).read(in))
+    in.requireEnd()
+  }
+
+  test("record frames balance rejected child entry and failed model construction") {
+    val child = record("Child", "")
+    val writer = record("Root", s"""{"name":"child","type":$child}""")
+    val reader = record("Root", s"""{"name":"child","type":$child,"doc":"reader"}""")
+    val in = new BinaryInput(Array.emptyByteArray, DecodeLimits(maxNestingDepth = Some(1)))
+    intercept[AvroDecodingException] {
+      ResolvingReader(writer, row(reader, Map("Child" -> row(child)))).read(in)
+    }
+    in.requireEnd()
+
+    val failure = new IllegalStateException("constructor")
+    val throwing = new AvroCodec[Unit]:
+      override val schemaJson: String = reader
+      override val execution: CodecExecution = CodecExecution.StackSafe
+      override def read(in: AvroInput): Unit = throw new UnsupportedOperationException()
+      override def write(value: Unit, out: AvroOutput): Unit = throw new UnsupportedOperationException()
+      override def construct(values: Array[Any]): Unit = throw failure
+      override def namedCodec(name: String): AvroCodec[?] = row(child)
+    val constructing = new BinaryInput(Array.emptyByteArray)
+    val thrown = intercept[IllegalStateException](ResolvingReader(writer, throwing).read(constructing))
+    assert(thrown eq failure)
+    constructing.requireEnd()
+  }
+
   test("stack-safe default materialization constructs each nested record afresh") {
     val defaultDepth = 96
     val child = record("DefaultNode", """{"name":"next","type":["null","DefaultNode"]}""")

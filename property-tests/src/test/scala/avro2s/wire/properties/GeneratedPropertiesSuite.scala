@@ -2,6 +2,7 @@ package avro2s.wire.properties
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
+import java.util.concurrent.atomic.AtomicReference
 import org.apache.avro.Schema
 import org.apache.avro.generic.GenericData
 import org.scalacheck.{Gen, Prop, Test}
@@ -111,6 +112,51 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
         }
       finally compiled.close()
     }
+  }
+
+  test("collection-only schema nesting uses the stack-safe driver without named child records") {
+    val collectionCases = for
+      levels <- Vector(6, 48)
+      firstIsArray <- Vector(true, false)
+    yield
+      val (payloadSchema, payload) = (0 until levels).foldLeft((Schema.create(Schema.Type.INT), Int.box(10000).asInstanceOf[AnyRef])) {
+        case ((element, value), level) =>
+          if (level % 2 == 0) == firstIsArray then
+            Schema.createArray(element) -> java.util.Collections.singletonList(value).asInstanceOf[AnyRef]
+          else
+            Schema.createMap(element) -> java.util.Collections.singletonMap(s"key-$level", value).asInstanceOf[AnyRef]
+      }
+      val schema = Schema.createRecord(s"CollectionDepth${levels}_${if firstIsArray then "Array" else "Map"}", null,
+        "avro2s.wire.collectiondepth", false)
+      schema.setFields(List(new Schema.Field("value", payloadSchema, null, null.asInstanceOf[AnyRef])).asJava)
+      val datum = new GenericData.Record(schema)
+      datum.put("value", payload)
+      SchemaCase(schema, Vector(datum))
+    Files.createDirectories(target)
+    val compiled = CompiledCases.compile(collectionCases, Files.createTempDirectory(target, "collection-depth-"))
+    try collectionCases.zip(compiled.cases).foreach { (c, code) =>
+      check(c, code)
+      val codec = code.alternatives.head
+      val expected = JavaOracle.encode(c.schema, c.values.head)
+      val observed = new AtomicReference[(Array[Byte], Any)]()
+      val failure = new AtomicReference[Throwable]()
+      val operation = new Runnable:
+        override def run(): Unit =
+          try
+            val decoded = codec.decode(expected)
+            observed.set(codec.encode(decoded) -> decoded)
+          catch case error: Throwable => failure.set(error)
+      val thread = new Thread(null, operation, "wire-static-collection-depth", 256 * 1024L)
+      thread.setDaemon(true)
+      thread.start()
+      thread.join(60000L)
+      assert(!thread.isAlive, "Collection-only traversal did not finish within 60 seconds")
+      Option(failure.get()).foreach(error => throw error)
+      // The model's recursive equality is outside the codec's small-stack scope.
+      assertEquals(observed.get()._1.toVector, expected.toVector)
+      assert(JavaOracle.nativeEqual(observed.get()._2, code.values.head))
+    }
+    finally compiled.close()
   }
 
   test("ScalaCheck-generated cases and joint shrinks remain valid independent Avro datums") {

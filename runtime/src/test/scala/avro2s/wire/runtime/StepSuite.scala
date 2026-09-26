@@ -92,3 +92,65 @@ final class StepSuite extends munit.FunSuite:
     assertEquals(Step.run(program), 2)
     assertEquals(Step.run(program), 4)
   }
+
+  test("a failed map discards later transformations and unwinds enclosing cleanup once") {
+    var cleaned = 0
+    var later = 0
+    val failure = new IllegalArgumentException("mapping failed")
+    val program = Step.guarantee {
+      Step.delay(1).map[Int](_ => throw failure).map { value =>
+        later += 1
+        value + 1
+      }
+    } { cleaned += 1 }
+    assert(intercept[IllegalArgumentException](Step.run(program)) eq failure)
+    assertEquals(cleaned, 1)
+    assertEquals(later, 0)
+  }
+
+  test("per-call frames resume repeated children and remain stack safe at 100000 levels") {
+    var cleaned = 0
+    final class Frame(left: Int) extends Step.Frame[Int]:
+      private var state = 0
+      private var answer = 0
+      override def advance(completed: Any): Step[?] = state match
+        case 0 =>
+          state = 1
+          if left == 0 then Step.done(0) else new Frame(left - 1)
+        case 1 =>
+          answer = completed.asInstanceOf[Int] + 1
+          state = 2
+          Step.delay(answer)
+        case _ =>
+          answer = completed.asInstanceOf[Int]
+          null
+      override def result: Int = answer
+      override def cleanup(): Unit = cleaned += 1
+    onSmallStack {
+      val program = Step.defer(new Frame(100000))
+      assertEquals(Step.run(program), 100001)
+      assertEquals(cleaned, 100001)
+      assertEquals(Step.run(program), 100001)
+      assertEquals(cleaned, 200002)
+    }
+  }
+
+  test("frame failures during entry, resumption or result construction clean up once") {
+    for phase <- 0 to 2 do
+      val events = scala.collection.mutable.ArrayBuffer.empty[String]
+      val failure = new IllegalArgumentException(s"phase $phase")
+      val program = Step.guarantee {
+        new Step.Frame[Int]:
+          private var state = 0
+          override def advance(completed: Any): Step[?] =
+            if state == phase then throw failure
+            if state == 0 then
+              state = 1
+              Step.done(42)
+            else null
+          override def result: Int = throw failure
+          override def cleanup(): Unit = events += "frame"
+      } { events += "outer" }
+      assert(intercept[IllegalArgumentException](Step.run(program)) eq failure)
+      assertEquals(events.toVector, Vector("frame", "outer"))
+  }

@@ -1,5 +1,10 @@
 # Stack-safety comparison: 26 September 2026
 
+This records the **initial prototype**, before leaf batching and generated
+execution frames. Its raw measurements are retained as historical evidence;
+they do not describe the subsequently optimised implementation.
+See [the optimisation report](stack-safety-optimisation.md) for current results.
+
 The stack-safe implementation handles deep values but costs substantially more
 CPU time and allocation than the direct implementation in this experiment.
 Keep the direct codec as the default. Use the explicit alternative where deep

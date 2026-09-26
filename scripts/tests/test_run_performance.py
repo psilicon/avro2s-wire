@@ -75,6 +75,13 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual({(runner.PREFIX + "StackSafetyBenchmark.resolvedDecode",
                            (("execution", "stack-safe"), ("shape", "recursive")))}, args.runs[0]["expected"])
 
+    def test_stack_safety_accepts_optional_scaling_shapes_without_expanding_its_default_matrix(self):
+        args = self.args("stack-safety", "--param", "shape=recursive-256,recursive-containers")
+        self.assertEqual(12, len(args.runs[0]["expected"]))
+        self.assertEqual({"recursive-256", "recursive-containers"},
+                         {dict(parameters)["shape"] for _, parameters in args.runs[0]["expected"]})
+        self.assertEqual(18, len(self.args("stack-safety").runs[0]["expected"]))
+
     def test_big_decimal_cases_keep_negative_scales_and_distinct_mappings(self):
         cases = self.args().runs[0]["expected"]
         for method in ["nativeScalaMappingRead", "nativeJavaMappingRead", "avroJavaConversionRead",

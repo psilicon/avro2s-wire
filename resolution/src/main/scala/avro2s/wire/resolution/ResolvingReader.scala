@@ -27,8 +27,9 @@ final class ResolvingReader[A](val writerSchemaJson: String, val readerCodec: Av
     else
       val writer = SchemaModel.parse(writerSchemaJson)
       val reader = SchemaModel.parse(readerCodec.schemaJson)
-      val compiled = new ResolutionCompiler(reader, readerCodec).compile(writer, reader, "root")
-      readerCodec.execution match
+      val execution = readerCodec.execution
+      val compiled = new ResolutionCompiler(reader, readerCodec, execution).compile(writer, reader, "root")
+      execution match
         case CodecExecution.Direct => in => compiled.read(in).asInstanceOf[A]
         case CodecExecution.StackSafe => in => Step.run(compiled.readStep(in)).asInstanceOf[A]
 
@@ -47,19 +48,30 @@ object ResolvingReader:
     new ResolvingReader(writerSchemaJson, readerCodec)
 
 private[resolution] trait ReadPlan:
+  /** A parent must yield before invoking a structural child. */
+  def canSuspend: Boolean = false
+  /** Scalar operations contain no record or collection traversal. */
+  def isScalar: Boolean = true
   def read(in: AvroInput): Any
   def readStep(in: AvroInput): Step[Any] = Step.delay(read(in))
 
 private[resolution] trait DefaultPlan extends (() => Any):
+  def canSuspend: Boolean = false
+  def isScalar: Boolean = true
   def materialize: Step[Any] = Step.delay(apply())
 
-private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootCodec: AvroCodec[?]):
+private[resolution] final class ResolutionCompiler(
+    root: SchemaModel.Node, rootCodec: AvroCodec[?], execution: CodecExecution
+):
   import SchemaModel.*
 
   private final class Deferred extends ReadPlan:
     var target: ReadPlan = null
+    // A back edge encountered while compiling is always a suspension boundary.
+    override def canSuspend: Boolean = target == null || target.canSuspend
+    override def isScalar: Boolean = target != null && target.isScalar
     override def read(in: AvroInput): Any = target.read(in)
-    override def readStep(in: AvroInput): Step[Any] = Step.defer(target.readStep(in))
+    override def readStep(in: AvroInput): Step[Any] = target.readStep(in)
 
   private val pairs = mutable.HashMap.empty[(Node, Node), Deferred]
   private val skips = mutable.HashMap.empty[Node, Deferred]
@@ -69,23 +81,52 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
   private def action(f: AvroInput => Any): ReadPlan = new ReadPlan:
     override def read(in: AvroInput): Any = f(in)
 
-  private def structural(f: AvroInput => Any)(step: AvroInput => Step[Any]): ReadPlan = new ReadPlan:
-    override def read(in: AvroInput): Any = f(in)
-    override def readStep(in: AvroInput): Step[Any] = Step.defer(step(in))
+  private def structural(f: AvroInput => Any)(step: AvroInput => Step[Any]): ReadPlan =
+    structural(suspends = true, scalar = false)(f)(step)
 
-  private def defaultAction(f: () => Any)(step: => Step[Any]): DefaultPlan = new DefaultPlan:
+  private def structural(suspends: Boolean, scalar: Boolean)(f: AvroInput => Any)
+      (step: AvroInput => Step[Any]): ReadPlan =
+    // Keep direct plan dispatch and retained node shape on the original action
+    // implementation. Execution is selected only while compiling the plan.
+    if execution == CodecExecution.Direct then action(f)
+    else new ReadPlan:
+      override val canSuspend: Boolean = suspends
+      override val isScalar: Boolean = scalar
+      override def read(in: AvroInput): Any = f(in)
+      // Providers construct a suspended operation; they never traverse values
+      // here. Effectful dispatch, such as reading a union tag, suspends explicitly.
+      override def readStep(in: AvroInput): Step[Any] =
+        if suspends then step(in) else Step.delay(f(in))
+
+  private def defaultAction(suspends: Boolean = true, scalar: Boolean = false)(f: () => Any)
+      (step: => Step[Any]): DefaultPlan = new DefaultPlan:
+    override val canSuspend: Boolean = suspends
+    override val isScalar: Boolean = scalar
     override def apply(): Any = f()
-    override def materialize: Step[Any] = Step.defer(step)
+    override def materialize: Step[Any] =
+      if suspends then Step.defer(step) else Step.delay(f())
 
-  /** Each callback returns to the trampoline before advancing to the next slot. */
-  private def fill(count: Int)(value: Int => Step[Any])(store: (Int, Any) => Unit): Step[Unit] =
-    def loop(index: Int): Step[Unit] =
-      if index == count then Step.done(())
-      else value(index).flatMap { next =>
-        store(index, next)
-        Step.defer(loop(index + 1))
-      }
-    Step.defer(loop(0))
+  /** Batch scalar defaults; every structural child returns through the driver. */
+  private def fillDefaults(plans: IndexedSeq[DefaultPlan])(store: (Int, Any) => Unit)
+      (finish: => Any): Step[Any] = new Step.Frame[Any]:
+    private var index = 0
+    private var pendingSlot = -1
+    private var constructed: Any = null
+
+    override def advance(completed: Any): Step[?] =
+      if pendingSlot >= 0 then store(pendingSlot, completed)
+      pendingSlot = -1
+      while index < plans.size do
+        val slot = index
+        index += 1
+        if plans(slot).canSuspend then
+          pendingSlot = slot
+          return plans(slot).materialize
+        store(slot, plans(slot)())
+      constructed = finish
+      null
+
+    override def result: Any = constructed
 
   private def skipCollection(in: AvroInput, isMap: Boolean, element: ReadPlan, path: String): Step[Unit] =
     def block(count: Long): Step[Unit] =
@@ -169,14 +210,16 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
       val branches = writer.branches.zipWithIndex.map { (branch, index) =>
         compile(branch, reader, s"$path.writerUnion[$index]")
       }.toArray
-      structural { in =>
+      structural(branches.exists(_.canSuspend), branches.forall(_.isScalar)) { in =>
         val index = in.readIndex()
         if index < 0 || index >= branches.length then malformed(s"$path: invalid writer union index $index")
         branches(index).read(in)
       } { in =>
-        val index = in.readIndex()
-        if index < 0 || index >= branches.length then malformed(s"$path: invalid writer union index $index")
-        branches(index).readStep(in)
+        Step.defer {
+          val index = in.readIndex()
+          if index < 0 || index >= branches.length then malformed(s"$path: invalid writer union index $index")
+          branches(index).readStep(in)
+        }
       }
     else if reader.kind == "union" then
       // Preserve the exact writer branch where available. Java Avro uses this
@@ -188,7 +231,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         val branch = reader.branches(index)
         val inner = compile(writer, branch, s"$path.readerUnion[$index]")
         val wrap = unionWrapper(reader, branch)
-        structural(in => wrap(inner.read(in)))(in => inner.readStep(in).map(wrap))
+        structural(inner.canSuspend, inner.isScalar)(in => wrap(inner.read(in)))(in => inner.readStep(in).map(wrap))
     else if !matches(writer, reader) then mismatch(writer, reader, path)
     else reader.kind match
       case "record" => record(writer, reader, path)
@@ -212,7 +255,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         action(in => target.construct(Array[Any](convert(in.readFixed(writer.size)))))
       case "array" =>
         val element = compile(writer.element, reader.element, s"$path[]")
-        structural { in =>
+        structural(suspends = !element.isScalar, scalar = false) { in =>
           val result = Vector.newBuilder[Any]
           var count = in.readArrayStart()
           while count != 0 do
@@ -226,7 +269,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         }(in => StackSafe.readArray(in)(element.readStep(in)))
       case "map" =>
         val element = compile(writer.element, reader.element, s"$path{}")
-        structural { in =>
+        structural(suspends = !element.isScalar, scalar = false) { in =>
           val result = Map.newBuilder[String, Any]
           var count = in.readMapStart()
           while count != 0 do
@@ -263,8 +306,11 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
     val defaults = missing.map { (field, index) =>
       index -> defaultValue(field.schema, field.default.get, s"$path.${field.name}.default")
     }.toArray
+    val fieldSuspends = fields.map(_._2.canSuspend)
+    val defaultsInline = !defaults.exists(_._2.canSuspend)
+    val allInline = !fieldSuspends.contains(true) && defaultsInline
     val target = codec(reader)
-    structural { in =>
+    val direct: AvroInput => Any = in =>
       in.enterRecord()
       try
         val values = new Array[Any](reader.fields.size)
@@ -281,18 +327,49 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
           index += 1
         target.construct(values)
       finally in.leaveRecord()
-    } { in =>
-      StackSafe.readRecord(in) {
-        val values = new Array[Any](reader.fields.size)
-        fill(fields.length)(index => fields(index)._2.readStep(in)) { (index, value) =>
-          val slot = fields(index)._1
-          if slot >= 0 then values(slot) = value
-        }.flatMap { _ =>
-          fill(defaults.length)(index => defaults(index)._2.materialize) { (index, value) =>
-            values(defaults(index)._1) = value
-          }
-        }.map(_ => target.construct(values))
-      }
+    structural(direct) { in =>
+      // This record remains a suspension boundary to its parent. Only its own
+      // scalar fields and scalar-element collections run in a single operation.
+      if allInline then Step.delay(direct(in))
+      else new Step.Frame[Any]:
+        private val values = new Array[Any](reader.fields.size)
+        private var fieldIndex = 0
+        private var defaultIndex = 0
+        private var pendingSlot = -1
+        private var entered = false
+        private var constructed: Any = null
+
+        override def advance(completed: Any): Step[?] =
+          if !entered then
+            in.enterRecord()
+            entered = true
+          else if pendingSlot >= 0 then values(pendingSlot) = completed
+          pendingSlot = -1
+          while fieldIndex < fields.length do
+            val index = fieldIndex
+            fieldIndex += 1
+            val (slot, field) = fields(index)
+            if fieldSuspends(index) then
+              pendingSlot = slot
+              return field.readStep(in)
+            val value = field.read(in)
+            if slot >= 0 then values(slot) = value
+          while defaultIndex < defaults.length do
+            val (slot, value) = defaults(defaultIndex)
+            defaultIndex += 1
+            if value.canSuspend then
+              pendingSlot = slot
+              return value.materialize
+            values(slot) = value()
+          constructed = target.construct(values)
+          null
+
+        override def result: Any = constructed
+
+        override def cleanup(): Unit =
+          if entered then
+            entered = false
+            in.leaveRecord()
     }
 
   private def primitive(writer: String, reader: String): AvroInput => Any =
@@ -364,33 +441,56 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         deferred.target = schema.kind match
           case "record" =>
             val fields = schema.fields.map(field => skip(field.schema, s"$path.${field.name}")).toArray
-            structural { in =>
+            val suspends = fields.map(_.canSuspend)
+            val allInline = !suspends.contains(true)
+            val direct: AvroInput => Any = in =>
               in.enterRecord()
               try
                 fields.foreach(_.read(in))
                 ()
               finally in.leaveRecord()
-            } { in =>
-              StackSafe.readRecord(in) {
-                fill(fields.length)(index => fields(index).readStep(in))((_, _) => ())
-              }
+            structural(direct) { in =>
+              if allInline then Step.delay(direct(in))
+              else new Step.Frame[Unit]:
+                private var index = 0
+                private var entered = false
+
+                override def advance(completed: Any): Step[?] =
+                  if !entered then
+                    in.enterRecord()
+                    entered = true
+                  while index < fields.length do
+                    val slot = index
+                    index += 1
+                    if suspends(slot) then return fields(slot).readStep(in)
+                    fields(slot).read(in)
+                  null
+
+                override def result: Unit = ()
+
+                override def cleanup(): Unit =
+                  if entered then
+                    entered = false
+                    in.leaveRecord()
             }
           case "union" =>
             val branches = schema.branches.map(skip(_, path)).toArray
-            structural { in =>
+            structural(branches.exists(_.canSuspend), branches.forall(_.isScalar)) { in =>
               val index = in.readIndex()
               if index < 0 || index >= branches.length then malformed(s"$path: invalid skipped union index $index")
               branches(index).read(in)
               ()
             } { in =>
-              val index = in.readIndex()
-              if index < 0 || index >= branches.length then malformed(s"$path: invalid skipped union index $index")
-              branches(index).readStep(in).map(_ => ())
+              Step.defer {
+                val index = in.readIndex()
+                if index < 0 || index >= branches.length then malformed(s"$path: invalid skipped union index $index")
+                branches(index).readStep(in).map(_ => ())
+              }
             }
           case "array" | "map" =>
             val element = skip(schema.element, path)
             val isMap = schema.kind == "map"
-            structural { in =>
+            structural(suspends = !element.isScalar, scalar = false) { in =>
               var count = if isMap then in.readMapStart() else in.readArrayStart()
               while count != 0 do
                 if count < 0 then malformed(s"$path: negative skipped collection count")
@@ -443,7 +543,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         if value.size != schema.size then bad()
         val underlying = logicalConversion(schema)(value)
         val target = codec(schema)
-        return defaultAction(() => target.construct(Array[Any](underlying))) {
+        return defaultAction(suspends = false, scalar = true)(() => target.construct(Array[Any](underlying))) {
           Step.delay(target.construct(Array[Any](underlying)))
         }
       case "enum" =>
@@ -451,7 +551,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
         val ordinal = schema.symbols.indexOf(json.textValue())
         if ordinal < 0 then bad()
         val target = codec(schema)
-        return defaultAction(() => target.construct(Array[Any](ordinal))) {
+        return defaultAction(suspends = false, scalar = true)(() => target.construct(Array[Any](ordinal))) {
           Step.delay(target.construct(Array[Any](ordinal)))
         }
       case "record" =>
@@ -462,30 +562,30 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
           defaultValue(field.schema, value, s"$path.${field.name}")
         }.toArray
         val target = codec(schema)
-        return defaultAction(() => target.construct(fields.map(_()))) {
+        val plans = fields.toIndexedSeq
+        return defaultAction()(() => target.construct(fields.map(_()))) {
           val values = new Array[Any](fields.length)
-          fill(fields.length)(index => fields(index).materialize)((index, value) => values(index) = value)
-            .map(_ => target.construct(values))
+          fillDefaults(plans)((index, value) => values(index) = value)(target.construct(values))
         }
       case "array" =>
         if !json.isArray then bad()
         val values = json.elements().asScala.map(defaultValue(schema.element, _, s"$path[]")).toVector
-        return defaultAction(() => values.map(_())) {
+        return defaultAction(suspends = !values.forall(_.isScalar))(() => values.map(_())) {
           val result = Vector.newBuilder[Any]
-          fill(values.size)(index => values(index).materialize)((_, value) => { result += value; () })
-            .map(_ => result.result())
+          fillDefaults(values)((_, value) => { result += value; () })(result.result())
         }
       case "map" =>
         if !json.isObject then bad()
         val values = json.properties().iterator().asScala.map { entry =>
           entry.getKey -> defaultValue(schema.element, entry.getValue, s"$path.${entry.getKey}")
         }.toVector
-        return defaultAction(() => values.iterator.map { (key, value) => key -> value() }.toMap) {
+        val plans = values.map(_._2)
+        return defaultAction(suspends = !plans.forall(_.isScalar))(() => values.iterator.map { (key, value) => key -> value() }.toMap) {
           val result = Map.newBuilder[String, Any]
-          fill(values.size)(index => values(index)._2.materialize) { (index, value) =>
+          fillDefaults(plans) { (index, value) =>
             result += values(index)._1 -> value
             ()
-          }.map(_ => result.result())
+          }(result.result())
         }
       case "union" =>
         val iterator = schema.branches.iterator
@@ -496,7 +596,7 @@ private[resolution] final class ResolutionCompiler(root: SchemaModel.Node, rootC
           candidate match
             case Some(value) =>
               val wrap = unionWrapper(schema, branch)
-              return defaultAction(() => wrap(value()))(value.materialize.map(wrap))
+              return defaultAction(value.canSuspend, value.isScalar)(() => wrap(value()))(value.materialize.map(wrap))
             case None => ()
         bad()
       case _ => bad()

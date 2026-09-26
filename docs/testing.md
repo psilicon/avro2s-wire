@@ -3,8 +3,8 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The ordinary correctness suite now declares **335 tests across 48 suites**,
-including 24 property tests, comparison-benchmark checks and focused runtime and
+The ordinary correctness suite now declares **349 tests across 48 suites**,
+including 25 property tests, comparison-benchmark checks and focused runtime and
 registry regressions. The separate real-service registry project is opt-in locally.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
@@ -12,8 +12,9 @@ schema variety or conformance.
 Both direct and stack-safe codecs run through the generated matching-schema,
 evolution, logical-configuration and wire-property campaigns using identical
 input values. They must produce identical bytes and agree with independent Java
-Avro readers/writers. The stack-safety additions passed the full suite on JDK 21
-on 26 September 2026. The runnable [usage example](stack-safety.md) also passed,
+Avro readers/writers. The optimised stack-safe traversal passed the full suite on
+JDK 21 on 26 September 2026, including nested collections without child records
+and execution-frame cleanup on failure. The runnable [usage example](stack-safety.md) also passed,
 as did all eight real Kafka/Schema Registry integration tests (on the host's JDK 25).
 
 ## Run the correctness suite

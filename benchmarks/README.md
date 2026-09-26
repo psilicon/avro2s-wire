@@ -2,9 +2,11 @@
 
 Start here for commands, measurement policy and results.
 
-- [Stack-safety comparison: 26 September 2026](stack-safety-results.md) compares
-  direct and stack-safe codecs across 18 cases, including latency, allocation,
-  raw measurements and the limits of the comparison.
+- [Optimised stack-safe codecs: 26 September 2026](stack-safety-optimisation.md)
+  compares both modes across 30 cases, with an isolated original direct baseline,
+  allocation measurements and the intermediate experiments.
+- [Initial stack-safety prototype](stack-safety-results.md) preserves the earlier
+  18-case comparison; those measurements describe the unoptimised version.
 
 - [Selected reference results: 17 September 2026](reference/2026-09-17/README.md)
   contains 148 implementation comparisons, eight evolution measurements and 15
@@ -84,10 +86,24 @@ end-of-input check. `resolvedDecode` uses a cached resolution plan: shallow and
 collection schemas differ in metadata to exercise plan execution, and the recursive
 case also reorders fields, promotes an integer and supplies a reader default.
 Codec selection, fixture creation and plan compilation are outside timing. The
-report retains the execution parameter and separates these three operations;
+unused stack-safe codec is passed lazily, so direct-only trials do not initialize
+an additional codec implementation that production direct-only use would leave
+unloaded. This is a setup refinement; datum values and timed operations are unchanged.
+The report retains the execution parameter and separates these three operations;
 latency is in ns/op and allocation in B/op. Deep small-stack correctness tests
 are separate from this performance experiment, so the direct mode is measured
 on inputs both implementations support.
+
+Two additional shapes are available for explicit scaling checks:
+`recursive-256` extends the linked-record workload to 256 records, and
+`recursive-containers` follows 64 records through alternating record, array and
+map union branches. The latter uses metadata-different schemas for planned
+resolution. These shapes are covered by correctness tests but do not expand the
+default 18-case matrix:
+
+```sh
+python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile stack-safety --param shape=recursive-256,recursive-containers
+```
 
 ## Reports
 
