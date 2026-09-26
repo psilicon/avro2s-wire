@@ -8,11 +8,15 @@ import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.io.DecoderFactory
 
 /** Table-driven coverage of writer/reader schema evolution across both directions. */
-final class EvolutionMatrixSuite extends FunSuite:
+final class EvolutionMatrixSuite extends EvolutionMatrixChecks(CodecExecution.Direct)
+final class StackSafeEvolutionMatrixSuite extends EvolutionMatrixChecks(CodecExecution.StackSafe)
+
+abstract class EvolutionMatrixChecks(executionMode: CodecExecution) extends FunSuite:
   private def record(fields: String, name: String = "R", extra: String = ""): String =
     s"""{"type":"record","name":"$name","fields":[$fields]$extra}"""
 
   private def codec[A](json: String)(make: Array[Any] => A): AvroCodec[A] = new AvroCodec[A]:
+    override def execution: CodecExecution = executionMode
     override val schemaJson: String = json
     override def read(in: AvroInput): A = throw new UnsupportedOperationException("Read-only matrix codec")
     override def write(value: A, out: AvroOutput): Unit = throw new UnsupportedOperationException("Read-only matrix codec")

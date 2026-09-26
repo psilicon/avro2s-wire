@@ -1,0 +1,1 @@
+{"type":"record","name":"MutualLeft","namespace":"avro2s.wire.fixtures.stacks","fields":[{"name":"next","type":["null",{"type":"record","name":"MutualRight","fields":[{"name":"next","type":["null","MutualLeft"],"default":null},{"name":"value","type":"int"}]}],"default":null},{"name":"value","type":"int"}]}

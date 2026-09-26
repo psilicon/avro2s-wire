@@ -74,21 +74,22 @@ class UnionInteropSuite extends munit.FunSuite:
 
   private def check(value: UnionValues): Unit =
     val expected = generic(value)
-    val nativeBytes = UnionValues.codec.encode(value)
-    assertEquals(UnionValues.codec.decode(nativeBytes), value)
-    assertEquals(UnionValues.codec.decode(javaEncode(expected)), value)
-    val decoder = DecoderFactory.get().binaryDecoder(nativeBytes, null)
-    val actual = new GenericDatumReader[GenericRecord](schema).read(null, decoder)
-    // Keep exact numeric classes: Scala universal equality considers some
-    // differently boxed numbers equal. Map iteration order is not significant.
-    assertEquals(normalise(actual), normalise(expected))
-    assert(decoder.isEnd)
-    val output = new ByteArrayOutputStream()
-    val encoder = EncoderFactory.get().binaryEncoder(output, null)
-    UnionValues.codec.write(value, new JavaAvroOutput(encoder))
-    encoder.flush()
-    assertEquals(UnionValues.codec.decode(output.toByteArray), value)
-    assertEquals(UnionValues.codec.read(new JavaAvroInput(DecoderFactory.get().binaryDecoder(nativeBytes, null))), value)
+    for codec <- Vector(UnionValues.codec, UnionValues.stackSafeCodec) do
+      val nativeBytes = codec.encode(value)
+      assertEquals(codec.decode(nativeBytes), value)
+      assertEquals(codec.decode(javaEncode(expected)), value)
+      val decoder = DecoderFactory.get().binaryDecoder(nativeBytes, null)
+      val actual = new GenericDatumReader[GenericRecord](schema).read(null, decoder)
+      // Keep exact numeric classes: Scala universal equality considers some
+      // differently boxed numbers equal. Map iteration order is not significant.
+      assertEquals(normalise(actual), normalise(expected))
+      assert(decoder.isEnd)
+      val output = new ByteArrayOutputStream()
+      val encoder = EncoderFactory.get().binaryEncoder(output, null)
+      codec.write(value, new JavaAvroOutput(encoder))
+      encoder.flush()
+      assertEquals(codec.decode(output.toByteArray), value)
+      assertEquals(codec.read(new JavaAvroInput(DecoderFactory.get().binaryDecoder(nativeBytes, null))), value)
 
   test("every primitive and nominal union branch interoperates with Java Avro") {
     val values = Vector(

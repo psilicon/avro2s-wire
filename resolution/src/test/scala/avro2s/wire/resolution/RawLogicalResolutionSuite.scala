@@ -4,10 +4,14 @@ import avro2s.wire.runtime.*
 import java.time.{LocalDate, LocalTime}
 import munit.FunSuite
 
-final class RawLogicalResolutionSuite extends FunSuite:
+final class RawLogicalResolutionSuite extends RawLogicalResolutionChecks(CodecExecution.Direct)
+final class StackSafeRawLogicalResolutionSuite extends RawLogicalResolutionChecks(CodecExecution.StackSafe)
+
+abstract class RawLogicalResolutionChecks(executionMode: CodecExecution) extends FunSuite:
   private def codec[A](json: String, raw: Set[String] = Set.empty,
       named: Map[String, AvroCodec[?]] = Map.empty)(build: Array[Any] => A): AvroCodec[A] =
     new AvroCodec[A]:
+      override def execution: CodecExecution = executionMode
       override def schemaJson: String = json
       override def rawLogicalTypes: Set[String] = raw
       override def read(in: AvroInput): A = throw new UnsupportedOperationException("Resolution must construct the reader model")

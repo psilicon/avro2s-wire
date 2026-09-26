@@ -1,7 +1,7 @@
 package avro2s.wire.properties
 
 import avro2s.wire.compiler.{CodeGenerator, DecimalType, GeneratorConfig, LogicalTypeMode}
-import avro2s.wire.runtime.AvroCodec
+import avro2s.wire.runtime.{AvroCodec, CodecExecution}
 import java.net.URLClassLoader
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
@@ -9,7 +9,9 @@ import org.apache.avro.Schema
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 
-final case class CompiledCase(codec: AvroCodec[Any], values: Vector[Any])
+final case class CompiledCase(codec: AvroCodec[Any], values: Vector[Any], alternatives: Vector[AvroCodec[Any]] = Vector.empty):
+  def codecs: Vector[AvroCodec[Any]] = codec +: alternatives
+  def variants: Vector[CompiledCase] = codecs.map(selected => copy(codec = selected, alternatives = Vector.empty))
 
 final class CompiledCases private (val cases: Vector[CompiledCase], loader: URLClassLoader) extends AutoCloseable:
   override def close(): Unit = loader.close()
@@ -60,6 +62,7 @@ object CompiledCases:
       // Default-package probes can reference models whose namespace was stripped.
       files(s"probes/Probe$index.scala") = s"""object Avro2sWirePropertyProbe$index:
   def codec: _root_.avro2s.wire.runtime.AvroCodec[Any] = ${NativeValues.namedType(c.schema, options)}.codec.asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]
+  def stackSafeCodec: _root_.avro2s.wire.runtime.AvroCodec[Any] = ${NativeValues.namedType(c.schema, options)}.stackSafeCodec.asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]
 $valueMethods
 $checks
   def values: Vector[Any] = Vector(${expressions.indices.map(i => s"value$i").mkString(", ")})
@@ -80,8 +83,11 @@ $checks
       val compiled = cases.indices.map { index =>
         val clazz = loader.loadClass(s"Avro2sWirePropertyProbe$index$$")
         val module = clazz.getField("MODULE$").get(null)
-        CompiledCase(clazz.getMethod("codec").invoke(module).asInstanceOf[AvroCodec[Any]],
-          clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]])
+        val direct = clazz.getMethod("codec").invoke(module).asInstanceOf[AvroCodec[Any]]
+        val stackSafe = clazz.getMethod("stackSafeCodec").invoke(module).asInstanceOf[AvroCodec[Any]]
+        require(direct.execution == CodecExecution.Direct, "The implicit generated codec must remain direct")
+        require(stackSafe.execution == CodecExecution.StackSafe, "The alternative codec must select stack-safe resolution")
+        CompiledCase(direct, clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]], Vector(stackSafe))
       }.toVector
       new CompiledCases(compiled, loader)
     catch

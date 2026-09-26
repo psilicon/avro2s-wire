@@ -20,9 +20,16 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
   private def compile(c: SchemaCase, name: String): CompiledCases =
     CompiledCases.compile(Vector(c), Files.createTempDirectory(target, s"$name-"))
 
+  private def rejects(writer: Schema, reader: CompiledCase, bytes: Array[Byte]): Unit =
+    reader.codecs.foreach { codec =>
+      intercept[SchemaResolutionException](new ResolvingReader(writer.toString, codec).decode(bytes))
+    }
+
   private def direction(writer: SchemaCase, reader: SchemaCase, writerCode: CompiledCase, label: String): Unit =
     val bytesAndResolved = writer.values.indices.map { index =>
       val bytes = writerCode.codec.encode(writerCode.values(index))
+      writerCode.alternatives.foreach(codec =>
+        assertEquals(codec.encode(writerCode.values(index)).toVector, bytes.toVector, s"$label writer execution changed bytes"))
       bytes -> EvolutionOracle.resolve(writer.schema, reader.schema, bytes)
     }.toVector
     val expectedReader = SchemaCase(reader.schema, bytesAndResolved.map(_._2))
@@ -31,11 +38,13 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
       bytesAndResolved.zip(writer.values).zipWithIndex.foreach { case (((bytes, javaResolved), writerValue), index) =>
         val javaWriter = JavaOracle.decode(writer.schema, bytes)
         assertEquals(JavaOracle.normalized(writer.schema, javaWriter), JavaOracle.normalized(writer.schema, writerValue), s"$label native writer output")
-        val nativeResolved = new ResolvingReader(writer.schema.toString, resolvedCode.cases.head.codec).decode(bytes)
-        assert(JavaOracle.nativeEqual(nativeResolved, resolvedCode.cases.head.values(index)), s"$label generated reader model: $nativeResolved != ${resolvedCode.cases.head.values(index)}")
-        val nativeReaderWire = resolvedCode.cases.head.codec.encode(nativeResolved)
-        val javaReader = JavaOracle.decode(reader.schema, nativeReaderWire)
-        assertEquals(JavaOracle.normalized(reader.schema, javaReader), JavaOracle.normalized(reader.schema, javaResolved), s"$label Java resolution oracle")
+        resolvedCode.cases.head.codecs.foreach { codec =>
+          val nativeResolved = new ResolvingReader(writer.schema.toString, codec).decode(bytes)
+          assert(JavaOracle.nativeEqual(nativeResolved, resolvedCode.cases.head.values(index)), s"$label generated reader model: $nativeResolved != ${resolvedCode.cases.head.values(index)}")
+          val nativeReaderWire = codec.encode(nativeResolved)
+          val javaReader = JavaOracle.decode(reader.schema, nativeReaderWire)
+          assertEquals(JavaOracle.normalized(reader.schema, javaReader), JavaOracle.normalized(reader.schema, javaResolved), s"$label Java resolution oracle")
+        }
       }
     finally resolvedCode.close()
 
@@ -73,7 +82,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
     try
       val bytes = newCode.cases.head.codec.encode(newCode.cases.head.values.head)
       intercept[org.apache.avro.AvroTypeException](EvolutionOracle.resolve(newBranches, oldBranches, bytes))
-      intercept[SchemaResolutionException](new ResolvingReader(newBranches.toString, oldCode.cases.head.codec).decode(bytes))
+      rejects(newBranches, oldCode.cases.head, bytes)
     finally
       newCode.close()
       oldCode.close()
@@ -101,7 +110,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
       // The renamed writer fullname has no alias on the old reader, so reverse resolution is not legal.
       val reverseBytes = newEnumCompiled.cases.head.codec.encode(newEnumCompiled.cases.head.values.head)
       intercept[org.apache.avro.AvroTypeException](EvolutionOracle.resolve(newEnum, oldEnum, reverseBytes))
-      intercept[SchemaResolutionException](new ResolvingReader(newEnum.toString, oldEnumCompiled.cases.head.codec).decode(reverseBytes))
+      rejects(newEnum, oldEnumCompiled.cases.head, reverseBytes)
     finally
       newEnumCompiled.close()
       oldEnumCompiled.close()
@@ -123,7 +132,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
     try
       val bytes = newAliasWriter.cases.head.codec.encode(newAliasWriter.cases.head.values.head)
       intercept[org.apache.avro.AvroTypeException](EvolutionOracle.resolve(newFixed, oldFixed, bytes))
-      intercept[SchemaResolutionException](new ResolvingReader(newFixed.toString, oldAliasReader.cases.head.codec).decode(bytes))
+      rejects(newFixed, oldAliasReader.cases.head, bytes)
     finally
       newAliasWriter.close()
       oldAliasReader.close()
@@ -137,7 +146,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
     try
       val bytes = fourCompiled.cases.head.codec.encode(fourCompiled.cases.head.values.head)
       intercept[org.apache.avro.AvroTypeException](EvolutionOracle.resolve(fixedFour, fixedEight, bytes))
-      intercept[SchemaResolutionException](new ResolvingReader(fixedFour.toString, eightCompiled.cases.head.codec).decode(bytes))
+      rejects(fixedFour, eightCompiled.cases.head, bytes)
     finally
       eightCompiled.close()
       fourCompiled.close()
@@ -155,7 +164,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
     try
       val bytes = oldCompiled.cases.head.codec.encode(oldCompiled.cases.head.values.head)
       intercept[org.apache.avro.AvroTypeException](EvolutionOracle.resolve(v1, v2, bytes))
-      intercept[SchemaResolutionException](new ResolvingReader(v1.toString, newCompiled.cases.head.codec).decode(bytes))
+      rejects(v1, newCompiled.cases.head, bytes)
     finally
       newCompiled.close()
       oldCompiled.close()
@@ -179,7 +188,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
         SchemaCompatibility.SchemaCompatibilityType.INCOMPATIBLE,
         "V3 does not directly accept the V1 fullname alias"
       )
-      intercept[SchemaResolutionException](new ResolvingReader(first.schema.toString, thirdCode.cases.head.codec).decode(firstBytes))
+      rejects(first.schema, thirdCode.cases.head, firstBytes)
     finally
       thirdCode.close()
       secondCode.close()

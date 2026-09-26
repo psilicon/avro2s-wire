@@ -18,6 +18,11 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(content.contains("out.writeLong(value.value)"))
     assert(content.contains("in.enterRecord()"))
     assert(content.contains("finally in.leaveRecord()"))
+    assert(content.contains("lazy val stackSafeCodec:"))
+    assert(!content.contains("given stackSafeCodec"))
+    assert(content.contains("_root_.example.Node.stackSafeCodec.readStep(in)"))
+    assert(content.contains("_root_.example.Node.stackSafeCodec.writeStep("))
+    assert(content.contains("case \"example.Node\" => _root_.example.Node.stackSafeCodec"))
     assert(!content.contains("org.apache.avro"))
     assert(!content.contains("GenericRecord"))
     assertEquals(generate(json), sources)
@@ -45,10 +50,37 @@ class CodeGeneratorSuite extends munit.FunSuite:
     ]}""").head.content
     assert(source.contains("out.writeIntArray(value.ints)"))
     assert(source.contains("out.writeLongArray(value.longs)"))
-    assertEquals("out.writeIntArray\\(".r.findAllIn(source).size, 2)
-    assertEquals("out.writeLongArray\\(".r.findAllIn(source).size, 2)
+    // Both paths retain the physical primitive-array hooks.
+    assertEquals("out.writeIntArray\\(".r.findAllIn(source).size, 4)
+    assertEquals("out.writeLongArray\\(".r.findAllIn(source).size, 4)
     assert(source.contains("LogicalValues.writeDate("))
     assert(source.contains("out.writeFloat("))
+  }
+
+  test("stack-safe children in arrays maps and unions share deferred execution") {
+    val sources = generate("""{"type":"record","name":"Tree","namespace":"example","fields":[
+      {"name":"children","type":{"type":"array","items":"Tree"}},
+      {"name":"named","type":{"type":"map","values":"Tree"}},
+      {"name":"choice","type":["string","Tree"]}
+    ]}""")
+    val source = sources.head.content
+    val safe = source.substring(source.indexOf("\n  lazy val stackSafeCodec:"))
+    assert(safe.contains("StackSafe.readArray[_root_.example.Tree](in)"))
+    assert(safe.contains("StackSafe.readMap[_root_.example.Tree](in)"))
+    assert(safe.contains("StackSafe.writeArray[_root_.example.Tree](out, value.children)"))
+    assert(safe.contains("StackSafe.writeMap[_root_.example.Tree](out, value.named)"))
+    assert(safe.contains("Step.defer { _root_.example.Tree.stackSafeCodec.readStep(in) }"))
+    assert(!safe.contains(".codec.read("))
+    assert(!safe.contains(".codec.write("))
+    assert(!safe.contains(".stackSafeCodec.read("))
+    assert(!safe.contains(".stackSafeCodec.write("))
+  }
+
+  test("stack-safe collection unions retain their exact declared result type") {
+    val source = generate("""{"type":"record","name":"Choice","fields":[{"name":"value","type":[
+      {"type":"array","items":"int"}, {"type":"map","values":"string"}
+    ]}]}""").head.content
+    assert(source.contains("Step.defer[_root_.scala.collection.immutable.Vector[_root_.scala.Int] | _root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.java.lang.String]]"))
   }
 
   test("nested named schemas are emitted once in stable path order") {
@@ -170,6 +202,14 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(source.contains("case `type`"))
     assert(source.contains("case 0 => E.avro_symbol_codec_"))
     assert(source.contains("case 6 => E.avro_symbol_codec"))
+  }
+
+  test("the additional codec name is reserved for enum symbols") {
+    val source = generate("""{"type":"enum","name":"E","symbols":["stackSafeCodec","avro_symbol_stackSafeCodec"]}""").head.content
+    assert(source.contains("case avro_symbol_stackSafeCodec_"))
+    assert(source.contains("case 0 => E.avro_symbol_stackSafeCodec_"))
+    assert(source.contains("case 1 => E.avro_symbol_stackSafeCodec"))
+    assert(source.contains("lazy val stackSafeCodec:"))
   }
 
   test("unsafe Scala wildcard identifiers are rejected explicitly") {

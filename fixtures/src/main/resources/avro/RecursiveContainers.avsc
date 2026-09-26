@@ -1,0 +1,1 @@
+{"type":"record","name":"RecursiveContainers","namespace":"avro2s.wire.fixtures.stacks","fields":[{"name":"child","type":["null","RecursiveContainers",{"type":"array","items":"RecursiveContainers"},{"type":"map","values":"RecursiveContainers"}],"default":null},{"name":"value","type":"int"}]}

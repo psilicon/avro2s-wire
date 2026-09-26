@@ -40,7 +40,8 @@ class RunnerTests(unittest.TestCase):
 
     def test_profile_coverage_and_full_union(self):
         expected_counts = {"pilot": 68, "focused": 45, "api": 14, "trade": 36, "evolution": 8,
-                           "comparison": 148, "decoded-strings": 15, "strings": 136, "big-decimal": 54, "full": 239}
+                           "comparison": 148, "decoded-strings": 15, "strings": 136, "big-decimal": 54,
+                           "stack-safety": 18, "full": 239}
         cases = {}
         for profile, count in expected_counts.items():
             with self.subTest(profile=profile):
@@ -50,6 +51,29 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(count, sum(len(run["expected"]) for run in runs))
         self.assertEqual(cases["full"], set().union(*(cases[name] for name in
                          ["comparison", "evolution", "decoded-strings", "big-decimal", "api"])))
+        self.assertFalse(cases["full"] & cases["stack-safety"])
+
+    def test_stack_safety_profile_selects_both_executions_for_every_shape_and_operation(self):
+        runs = self.args("stack-safety").runs
+        self.assertEqual(["StackSafety"], [run["name"] for run in runs])
+        expected = {(runner.PREFIX + "StackSafetyBenchmark." + method,
+                     (("execution", execution), ("shape", shape)))
+                    for method in ["encode", "decode", "resolvedDecode"]
+                    for execution in ["direct", "stack-safe"]
+                    for shape in ["shallow", "collections", "recursive"]}
+        self.assertEqual(expected, runs[0]["expected"])
+        tokens = shlex.split(runs[0]["command"][-1])
+        self.assertIn("execution=direct,stack-safe", tokens)
+        self.assertIn("shape=shallow,collections,recursive", tokens)
+        self.assertEqual("avgt", tokens[tokens.index("-bm") + 1])
+        self.assertEqual("ns", tokens[tokens.index("-tu") + 1])
+        self.assertEqual("gc", tokens[tokens.index("-prof") + 1])
+
+    def test_stack_safety_can_narrow_one_operation_and_shape_without_running_other_profiles(self):
+        args = self.args("stack-safety", "--filter", "[.]resolvedDecode$",
+                         "--param", "shape=recursive", "--param", "execution=stack-safe")
+        self.assertEqual({(runner.PREFIX + "StackSafetyBenchmark.resolvedDecode",
+                           (("execution", "stack-safe"), ("shape", "recursive")))}, args.runs[0]["expected"])
 
     def test_big_decimal_cases_keep_negative_scales_and_distinct_mappings(self):
         cases = self.args().runs[0]["expected"]

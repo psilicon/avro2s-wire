@@ -82,9 +82,9 @@ class InteropSuite extends munit.FunSuite:
     case other => other
 
   test("native writer interoperates with independent Java GenericDatumReader") {
-    for i <- 0 until 50 do
+    for codec <- Vector(Envelope.codec, Envelope.stackSafeCodec); i <- 0 until 50 do
       val value = sample(i)
-      val encoded = Envelope.codec.encode(value)
+      val encoded = codec.encode(value)
       val decoder = DecoderFactory.get().binaryDecoder(encoded, null)
       val actual = new GenericDatumReader[GenericRecord](schema).read(null, decoder)
       assertEquals(normalise(actual), normalise(generic(value)))
@@ -92,9 +92,9 @@ class InteropSuite extends munit.FunSuite:
   }
 
   test("native reader interoperates with independent Java GenericDatumWriter") {
-    for i <- 0 until 50 do
+    for codec <- Vector(Envelope.codec, Envelope.stackSafeCodec); i <- 0 until 50 do
       val expected = sample(i)
-      assertEquals(Envelope.codec.decode(javaEncode(generic(expected))), expected)
+      assertEquals(codec.decode(javaEncode(generic(expected))), expected)
   }
 
   test("same generated codec runs on Java binary primitives") {

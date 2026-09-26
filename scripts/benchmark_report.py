@@ -106,6 +106,11 @@ def _params(row, context):
 
 
 def _operation(benchmark_class, method):
+    if benchmark_class.rsplit(".", 1)[-1] == "StackSafetyBenchmark":
+        special = {"encode": ("Encode", "native"), "decode": ("Decode", "native"),
+                   "resolvedDecode": ("Resolution", "native")}
+        if method in special:
+            return special[method]
     if benchmark_class.rsplit(".", 1)[-1] == "EvolutionBenchmark":
         special = {
             "nativeResolved": ("Resolution", "native"),

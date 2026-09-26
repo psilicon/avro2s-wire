@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "Node",
+  "namespace": "example.stack",
+  "fields": [
+    {"name": "next", "type": ["null", "Node"]},
+    {"name": "value", "type": "int"}
+  ]
+}

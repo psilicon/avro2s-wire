@@ -37,6 +37,9 @@ final class DecimalConfigurationSuite extends munit.FunSuite:
     }
 
   private def checkWire(c: SchemaCase, compiled: CompiledCase, mode: DecimalType): Unit =
+    compiled.variants.foreach(checkWireCodec(c, _, mode))
+
+  private def checkWireCodec(c: SchemaCase, compiled: CompiledCase, mode: DecimalType): Unit =
     c.values.zip(compiled.values).foreach { (reference, native) =>
       val bytes = compiled.codec.encode(native)
       assertEquals(JavaOracle.normalized(c.schema, JavaOracle.decode(c.schema, bytes)), JavaOracle.normalized(c.schema, reference))
@@ -137,11 +140,13 @@ final class DecimalConfigurationSuite extends munit.FunSuite:
       try
         val code = compiled.cases.head
         checkWire(reader, code, mode)
-        val resolver = new ResolvingReader(writer.schema.toString, code.codec)
-        writer.values.zip(code.values).foreach { (physical, expected) =>
-          val decoded = resolver.decode(JavaOracle.encode(writer.schema, physical))
-          checkModel(decoded, expected, mode)
-          assertEquals(decimals(decoded).size, 10)
+        code.codecs.foreach { codec =>
+          val resolver = new ResolvingReader(writer.schema.toString, codec)
+          writer.values.zip(code.values).foreach { (physical, expected) =>
+            val decoded = resolver.decode(JavaOracle.encode(writer.schema, physical))
+            checkModel(decoded, expected, mode)
+            assertEquals(decimals(decoded).size, 10)
+          }
         }
         // A generated case class inherits the configured decimal's equality contract.
         assertEquals(code.values(0) == code.values(1), mode == DecimalType.Scala)

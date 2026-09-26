@@ -24,8 +24,14 @@ global cache retaining an unbounded set of schemas. Defaults and aliases are par
 of the plan; a parsing-canonical fingerprint alone is not sufficient to identify
 resolution behavior.
 
+Execution follows the supplied codec: `Account.codec` keeps direct traversal;
+`Account.stackSafeCodec` opts into an iterative runtime. The choice is made once
+when constructing the reader and covers retained fields, skipped writer fields
+and materialized reader defaults. No separate resolver setting is needed.
+See [stack safety](stack-safety.md) for complete usage and performance results.
+
 When the writer JSON exactly equals the generated reader JSON, the reader uses the
-ordinary generated codec directly. Otherwise, the plan walks writer fields in wire
+supplied generated codec directly. Otherwise, the plan walks writer fields in wire
 order, stores retained values in reader-ordered slots, and calls generated
 construction methods. Nested records are constructed as Scala models immediately.
 This path uses per-record slot arrays and boxed primitive values; it does not claim
@@ -101,6 +107,11 @@ come from the trusted reader schema and are not charged against the input's
 collection/depth budgets; they may construct more output than those wire budgets
 allow. Default-plan construction rejects cyclic expansion and nesting beyond 256
 levels. Reader schemas should be controlled by the application.
+
+Stack-safe execution applies to traversal of values after plan construction.
+Schema parsing and plan/default compilation still use recursive algorithms;
+their existing schema/default depth safeguards remain. Recursive case-class
+`equals`, `hashCode` and `toString` also remain independent of codec execution.
 
 Object containers, compression and streaming input are not implemented here.
 [Schema registry lookup and framing](schema-registry.md) are provided by a separate

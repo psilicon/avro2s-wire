@@ -37,6 +37,9 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
     catch case NonFatal(error) => throw PropertyFailure(kind, index, error)
 
   private def check(c: EvolutionCase, expected: SchemaCase, compiled: CompiledCase): Unit =
+    compiled.variants.foreach(checkCodec(c, expected, _))
+
+  private def checkCodec(c: EvolutionCase, expected: SchemaCase, compiled: CompiledCase): Unit =
     assertEquals(compiled.values.size, c.values.size)
     assertEquals(expected.values.size, c.values.size)
     val resolver = phase("plan", 0)(new ResolvingReader(c.writer.toString, compiled.codec))

@@ -52,9 +52,9 @@ final class WirePropertiesSuite extends munit.FunSuite:
     val groups = cases.grouped(24).zipWithIndex.map { (group, index) =>
       val result = CompiledCases.compile(group, target.resolve(s"compiled-$index"))
       opened :+= result
-      group.zip(result.cases)
+      group.zip(result.cases).flatMap((c, code) => code.variants.map(c -> _))
     }.toVector.flatten
-    println(s"avro2s-wire wire properties: seed=$seed, ${groups.size} schemas, ${groups.map(_._1.values.size).sum} values; artifacts: $target")
+    println(s"avro2s-wire wire properties: seed=$seed, ${cases.size} schemas, ${groups.size} codec variants, ${groups.map(_._1.values.size).sum} value checks; artifacts: $target")
     groups
   override def afterAll(): Unit = opened.foreach(_.close())
 
@@ -94,7 +94,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
           val mutated = WireLayouts.mutate(image(candidate, scenario), scenario.mutation)
           attempt += 1
           val result = CompiledCases.compile(Vector(candidate), directory.resolve(s"shrink-$attempt"))
-          try !isRejected(result.cases.head.codec, mutated)
+          try result.cases.head.codecs.exists(codec => !isRejected(codec, mutated))
           finally result.close()
         catch case NonFatal(_) => false
       }._1 else c
@@ -118,8 +118,9 @@ final class WirePropertiesSuite extends munit.FunSuite:
   test("generated codecs and Java accept varied positive, sized-negative and mixed collection blocks") {
     val observed = mutable.Set.empty[String]
     if replayScenario.exists(_.operation == "valid") then
-      val (c, code) = compiled.head
-      checked(c, replayScenario.get)(valid(c, code, replayScenario.get))
+      compiled.foreach { (c, code) =>
+        checked(c, replayScenario.get)(valid(c, code, replayScenario.get))
+      }
     else if replayScenario.isEmpty then
       compiled.zipWithIndex.foreach { case ((c, code), caseIndex) =>
         c.values.indices.foreach { valueIndex =>
@@ -144,7 +145,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
       assert(isRejected(code.codec, WireLayouts.mutate(base, scenario.mutation)), s"Accepted known-invalid encoding: $scenario")
     }
     if replayScenario.exists(s => s.operation != "valid" && s.operation != "state" && !s.operation.startsWith("limit:")) then
-      check(compiled.head._1, compiled.head._2, replayScenario.get)
+      compiled.foreach((c, code) => check(c, code, replayScenario.get))
     else if replayScenario.isEmpty then
       compiled.zipWithIndex.foreach { case ((c, code), caseIndex) =>
         c.values.indices.foreach { valueIndex =>
@@ -195,7 +196,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
       if scenario.operation != "limit:exact" then
         assert(isRejected(code.codec, bytes, lower(limits, scenario.operation.stripPrefix("limit:"))))
     }
-    if replayScenario.exists(_.operation.startsWith("limit:")) then check(compiled.head._1, compiled.head._2, replayScenario.get)
+    if replayScenario.exists(_.operation.startsWith("limit:")) then compiled.foreach((c, code) => check(c, code, replayScenario.get))
     else if replayScenario.isEmpty then
       compiled.zipWithIndex.foreach { case ((c, code), caseIndex) =>
         c.values.indices.foreach { valueIndex =>
@@ -277,7 +278,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
             catch case NonFatal(_) => minimal = candidate; searching = true
         throw StateFailure(minimal, error)
     }
-    if replayScenario.exists(_.operation == "state") then check(compiled.head._1, compiled.head._2, replayScenario.get)
+    if replayScenario.exists(_.operation == "state") then compiled.foreach((c, code) => check(c, code, replayScenario.get))
     else if replayScenario.isEmpty then
       compiled.zipWithIndex.foreach { case ((c, code), index) =>
         Vector(0, 1, 7, 64).foreach(capacity => check(c, code, Scenario("state", Layout.Positive, seed + index * 1009L + capacity, argument = capacity)))

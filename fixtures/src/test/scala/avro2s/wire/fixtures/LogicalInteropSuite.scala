@@ -61,21 +61,23 @@ class LogicalInteropSuite extends munit.FunSuite:
     buffer.toByteArray
 
   test("logical models cross-read and cross-write every supported mapping with Java Avro") {
-    for value <- Vector(sample, sample.copy(identifier = WireUuid(uuid))) do
+    for codec <- Vector(LogicalRecord.codec, LogicalRecord.stackSafeCodec)
+        value <- Vector(sample, sample.copy(identifier = WireUuid(uuid))) do
       val referenceBytes = javaWrite(generic(value))
-      assertEquals(LogicalRecord.codec.encode(value).toVector, referenceBytes.toVector)
-      assertEquals(LogicalRecord.codec.decode(referenceBytes), value)
+      assertEquals(codec.encode(value).toVector, referenceBytes.toVector)
+      assertEquals(codec.decode(referenceBytes), value)
       val decoded = new GenericDatumReader[GenericRecord](schema)
-        .read(null, DecoderFactory.get().binaryDecoder(LogicalRecord.codec.encode(value), null))
+        .read(null, DecoderFactory.get().binaryDecoder(codec.encode(value), null))
       assertEquals(javaWrite(decoded).toVector, referenceBytes.toVector)
   }
 
   test("schema resolution constructs logical values and nominal fixed wrappers") {
     // Metadata-only difference exercises the native resolver without its exact-JSON shortcut.
     val writerJson = LogicalRecord.schemaJson.replace("\"fields\":", "\"doc\":\"writer metadata\",\"fields\":")
-    val reader = new ResolvingReader(writerJson, LogicalRecord.codec)
-    for value <- Vector(sample, sample.copy(identifier = WireUuid(uuid))) do
-      assertEquals(reader.decode(javaWrite(generic(value))), value)
+    for codec <- Vector(LogicalRecord.codec, LogicalRecord.stackSafeCodec) do
+      val reader = new ResolvingReader(writerJson, codec)
+      for value <- Vector(sample, sample.copy(identifier = WireUuid(uuid))) do
+        assertEquals(reader.decode(javaWrite(generic(value))), value)
   }
 
   test("logical writes reject precision loss instead of silently changing the value") {

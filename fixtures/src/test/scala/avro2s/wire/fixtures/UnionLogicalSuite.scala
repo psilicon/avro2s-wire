@@ -41,15 +41,14 @@ class UnionLogicalSuite extends munit.FunSuite:
       UnionLogicals(TimeMicros(time), Some(TimeMillis(time)), UnionDecimal(BigDecimal("-987654.321"))),
       UnionLogicals(TimeMillis(time), Some(TimeMicros(time)), BigDecimal("0.000"))
     )
-    cases.foreach { expected =>
-      val encoded = UnionLogicals.codec.encode(expected)
-      assertEquals(UnionLogicals.codec.decode(encoded), expected)
-      assertEquals(UnionLogicals.codec.decode(javaEncode(generic(expected))), expected)
+    for codec <- Vector(UnionLogicals.codec, UnionLogicals.stackSafeCodec); expected <- cases do
+      val encoded = codec.encode(expected)
+      assertEquals(codec.decode(encoded), expected)
+      assertEquals(codec.decode(javaEncode(generic(expected))), expected)
       val decoder = DecoderFactory.get().binaryDecoder(encoded, null)
       val actual = new GenericDatumReader[GenericRecord](schema).read(null, decoder)
       assertEquals(javaEncode(actual).toVector, javaEncode(generic(expected)).toVector)
       assert(decoder.isEnd)
-    }
     assertEquals(UnionLogicals.codec.encode(cases(0)).head, 0.toByte)
     assertEquals(UnionLogicals.codec.encode(cases(1)).head, 2.toByte)
   }

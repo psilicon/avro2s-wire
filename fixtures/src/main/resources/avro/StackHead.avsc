@@ -1,0 +1,1 @@
+{"type":"record","name":"StackHead","namespace":"avro2s.wire.fixtures.stacks","aliases":["avro2s.wire.fixtures.stacks.StackNode"],"fields":[{"name":"value","type":"long"}]}

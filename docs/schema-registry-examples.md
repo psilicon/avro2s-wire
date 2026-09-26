@@ -213,12 +213,15 @@ the number of items in one collection. Making a flat string or collection longer
 does not itself make the datum deeper. Disabling the nesting ceiling does not
 change how codecs traverse nested values.
 
-Generated codecs and resolving readers currently use recursive calls for nested
-records and can overflow the JVM stack on sufficiently deep data. Recursive
-writes can also overflow; the decoder's depth policy never applied to writes.
-This is an implementation limitation to fix with stack-safe traversal, separate
-from optional size policies. Flat collection loops and string validation do not
-grow the call stack with their length.
+The default generated `.codec` uses recursive calls for nested records and can
+overflow the JVM stack on sufficiently deep data, during both reads and writes.
+Pass `.stackSafeCodec` instead to opt into iterative traversal. For example, use
+`Trade.stackSafeCodec` in place of `Trade.codec` in the complete program above;
+the registry adapter also selects stack-safe schema resolution automatically.
+There is no additional reader or writer setting. See [stack safety](stack-safety.md)
+for a complete deep-value example and the performance comparison. Both modes
+retain optional size policies. Flat collection loops and string validation do
+not grow the call stack with their length.
 
 The resolver also has separate hardcoded 256-level checks in schema parsing and
 default compilation. Those are existing implementation safeguards, not Avro
@@ -244,7 +247,7 @@ The former default ceilings did not establish the largest supported values.
 Tests now cover a string above 16 MiB, bytes and input above 64 MiB, and a generated
 array with 1,000,001 elements using the default settings. Those tests demonstrate
 that the previous policy thresholds were not implementation boundaries; they do
-not imply unlimited memory or solve recursive traversal.
+not imply unlimited memory. Stack-safe traversal is a separate codec choice.
 
 Avro null values consume no datum bytes. An array with schema `{"type":"array",
 "items":"null"}` can therefore encode a large item count in a short block

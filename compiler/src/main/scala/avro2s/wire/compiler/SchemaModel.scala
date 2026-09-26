@@ -195,14 +195,14 @@ private[compiler] object ScalaNames:
     "notify", "notifyAll", "wait", "clone", "finalize", "synchronized", "asInstanceOf", "isInstanceOf", "eq", "ne"
   )
   val enumMembers: Set[String] = recordMembers ++ Set(
-    "values", "valueOf", "fromOrdinal", "ordinal", "codec", "schemaJson", "readResolve"
+    "values", "valueOf", "fromOrdinal", "ordinal", "codec", "stackSafeCodec", "schemaJson", "readResolve"
   )
 
   def validateIdentifier(name: String): Unit =
     if !name.matches("[A-Za-z_][A-Za-z0-9_]*") || name == "_" || name == "_root_" then
       throw GenerationException(s"Avro identifier '$name' cannot safely be represented as a Scala identifier")
 
-  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation", "rawLogicalTypes")
+  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "readStep", "writeStep", "execution", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation", "rawLogicalTypes")
 
   def validateFullName(name: String): Unit =
     name.split("\\.", -1).foreach(validateIdentifier)

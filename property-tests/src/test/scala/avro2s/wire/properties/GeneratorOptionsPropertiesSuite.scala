@@ -55,6 +55,9 @@ final class GeneratorOptionsPropertiesSuite extends munit.FunSuite:
     result.toVector
 
   private def check(c: SchemaCase, code: CompiledCase, config: GeneratorConfig, exactWire: Boolean = false): Unit =
+    code.variants.foreach(checkCodec(c, _, config, exactWire))
+
+  private def checkCodec(c: SchemaCase, code: CompiledCase, config: GeneratorConfig, exactWire: Boolean): Unit =
     val raw = rawTypes(config)
     assertEquals(code.codec.schemaJson, c.schema.toString, "Namespace mapping must preserve the embedded original schema")
     assertEquals(code.codec.rawLogicalTypes, raw)
@@ -62,6 +65,7 @@ final class GeneratorOptionsPropertiesSuite extends munit.FunSuite:
       val named = code.codec.namedCodec(schema.getFullName)
       assertEquals(new Schema.Parser().parse(named.schemaJson).getFullName, schema.getFullName)
       assertEquals(named.rawLogicalTypes, raw, s"Named codec ${schema.getFullName} lost configuration")
+      assertEquals(named.execution, code.codec.execution, s"Named codec ${schema.getFullName} lost its execution mode")
     }
     c.values.zip(code.values).foreach { (reference, native) =>
       val javaBytes = JavaOracle.encode(c.schema, reference)
@@ -185,6 +189,9 @@ final class GeneratorOptionsPropertiesSuite extends munit.FunSuite:
     EvolutionCase(writer, reader, Vector.tabulate(4)(i => datum(writer, s"discarded-$i", Int.box(i))), Set("record-alias", "field-alias", "defaults", "reorder-fields"))
 
   private def checkEvolution(c: EvolutionCase, expected: SchemaCase, code: CompiledCase, settings: GeneratorConfig): Unit =
+    code.variants.foreach(checkEvolutionCodec(c, expected, _, settings))
+
+  private def checkEvolutionCodec(c: EvolutionCase, expected: SchemaCase, code: CompiledCase, settings: GeneratorConfig): Unit =
     check(expected, code, settings)
     val resolver = new ResolvingReader(c.writer.toString, code.codec)
     c.values.zip(code.values).foreach { (physical, native) =>

@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "NodeV2",
+  "namespace": "example.stack",
+  "aliases": ["Node"],
+  "fields": [
+    {"name": "value", "type": "long"},
+    {"name": "next", "type": ["null", "NodeV2"]},
+    {"name": "added", "type": "boolean", "default": true}
+  ]
+}

@@ -86,6 +86,22 @@ class ReportTests(unittest.TestCase):
         self.assertIn("#### Cold resolution-plan construction (different work)", report)
         self.assertIn("#### Same-schema read baseline (different work)", report)
 
+    def test_stack_safety_reports_explicit_execution_parameters_and_distinct_operations(self):
+        rows = [measurement(method, "StackSafetyBenchmark",
+                            {"execution": execution, "shape": "recursive"})
+                for execution in ("direct", "stack-safe")
+                for method in ("encode", "decode", "resolvedDecode")]
+        report = render(rows)
+        self.assertIn("**6 result rows**", report)
+        self.assertIn("**2 workload/parameter groups**", report)
+        self.assertIn("direct", report)
+        self.assertIn("stack-safe", report)
+        self.assertEqual(report.count("#### API Encode (includes owned byte-array result)"), 2)
+        self.assertEqual(report.count("#### API Decode (includes end-of-input check)"), 2)
+        self.assertEqual(report.count("#### Warm schema resolution"), 2)
+        self.assertIn("Wire native | `resolvedDecode`", report)
+        self.assertNotIn("Other method", report)
+
     def test_string_results_are_explicit_and_missing_engines_are_na(self):
         report = render([measurement("javaSpecificStringRead", "DecodedStringBenchmark"),
                          measurement("javaGenericStringRead", "DecodedStringBenchmark")])

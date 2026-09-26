@@ -3,10 +3,14 @@ package avro2s.wire.resolution
 import avro2s.wire.runtime.*
 import munit.FunSuite
 
-final class DecimalResolutionSuite extends FunSuite:
+final class DecimalResolutionSuite extends DecimalResolutionChecks(CodecExecution.Direct)
+final class StackSafeDecimalResolutionSuite extends DecimalResolutionChecks(CodecExecution.StackSafe)
+
+abstract class DecimalResolutionChecks(executionMode: CodecExecution) extends FunSuite:
   private def readOnly[A](json: String, representation: DecimalRepresentation,
       named: Map[String, AvroCodec[?]] = Map.empty)(build: Array[Any] => A): AvroCodec[A] =
     new AvroCodec[A]:
+      override def execution: CodecExecution = executionMode
       def schemaJson: String = json
       override def decimalRepresentation: DecimalRepresentation = representation
       def read(in: AvroInput): A = throw new UnsupportedOperationException()

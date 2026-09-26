@@ -87,7 +87,45 @@ object CodeGenerator:
       s"    override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" + indent(construct, 6) + "\n\n" +
       "    override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
       "      fullName match {\n" + indent(references, 8) + "\n        case _ => super.namedCodec(fullName)\n      }\n"
-    GeneratedSource(parts.mkString("/") + ".scala", header + model + companion)
+
+    // Generate the alternative separately so direct codec code, including fresh
+    // local names and specialised collection hooks, stays byte-for-byte stable.
+    val safeEmitter = Emitter(config)
+    val (safeRead, safeWrite) = definition match
+      case Definition.Record(_, fields, _) =>
+        val constructor = s"new $qualifiedName(${fields.indices.map(i => s"field$i").mkString(", ")})"
+        val readFields = fields.zipWithIndex.foldRight(s"${safeEmitter.step}.delay { $constructor }") {
+          case ((field, index), rest) =>
+            safeEmitter.readStep(field.value) + s".flatMap { (field$index: ${safeEmitter.scalaType(field.value)}) =>\n" +
+              indent(rest, 2) + "\n}"
+        }
+        val writeFields = fields.foldRight(s"${safeEmitter.step}.done(())") { (field, rest) =>
+          safeEmitter.writeStep(field.value, s"value.${ScalaNames.escaped(field.scalaName)}") +
+            ".flatMap { _ =>\n" + indent(rest, 2) + "\n}"
+        }
+        (s"${safeEmitter.stackSafe}.readRecord(in) {\n" + indent(readFields, 2) + "\n}", writeFields)
+      case _ =>
+        (s"${safeEmitter.step}.delay {\n" + indent(read, 2) + "\n}",
+          s"${safeEmitter.step}.delay {\n" + indent(write, 2) + "\n}")
+
+    val safeReferences = reachableDefinitions(definition, definitions).map { name =>
+      s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec"
+    }.mkString("\n")
+    val safeCompanion =
+      s"\n  lazy val stackSafeCodec: _root_.avro2s.wire.runtime.codegen.StackSafeCodec[$qualifiedName] =\n" +
+      s"    new _root_.avro2s.wire.runtime.codegen.StackSafeCodec[$qualifiedName]:\n" +
+      s"      override val schemaJson: _root_.java.lang.String = $qualifiedName.schemaJson\n\n" +
+      (if decimalRepresentation.isEmpty then "" else indent(decimalRepresentation.stripTrailing(), 2) + "\n\n") +
+      (if rawLogicalTypes.isEmpty then "" else indent(rawLogicalTypes.stripTrailing(), 2) + "\n\n") +
+      s"      override def readStep(in: _root_.avro2s.wire.runtime.AvroInput): ${safeEmitter.step}[$qualifiedName] =\n" +
+      indent(safeRead, 8) + "\n\n" +
+      s"      override def writeStep(value: $qualifiedName, out: _root_.avro2s.wire.runtime.AvroOutput): ${safeEmitter.step}[_root_.scala.Unit] =\n" +
+      indent(safeWrite, 8) + "\n\n" +
+      s"      override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" +
+      indent(construct, 8) + "\n\n" +
+      "      override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
+      "        fullName match {\n" + indent(safeReferences, 10) + "\n          case _ => super.namedCodec(fullName)\n        }\n"
+    GeneratedSource(parts.mkString("/") + ".scala", header + model + companion + safeCompanion)
 
   private def reachableDefinitions(root: Definition, definitions: Map[String, Definition]): Vector[String] =
     val seen = scala.collection.mutable.Set.empty[String]
@@ -109,6 +147,8 @@ object CodeGenerator:
     text.linesIterator.map(" " * spaces + _).mkString("\n")
 
   private final class Emitter(config: GeneratorConfig):
+    val step = "_root_.avro2s.wire.runtime.codegen.Step"
+    val stackSafe = "_root_.avro2s.wire.runtime.codegen.StackSafe"
     private var sequence = 0
     private def fresh(prefix: String): String =
       sequence += 1
@@ -219,6 +259,75 @@ object CodeGenerator:
         s"    while $remaining != 0L do {\n" +
         s"      while $remaining > 0L do {\n" + indent(entry, 8) + s"\n        $remaining -= 1L\n      }\n" +
         s"      $remaining = in.$next()\n    }\n    $builder.result()\n  }\n}"
+
+    /** Every named child joins the caller's trampoline, including children in
+      * unions and collections. Calling a child's public read/write here would
+      * start a nested runner and bring back JVM-stack recursion.
+      */
+    def readStep(value: Value): String = value match
+      case Value.Named(name) =>
+        s"$step.defer { ${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec.readStep(in) }"
+      case Value.ArrayOf(element) =>
+        s"$stackSafe.readArray[${scalaType(element)}](in) {\n" + indent(readStep(element), 2) + "\n}"
+      case Value.MapOf(element) =>
+        s"$stackSafe.readMap[${scalaType(element)}](in) {\n" + indent(readStep(element), 2) + "\n}"
+      case Value.Optional(element, nullIndex, valueIndex) =>
+        s"$step.defer[${scalaType(value)}] {\n  in.readIndex() match {\n" +
+          s"    case $nullIndex => $step.delay { in.readNull(); _root_.scala.None }\n" +
+          s"    case $valueIndex => ${readStep(element)}.map(item => _root_.scala.Some(item))\n" +
+          "    case index => throw new _root_.avro2s.wire.runtime.AvroDecodingException(\"Invalid nullable union index: \" + index)\n  }\n}"
+      case Value.Union(branches) =>
+        val optional = branches.size > 1 && branches.exists(isNull)
+        val cases = branches.zipWithIndex.map { (branch, index) =>
+          val result =
+            if optional && isNull(branch) then s"$step.delay { in.readNull(); _root_.scala.None }"
+            else if optional then readStep(branch) + ".map(item => _root_.scala.Some(item))"
+            else readStep(branch)
+          s"case $index => $result"
+        }.mkString("\n")
+        s"$step.defer[${scalaType(value)}] {\n  in.readIndex() match {\n" + indent(cases, 4) +
+          "\n    case index => throw new _root_.avro2s.wire.runtime.AvroDecodingException(\"Invalid union index: \" + index)\n  }\n}"
+      case _ => s"$step.delay { ${read(value)} }"
+
+    def writeStep(value: Value, expression: String): String = value match
+      case Value.Named(name) =>
+        s"$step.defer { ${ScalaNames.qualified(config.mappedFullName(name))}.stackSafeCodec.writeStep($expression, out) }"
+      case Value.Optional(element, nullIndex, valueIndex) =>
+        s"$step.defer {\n  if $expression.isEmpty then {\n    out.writeIndex($nullIndex)\n    out.writeNull()\n    $step.done(())\n  } else {\n    out.writeIndex($valueIndex)\n" +
+          indent(writeStep(element, s"$expression.get"), 4) + "\n  }\n}"
+      // Primitive whole-array output is iterative already and retains the
+      // native binary encoder's bulk-write optimisation.
+      case Value.ArrayOf(Value.Primitive(Schema.Type.INT | Schema.Type.LONG)) =>
+        s"$step.delay { ${write(value, expression)} }"
+      case Value.ArrayOf(element) => writeCollectionStep(element, expression, isMap = false)
+      case Value.MapOf(element) => writeCollectionStep(element, expression, isMap = true)
+      case Value.Union(branches) =>
+        val nullIndex = branches.indexWhere(isNull)
+        if branches.size == 1 then
+          s"$step.defer {\n  out.writeIndex(0)\n" + indent(writeStep(branches.head, expression), 2) + "\n}"
+        else if nullIndex >= 0 then
+          s"$step.defer {\n  if $expression.isEmpty then {\n    out.writeIndex($nullIndex)\n    out.writeNull()\n    $step.done(())\n  } else {\n" +
+            indent(writeUnionStep(branches.zipWithIndex.filterNot((branch, _) => isNull(branch)), s"$expression.get"), 4) + "\n  }\n}"
+        else writeUnionStep(branches.zipWithIndex, expression)
+      case _ => s"$step.delay { ${write(value, expression)} }"
+
+    private def writeUnionStep(branches: Vector[(Value, Int)], expression: String): String =
+      val cases = branches.map { (branch, index) =>
+        val binding = fresh("branch")
+        val (pattern, typed) = branch match
+          case Value.ArrayOf(_) => ("_root_.scala.collection.immutable.Vector[?]", s"$binding.asInstanceOf[${scalaType(branch)}]")
+          case Value.MapOf(_) => ("_root_.scala.collection.immutable.Map[?, ?]", s"$binding.asInstanceOf[${scalaType(branch)}]")
+          case _ => (scalaType(branch), binding)
+        s"case $binding: $pattern =>\n" + indent(s"out.writeIndex($index)\n" + writeStep(branch, typed), 2)
+      }.mkString("\n")
+      s"$step.defer {\n  ($expression: _root_.scala.Any) match {\n" + indent(cases, 4) +
+        "\n    case _ => throw new _root_.java.lang.IllegalArgumentException(\"Value does not match any Avro union branch\")\n  }\n}"
+
+    private def writeCollectionStep(element: Value, expression: String, isMap: Boolean): String =
+      val item = fresh("item")
+      val kind = if isMap then "Map" else "Array"
+      s"$stackSafe.write$kind[${scalaType(element)}](out, $expression) { $item =>\n" +
+        indent(writeStep(element, item), 2) + "\n}"
 
     def write(value: Value, expression: String): String = value match
       case Value.Primitive(Schema.Type.NULL) => "out.writeNull()"

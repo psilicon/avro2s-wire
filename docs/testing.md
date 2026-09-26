@@ -3,11 +3,18 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The ordinary correctness suite now declares **255 tests across 38 suites**,
+The ordinary correctness suite now declares **335 tests across 48 suites**,
 including 24 property tests, comparison-benchmark checks and focused runtime and
 registry regressions. The separate real-service registry project is opt-in locally.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
+
+Both direct and stack-safe codecs run through the generated matching-schema,
+evolution, logical-configuration and wire-property campaigns using identical
+input values. They must produce identical bytes and agree with independent Java
+Avro readers/writers. The stack-safety additions passed the full suite on JDK 21
+on 26 September 2026. The runnable [usage example](stack-safety.md) also passed,
+as did all eight real Kafka/Schema Registry integration tests (on the host's JDK 25).
 
 ## Run the correctness suite
 
@@ -57,7 +64,7 @@ array, map, and union contexts, including nullable branch ordering. Random cases
 explore additional nesting and combinations. Required coverage labels prevent
 passing random samples from being mistaken for coverage of every supported type.
 
-Run all five property suites, or choose a larger matching-schema campaign:
+Run all six property suites, or choose a larger matching-schema campaign:
 
 ```sh
 sbt 'propertyTests/test'
@@ -281,14 +288,14 @@ classes, rather than claiming exhaustive wire fuzzing.
 
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
-| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2) | 74 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges. |
-| `compiler` | `CodeGeneratorSuite` (23), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 46 | Recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change output compatibility and cross-file schemas. |
+| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2), `StepSuite` (5) | 79 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges; iterative execution and failure cleanup. |
+| `compiler` | `CodeGeneratorSuite` (26), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 49 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change direct-output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
-| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7) | 38 | Aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits. |
-| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2) | 35 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit and malformed records. |
-| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5) | 19 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and expanded comparative/evolution workloads. |
+| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (5) | 81 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
+| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7) | 42 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
+| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5), `StackSafetyBenchmarkSuite` (3) | 22 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and comparative/evolution/stack-safety workloads. |
 | `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 24 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
-| `schema-registry` | `RegistrySuite` (25) | 25 | Confluent interoperability, framing, immutable key/value factories, default exact-schema lookup, typed settings, connection validation, caches, failures, resource limits and lifecycle. |
+| `schema-registry` | `RegistrySuite` (25), `RegistryStackSafetySuite` (1) | 26 | Confluent interoperability, framing, immutable key/value factories, default exact-schema lookup, typed settings, connection validation, caches, failures, resource limits, lifecycle and deep framed values. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests
@@ -304,10 +311,18 @@ tests cover ASCII boundaries, multilingual text, supplementary code points and
 previously written output. Empty-collection tests include following fields,
 sequential records and enclosing sized blocks, retaining validation and limits.
 
+The stack-safety tests construct and inspect values iteratively rather than
+calling recursive model equality. They exercise 100,000 nested records,
+mutually recursive types, recursion through unions/arrays/maps, skipped fields,
+defaults, failure cleanup and cache reuse. These tests request a 256 KiB thread
+stack, so success does not depend on an unusually large application stack.
+See [stack safety](stack-safety.md) for the exact scope and benchmark command.
+
 ## Why targeted tests remain
 
 The original 20 checked-in `.avsc` fixture schemas are hand-written regressions;
-ten additional schemas support the broader comparative benchmarks.
+ten additional schemas support the broader comparative benchmarks, and five
+additional schema files support deep-value traversal and execution comparisons.
 The build generates the Scala models and codecs from those schemas, then
 compiles and exercises that generated source. Some compiler and resolver tests
 also construct specific schema JSON examples directly in the test code.

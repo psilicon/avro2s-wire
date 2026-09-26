@@ -2,6 +2,10 @@
 
 Start here for commands, measurement policy and results.
 
+- [Stack-safety comparison: 26 September 2026](stack-safety-results.md) compares
+  direct and stack-safe codecs across 18 cases, including latency, allocation,
+  raw measurements and the limits of the comparison.
+
 - [Selected reference results: 17 September 2026](reference/2026-09-17/README.md)
   contains 148 implementation comparisons, eight evolution measurements and 15
   explicit String-output controls. These are historical measurements, not a
@@ -45,6 +49,7 @@ written only for successful runs. `--output` chooses another destination;
 | `full` | All five profiles above without duplicate measurements | 239 |
 | `trade` | Original six-engine Trade workload, collection sizes 0/32/1024 | 36 |
 | `strings` | Native and Java-backend read/write/encode/decode across the detailed text corpus | 136 |
+| `stack-safety` | Direct and stack-safe native codecs: allocating encode/decode and planned resolution across shallow, collection-heavy and recursive values | 18 |
 | `focused` | Integer writes, string reads/writes and collection reads for investigations | — |
 | `pilot` | Short native-only diagnostic runs; unsuitable for performance claims | — |
 
@@ -58,6 +63,7 @@ Select a focused experiment or a quick execution smoke check:
 
 ```sh
 python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile big-decimal
+python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile stack-safety
 python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile comparison --param profile=string-ascii --filter '[.]ComparisonBenchmark[.].*Read$'
 python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile big-decimal --param digits=6 --param scale=0 --forks 1 --warmup-iterations 1 --measurement-iterations 1 --warmup-time 100ms --measurement-time 100ms
 ```
@@ -67,6 +73,21 @@ For repeatable comparisons, keep timing settings, JDK, hardware and system load
 consistent. Normal profiles use two forks, three 500 ms warmups and five 500 ms
 measurements, one thread and a 512 MiB heap. `pilot` deliberately uses shorter
 settings. All actual settings appear in the output metadata and report.
+
+The `stack-safety` profile is an explicit experiment and is not included in `full`.
+Its `execution=direct,stack-safe` parameter selects the codec before timing;
+`shape=shallow,collections,recursive` selects a flat Trade, an array/map workload,
+or a 32-record chain whose recursive field precedes another field. Each pair uses
+identical inputs, wire bytes and immutable result types. `encode` includes a fresh
+output and final owned byte-array copy; `decode` includes a fresh input and the
+end-of-input check. `resolvedDecode` uses a cached resolution plan: shallow and
+collection schemas differ in metadata to exercise plan execution, and the recursive
+case also reorders fields, promotes an integer and supplies a reader default.
+Codec selection, fixture creation and plan compilation are outside timing. The
+report retains the execution parameter and separates these three operations;
+latency is in ns/op and allocation in B/op. Deep small-stack correctness tests
+are separate from this performance experiment, so the direct mode is measured
+on inputs both implementations support.
 
 ## Reports
 

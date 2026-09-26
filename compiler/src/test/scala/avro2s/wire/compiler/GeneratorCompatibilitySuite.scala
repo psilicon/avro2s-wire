@@ -5,7 +5,8 @@ import java.security.MessageDigest
 import org.apache.avro.Schema
 
 /** Hashes captured from the generator before namespace/raw options were implemented.
-  * Keep these fixed: intentional output changes require reviewing the generated diff.
+  * The additive stack-safe codec is excluded; models and direct codecs must
+  * retain the exact historical output, including specialised collection paths.
   */
 class GeneratorCompatibilitySuite extends munit.FunSuite:
   private def resource(name: String): String =
@@ -23,16 +24,19 @@ class GeneratorCompatibilitySuite extends munit.FunSuite:
   private def hashes(config: GeneratorConfig): Map[String, String] =
     val schema = new Schema.Parser().parse(resource("all-types.avsc"))
     CodeGenerator.generate(schema, config).map { source =>
-      val hash = MessageDigest.getInstance("SHA-256").digest(source.content.getBytes(UTF_8))
+      val alternativeStart = source.content.indexOf("\n  lazy val stackSafeCodec:")
+      assert(alternativeStart >= 0, s"Missing alternative codec in ${source.relativePath}")
+      val directSource = source.content.substring(0, alternativeStart)
+      val hash = MessageDigest.getInstance("SHA-256").digest(directSource.getBytes(UTF_8))
         .map(byte => f"${byte & 0xff}%02x").mkString
       source.relativePath -> hash
     }.toMap
 
-  test("default generation remains byte-for-byte identical across all supported types") {
+  test("default models and direct codecs remain byte-for-byte identical across all supported types") {
     assertEquals(hashes(GeneratorConfig()), expected("scala"))
   }
 
-  test("Java decimal generation remains byte-for-byte identical across all supported types") {
+  test("Java decimal models and direct codecs remain byte-for-byte identical across all supported types") {
     assertEquals(hashes(GeneratorConfig(decimalType = DecimalType.Java)), expected("java"))
   }
 

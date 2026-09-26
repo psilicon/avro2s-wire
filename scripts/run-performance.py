@@ -16,7 +16,7 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "avro2s.wire.benchmarks."
-PROFILES = ("pilot", "focused", "api", "trade", "evolution", "comparison", "decoded-strings", "strings", "big-decimal", "full")
+PROFILES = ("pilot", "focused", "api", "trade", "evolution", "comparison", "decoded-strings", "strings", "big-decimal", "stack-safety", "full")
 FULL_PROFILES = ("comparison", "evolution", "decoded-strings", "big-decimal", "api")
 MATRIX = {
     "Integer": {"kind": ["int", "long"], "distribution": ["one-byte", "medium", "wide", "mixed"]},
@@ -35,6 +35,7 @@ MATRIX = {
     "DecimalComparison": {},
     "DecodedString": {"profile": ["string-ascii", "string-unicode", "collections-full"]},
     "BigDecimal": {"digits": ["6", "50", "500"], "scale": ["0", "6", "-6"]},
+    "StackSafety": {"execution": ["direct", "stack-safe"], "shape": ["shallow", "collections", "recursive"]},
 }
 SOURCE_SUFFIXES = {".scala", ".java", ".avsc", ".avdl", ".sbt", ".properties", ".py", ".sh"}
 IGNORED_DIRECTORIES = {"target", ".git", ".bsp", ".metals", ".idea", "__pycache__", ".venv", "node_modules"}
@@ -50,6 +51,8 @@ ENVIRONMENT_KEYS = {
 def groups(profile):
     if profile == "full":
         return [group for component in FULL_PROFILES for group in groups(component)]
+    if profile == "stack-safety":
+        return [("StackSafety", ["encode", "decode", "resolvedDecode"], {})]
     if profile == "big-decimal":
         return [("BigDecimal", [engine + op for engine in ["nativeScalaMapping", "nativeJavaMapping", "avroJavaConversion"]
                                 for op in ["Read", "Write"]], {})]

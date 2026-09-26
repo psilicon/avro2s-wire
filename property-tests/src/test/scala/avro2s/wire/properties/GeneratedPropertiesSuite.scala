@@ -36,6 +36,15 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
     catch case NonFatal(error) => throw PropertyFailure(kind, index, error)
 
   private def check(c: SchemaCase, compiled: CompiledCase): Unit =
+    compiled.variants.foreach(checkCodec(c, _))
+    compiled.values.zipWithIndex.foreach { (value, index) =>
+      phase("execution-wire-equivalence", index) {
+        val directBytes = compiled.codec.encode(value).toVector
+        compiled.alternatives.foreach(codec => assertEquals(codec.encode(value).toVector, directBytes))
+      }
+    }
+
+  private def checkCodec(c: SchemaCase, compiled: CompiledCase): Unit =
     assertEquals(compiled.values.size, c.values.size, "Every reference datum must have an independently constructed Scala value")
     c.values.zip(compiled.values).zipWithIndex.foreach { case ((reference, native), i) =>
       phase("native-to-java", i) {

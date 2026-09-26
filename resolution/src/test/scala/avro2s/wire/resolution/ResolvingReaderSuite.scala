@@ -8,7 +8,10 @@ import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.io.DecoderFactory
 
-final class ResolvingReaderSuite extends FunSuite:
+final class ResolvingReaderSuite extends ResolvingReaderChecks(CodecExecution.Direct)
+final class StackSafeResolvingReaderSuite extends ResolvingReaderChecks(CodecExecution.StackSafe)
+
+abstract class ResolvingReaderChecks(executionMode: CodecExecution) extends FunSuite:
   private def record(fields: String, name: String = "R", extra: String = ""): String =
     s"""{"type":"record","name":"$name","fields":[$fields]$extra}"""
 
@@ -16,6 +19,7 @@ final class ResolvingReaderSuite extends FunSuite:
 
   private def codec[A](json: String, named: Map[String, AvroCodec[?]] = Map.empty)(make: Array[Any] => A): AvroCodec[A] =
     new AvroCodec[A]:
+      override def execution: CodecExecution = executionMode
       override val schemaJson: String = json
       override def read(in: AvroInput): A = throw new UnsupportedOperationException("Matching-schema path not used in this test")
       override def write(value: A, out: AvroOutput): Unit = throw new UnsupportedOperationException("Read-only test codec")
@@ -111,6 +115,7 @@ final class ResolvingReaderSuite extends FunSuite:
     val reader = """["long",{"type":"int","doc":"reader metadata"}]"""
     val bytes = binary { out => out.writeIndex(1); out.writeInt(7) }
     val direct = new AvroCodec[Any]:
+      override def execution: CodecExecution = executionMode
       override val schemaJson = writer
       override def read(in: AvroInput): Any =
         if in.readIndex() == 0 then in.readLong() else in.readInt()
@@ -268,6 +273,7 @@ final class ResolvingReaderSuite extends FunSuite:
 
   test("matching JSON uses the generated codec directly without factory hooks") {
     val direct = new AvroCodec[Int]:
+      override def execution: CodecExecution = executionMode
       override val schemaJson = "\"int\""
       override def read(in: AvroInput): Int = in.readInt()
       override def write(value: Int, out: AvroOutput): Unit = out.writeInt(value)

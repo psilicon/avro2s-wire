@@ -131,6 +131,19 @@ provide the lower-level APIs. Codecs are shareable; mutable input/output instanc
 must be confined to their caller. Raw datum bytes contain no schema identifier:
 the caller must already know the exact writer schema.
 
+Each generated companion also provides an explicit `stackSafeCodec`:
+
+```scala
+val safeBytes = Trade.stackSafeCodec.encode(trade)
+val safeTrade = Trade.stackSafeCodec.decode(safeBytes)
+```
+
+`Trade.codec` remains the default given and keeps its direct implementation.
+`stackSafeCodec` uses an iterative runtime to handle deeply nested values, with
+the same immutable models and wire bytes. A `ResolvingReader` or registry adapter
+uses the execution mode of the supplied codec. See [stack safety](docs/stack-safety.md)
+for the complete example, scope and measured performance trade-offs.
+
 ### Generator configuration
 
 Options are passed at generation time. Defaults preserve Avro namespaces as Scala
@@ -299,7 +312,8 @@ The reader parses each schema pair and builds its resolution plan at constructio
 It supports field reordering, reader aliases and defaults, discarded writer fields,
 promotions, enum remapping/defaults, fixed types, unions, and recursive records. It
 constructs generated Scala models directly; it does not create Java GenericRecords
-or re-encode the datum. Identical schema JSON uses the generated direct codec.
+or re-encode the datum. Identical schema JSON uses the supplied generated codec;
+evolved-schema traversal follows that codec's execution mode.
 
 The optional module uses Jackson to parse JSON and has no Apache Avro runtime
 dependency. Core codecs keep their original dependency footprint. Optional native

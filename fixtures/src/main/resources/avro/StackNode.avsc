@@ -1,0 +1,1 @@
+{"type":"record","name":"StackNode","namespace":"avro2s.wire.fixtures.stacks","fields":[{"name":"next","type":["null","StackNode"],"default":null},{"name":"value","type":"int"}]}
