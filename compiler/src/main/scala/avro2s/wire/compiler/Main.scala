@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object Main:
-  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] [--namespace-map from=to] [--logical-type name=raw|converted] <schema.avsc | schema-directory> <output-directory>"
+  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] [--namespace-map from=to] [--logical-type name=raw|converted] [--generate-stack-safe-codecs] <schema.avsc | schema-directory> <output-directory>"
 
   def main(args: Array[String]): Unit =
     val (input, output, config) = parseArguments(args.toList)
@@ -18,10 +18,16 @@ object Main:
   private def parseArguments(args: List[String]): (Path, Path, GeneratorConfig) =
     val positional = Vector.newBuilder[String]
     var decimalType: Option[DecimalType] = None
+    var generateStackSafeCodecs = false
     val namespaceMappings = mutable.LinkedHashMap.empty[String, String]
     val logicalTypes = mutable.LinkedHashMap.empty[LogicalType, LogicalTypeMode]
     var remaining = args
     while remaining.nonEmpty do remaining match
+      case "--generate-stack-safe-codecs" :: tail =>
+        if generateStackSafeCodecs then
+          throw GenerationException(s"--generate-stack-safe-codecs may only be specified once. $usage")
+        generateStackSafeCodecs = true
+        remaining = tail
       case "--decimal-type" :: value :: tail =>
         if decimalType.nonEmpty then throw GenerationException(s"--decimal-type may only be specified once. $usage")
         decimalType = Some(value match
@@ -60,7 +66,8 @@ object Main:
       case Nil => ()
     positional.result() match
       case Vector(input, output) =>
-        val config = GeneratorConfig(decimalType.getOrElse(DecimalType.Scala), namespaceMappings.toMap, logicalTypes.toMap)
+        val config = GeneratorConfig(decimalType.getOrElse(DecimalType.Scala), namespaceMappings.toMap,
+          logicalTypes.toMap, generateStackSafeCodecs)
         config.validate()
         (Path.of(input), Path.of(output), config)
       case _ => throw GenerationException(usage)

@@ -1,5 +1,6 @@
 package avro2s.wire.properties
 
+import avro2s.wire.compiler.GeneratorConfig
 import avro2s.wire.runtime.{AvroCodec, AvroDecodingException, BinaryInput, BinaryOutput, Bytes, DecodeLimits}
 import java.nio.file.{Files, Path}
 import java.util.Properties
@@ -13,6 +14,7 @@ import scala.util.control.NonFatal
 final class WirePropertiesSuite extends munit.FunSuite:
   import WireLayouts.*
   override val munitTimeout = 10.minutes
+  private val generation = GeneratorConfig(generateStackSafeCodecs = true)
   private val seed = sys.env.get("AVRO2S_WIRE_TEST_SEED").fold(20260917L)(_.toLong)
   private val randomCount = sys.env.get("AVRO2S_WIRE_WIRE_CASES").fold(32)(_.toInt)
   require(randomCount >= 0 && randomCount <= 256, "AVRO2S_WIRE_WIRE_CASES must be between 0 and 256")
@@ -50,7 +52,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
   private var opened = Vector.empty[CompiledCases]
   private lazy val compiled: Vector[(SchemaCase, CompiledCase)] =
     val groups = cases.grouped(24).zipWithIndex.map { (group, index) =>
-      val result = CompiledCases.compile(group, target.resolve(s"compiled-$index"))
+      val result = CompiledCases.compile(group, target.resolve(s"compiled-$index"), generation)
       opened :+= result
       group.zip(result.cases).flatMap((c, code) => code.variants.map(c -> _))
     }.toVector.flatten
@@ -93,7 +95,7 @@ final class WirePropertiesSuite extends munit.FunSuite:
         try
           val mutated = WireLayouts.mutate(image(candidate, scenario), scenario.mutation)
           attempt += 1
-          val result = CompiledCases.compile(Vector(candidate), directory.resolve(s"shrink-$attempt"))
+          val result = CompiledCases.compile(Vector(candidate), directory.resolve(s"shrink-$attempt"), generation)
           try result.cases.head.codecs.exists(codec => !isRejected(codec, mutated))
           finally result.close()
         catch case NonFatal(_) => false
@@ -173,6 +175,41 @@ final class WirePropertiesSuite extends munit.FunSuite:
         "negative-enum-index", "enum-index-out-of-range", "negative-union-index", "union-index-out-of-range", "collection-count-min", "block-size-short", "block-size-long")
       assertEquals(required -- observed, Set.empty[String], "Required corruption classes were not exercised")
       Files.writeString(target.resolve("mutation-coverage.txt"), observed.toVector.sorted.mkString("\n") + "\n")
+  }
+
+  test("deeper wire layouts and corruptions exercise both codecs across multiple seeds") {
+    if replayScenario.isEmpty then
+      for campaignSeed <- Vector(0L, 42L, 20260926L) do
+        val batch = Gen.listOfN(8, SchemaCases.randomCase(4, 4, valueDepth = 8))
+          .apply(Gen.Parameters.default, Seed(campaignSeed)).get.toVector
+        val run = target.resolve(s"deep-seed-$campaignSeed")
+        batch.zipWithIndex.foreach((c, i) => FailureReplay.save(c, run.resolve(s"case-$i"), s"seed=$campaignSeed\ndepth=4\n"))
+        val actualDepth = batch.flatMap(c => c.values.map(v => WireLayouts.resources(c.schema, v).nestingDepth)).max
+        Files.writeString(run.resolve("coverage.txt"), s"seed=$campaignSeed\nschemaDepthBudget=4\nvalueDepthBudget=8\nobservedNestingDepth=$actualDepth\n")
+        val generated = CompiledCases.compile(batch, run.resolve("compiled"), generation)
+        try batch.zip(generated.cases).zipWithIndex.foreach { case ((c, code), caseIndex) =>
+          assertEquals(code.codecs.size, 2)
+          for
+            variant <- code.variants
+            valueIndex <- c.values.indices
+            layout <- Layout.values
+          do
+            val (one, oneCode) = single(c, variant, valueIndex)
+            val scenario = Scenario("valid", layout, campaignSeed + caseIndex * 1009L + valueIndex)
+            checked(one, scenario)(valid(one, oneCode, scenario))
+            val base = image(one, scenario)
+            val corruptions = WireLayouts.mutations(base).groupBy(_.kind).toVector.sortBy(_._1).flatMap(_._2.take(2))
+            val prefixes = Vector(0, base.bytes.length / 2, base.bytes.length - 1).filter(cut => cut >= 0 && cut < base.bytes.length).distinct
+            val mutations = corruptions ++ prefixes.map(cut => Mutation("truncate", "$", cut.toLong)) :+ Mutation("trailing", "$", 0x7f)
+            mutations.foreach { mutation =>
+              val invalid = scenario.copy(operation = mutation.kind, path = mutation.path, argument = mutation.argument)
+              checked(one, invalid) {
+                assert(isRejected(oneCode.codec, WireLayouts.mutate(base, mutation)), s"Accepted deep malformed input: $invalid")
+              }
+            }
+        }
+        finally generated.close()
+      println("avro2s-wire deeper wire properties: seeds=0,42,20260926; 24 schemas, 96 values, both codecs; depth=4")
   }
 
   private def exactLimits(c: SchemaCase, bytes: Array[Byte]): DecodeLimits =

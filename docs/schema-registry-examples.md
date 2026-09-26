@@ -215,7 +215,8 @@ change how codecs traverse nested values.
 
 The default generated `.codec` uses recursive calls for nested records and can
 overflow the JVM stack on sufficiently deep data, during both reads and writes.
-Pass `.stackSafeCodec` instead to opt into iterative traversal. For example, use
+Generate with `generateStackSafeCodecs = true` (CLI `--generate-stack-safe-codecs`),
+then pass `.stackSafeCodec` to opt into iterative traversal. For example, use
 `Trade.stackSafeCodec` in place of `Trade.codec` in the complete program above;
 the registry adapter also selects stack-safe schema resolution automatically.
 There is no additional reader or writer setting. See [stack safety](stack-safety.md)

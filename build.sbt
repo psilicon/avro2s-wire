@@ -81,7 +81,7 @@ lazy val fixtures = (project in file("fixtures"))
       (compiler / Compile / runner).value.run(
         "avro2s.wire.compiler.Main",
         (compiler / Compile / fullClasspath).value.files,
-        Seq(input.getAbsolutePath, out.getAbsolutePath),
+        Seq("--generate-stack-safe-codecs", input.getAbsolutePath, out.getAbsolutePath),
         streams.value.log
       ).get
       (out ** "*.scala").get

@@ -41,7 +41,7 @@ object CodeGenerator:
           if writes.isEmpty then "()" else writes.mkString("\n"), construct)
 
       case Definition.Enumeration(_, symbols, json) =>
-        val cases = ScalaNames.memberNames(symbols, ScalaNames.enumMembers + parts.last, "symbol")
+        val cases = ScalaNames.memberNames(symbols, ScalaNames.enumMembers(config.generateStackSafeCodecs) + parts.last, "symbol")
         val model = s"enum $localName:\n" + cases.map(name => s"  case ${ScalaNames.escaped(name)}").mkString("\n") + "\n"
         val readCases = cases.zipWithIndex.map { (name, index) =>
           s"case $index => $qualifiedName.${ScalaNames.escaped(name)}"
@@ -87,6 +87,9 @@ object CodeGenerator:
       s"    override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" + indent(construct, 6) + "\n\n" +
       "    override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
       "      fullName match {\n" + indent(references, 8) + "\n        case _ => super.namedCodec(fullName)\n      }\n"
+
+    if !config.generateStackSafeCodecs then
+      return GeneratedSource(parts.mkString("/") + ".scala", header + model + companion)
 
     // Generate the alternative separately so direct codec code, including fresh
     // local names and specialised collection hooks, stays byte-for-byte stable.

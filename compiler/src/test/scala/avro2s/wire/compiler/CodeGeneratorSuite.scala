@@ -8,9 +8,12 @@ class CodeGeneratorSuite extends munit.FunSuite:
   private def generate(json: String, config: GeneratorConfig = GeneratorConfig()): Vector[GeneratedSource] =
     CodeGenerator.generate(new Schema.Parser().parse(json), config)
 
+  private def generateStackSafe(json: String): Vector[GeneratedSource] =
+    generate(json, GeneratorConfig(generateStackSafeCodecs = true))
+
   test("recursive references terminate and generate direct field codecs") {
     val json = """{"type":"record","name":"Node","namespace":"example","fields":[{"name":"value","type":"long"},{"name":"next","type":["null","Node"],"default":null}]}"""
-    val sources = generate(json)
+    val sources = generateStackSafe(json)
     assertEquals(sources.map(_.relativePath), Vector("example/Node.scala"))
     val content = sources.head.content
     assert(content.contains("next: _root_.scala.Option[_root_.example.Node]"))
@@ -28,7 +31,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(content.contains("case \"example.Node\" => _root_.example.Node.stackSafeCodec"))
     assert(!content.contains("org.apache.avro"))
     assert(!content.contains("GenericRecord"))
-    assertEquals(generate(json), sources)
+    assertEquals(generateStackSafe(json), sources)
   }
 
   test("nullable unions preserve each writer branch order") {
@@ -42,7 +45,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("only physical int and long arrays select whole-array output hooks") {
-    val source = generate("""{"type":"record","name":"BulkArrays","fields":[
+    val source = generateStackSafe("""{"type":"record","name":"BulkArrays","fields":[
       {"name":"ints","type":{"type":"array","items":"int"}},
       {"name":"longs","type":{"type":"array","items":"long"}},
       {"name":"optional","type":["null",{"type":"array","items":"int"}]},
@@ -61,7 +64,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("stack-safe children in arrays maps and unions share deferred execution") {
-    val sources = generate("""{"type":"record","name":"Tree","namespace":"example","fields":[
+    val sources = generateStackSafe("""{"type":"record","name":"Tree","namespace":"example","fields":[
       {"name":"children","type":{"type":"array","items":"Tree"}},
       {"name":"named","type":{"type":"map","values":"Tree"}},
       {"name":"choice","type":["string","Tree"]}
@@ -81,14 +84,14 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("stack-safe collection unions retain their exact declared result type") {
-    val source = generate("""{"type":"record","name":"Choice","fields":[{"name":"value","type":{"type":"array","items":[
+    val source = generateStackSafe("""{"type":"record","name":"Choice","fields":[{"name":"value","type":{"type":"array","items":[
       {"type":"array","items":{"type":"record","name":"Child","fields":[]}}, {"type":"map","values":"string"}
     ]}}]}""").find(_.relativePath == "Choice.scala").get.content
     assert(source.contains("Step.defer[_root_.scala.collection.immutable.Vector[Child] | _root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.java.lang.String]]"))
   }
 
   test("stack-safe leaf records keep typed primitive and collection work in one suspended body") {
-    val source = generate("""{"type":"record","name":"Leaf","fields":[
+    val source = generateStackSafe("""{"type":"record","name":"Leaf","fields":[
       {"name":"id","type":"long"},
       {"name":"label","type":"string"},
       {"name":"items","type":{"type":"array","items":["null","int"]}},
@@ -113,7 +116,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
         if (depth % 2 == 0) == firstIsArray then s"""{"type":"array","items":$element}"""
         else s"""{"type":"map","values":$element}"""
       }
-      val source = generate(s"""{"type":"record","name":"Nested","fields":[{"name":"value","type":$nested}]}""").head.content
+      val source = generateStackSafe(s"""{"type":"record","name":"Nested","fields":[{"name":"value","type":$nested}]}""").head.content
       val safe = source.substring(source.indexOf("\n  lazy val stackSafeCodec:"))
       assert(safe.contains("new _root_.avro2s.wire.runtime.codegen.Step.Frame[Nested]"))
       assertEquals("StackSafe.read(?:Array|Map)".r.findAllIn(safe).size, 5)
@@ -123,7 +126,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("stack-safe mixed records batch leaves around every suspended record child") {
-    val source = generate("""{"type":"record","name":"Parent","fields":[
+    val source = generateStackSafe("""{"type":"record","name":"Parent","fields":[
       {"name":"id","type":"long"}, {"name":"label","type":"string"},
       {"name":"child","type":{"type":"record","name":"Child","fields":[{"name":"value","type":"int"}]}},
       {"name":"total","type":"double"}, {"name":"flag","type":"boolean"}
@@ -145,7 +148,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("every generated step entry suspends before traversing fields or children") {
-    val sources = generate("""{"type":"record","name":"Parent","fields":[
+    val sources = generateStackSafe("""{"type":"record","name":"Parent","fields":[
       {"name":"next","type":["null","Parent"]},
       {"name":"child","type":{"type":"record","name":"Child","fields":[{"name":"value","type":"int"}]}},
       {"name":"kind","type":{"type":"enum","name":"Kind","symbols":["A"]}},
@@ -162,7 +165,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
   }
 
   test("record frames dispatch nullable and general unions without continuation closures") {
-    val source = generate("""{"type":"record","name":"Node","fields":[
+    val source = generateStackSafe("""{"type":"record","name":"Node","fields":[
       {"name":"next","type":["null","Node"]},
       {"name":"choice","type":["string","Node"]},
       {"name":"number","type":"long"}
@@ -299,8 +302,13 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(source.contains("case 6 => E.avro_symbol_codec"))
   }
 
-  test("the additional codec name is reserved for enum symbols") {
-    val source = generate("""{"type":"enum","name":"E","symbols":["stackSafeCodec","avro_symbol_stackSafeCodec"]}""").head.content
+  test("the additional codec name is reserved for enum symbols only when enabled") {
+    val schema = """{"type":"enum","name":"E","symbols":["stackSafeCodec","avro_symbol_stackSafeCodec"]}"""
+    val direct = generate(schema).head.content
+    assert(direct.contains("  case stackSafeCodec\n"))
+    assert(direct.contains("case 0 => E.stackSafeCodec"))
+    assert(!direct.contains("lazy val stackSafeCodec:"))
+    val source = generateStackSafe(schema).head.content
     assert(source.contains("case avro_symbol_stackSafeCodec_"))
     assert(source.contains("case 0 => E.avro_symbol_stackSafeCodec_"))
     assert(source.contains("case 1 => E.avro_symbol_stackSafeCodec"))
@@ -340,7 +348,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
     assert(source.contains("Option[PlainRecord]"))
     assert(source.contains("PlainRecord.codec.read(in)"))
     assert(!source.contains("_root_.PlainRecord"))
-    for name <- Vector("value", "decimalRepresentation", "phase", "entered", "answer", "completed", "advance", "result", "cleanup") do
+    for name <- Vector("value", "decimalRepresentation", "execution") do
       val ambiguous = intercept[GenerationException] {
         generate(s"""{"type":"record","name":"$name","fields":[]}""")
       }
@@ -357,11 +365,27 @@ class CodeGeneratorSuite extends munit.FunSuite:
   test("frame methods cannot shadow default-package named children") {
     for name <- Vector("map", "flatMap", "codecSelf") do
       val ambiguous = intercept[GenerationException] {
-        generate(s"""{"type":"record","name":"Parent","fields":[{"name":"child","type":{"type":"record","name":"$name","fields":[]}}]}""")
+        generateStackSafe(s"""{"type":"record","name":"Parent","fields":[{"name":"child","type":{"type":"record","name":"$name","fields":[]}}]}""")
       }
       assert(ambiguous.getMessage.contains("give this type an Avro namespace"))
-      val namespaced = generate(s"""{"type":"record","name":"Parent","namespace":"example","fields":[{"name":"child","type":{"type":"record","name":"$name","fields":[]}}]}""")
+      val namespaced = generateStackSafe(s"""{"type":"record","name":"Parent","namespace":"example","fields":[{"name":"child","type":{"type":"record","name":"$name","fields":[]}}]}""")
       assert(namespaced.find(_.relativePath == "example/Parent.scala").get.content.contains(s"_root_.example.$name.stackSafeCodec.readStep(in)"))
+  }
+
+  test("stack-safe names do not restrict direct generation, including mapped default-package types") {
+    val safeNames = Vector("stackSafeCodec", "readStep", "writeStep", "phase", "entered", "answer", "completed",
+      "advance", "result", "cleanup", "map", "flatMap", "codecSelf")
+    for name <- safeNames do
+      val json = s"""{"type":"record","name":"$name","namespace":"original","fields":[{"name":"next","type":["null","$name"]}]}"""
+      val directConfig = GeneratorConfig(namespaceMappings = Map("original" -> ""))
+      val source = generate(json, directConfig).head
+      assertEquals(source.relativePath, s"$name.scala")
+      assert(source.content.contains(s"$name.codec.read(in)"))
+      assert(!source.content.contains("lazy val stackSafeCodec:"))
+      val error = intercept[GenerationException] {
+        generate(json, directConfig.copy(generateStackSafeCodecs = true))
+      }
+      assert(error.getMessage.contains(s"Default-package type '$name' conflicts"))
   }
 
   test("schema emoji crossing a string chunk boundary survive UTF-8 source writing") {

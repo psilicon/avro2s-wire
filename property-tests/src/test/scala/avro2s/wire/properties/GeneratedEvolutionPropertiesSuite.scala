@@ -1,5 +1,6 @@
 package avro2s.wire.properties
 
+import avro2s.wire.compiler.GeneratorConfig
 import avro2s.wire.resolution.{ResolvingReader, SchemaResolutionException}
 import java.nio.file.{Files, Path}
 import org.apache.avro.{Schema, SchemaCompatibility}
@@ -9,6 +10,7 @@ import scala.concurrent.duration.*
 /** Evolves compiled Scala models while keeping each Avro fullname isolated by classloader. */
 final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
   override val munitTimeout = 10.minutes
+  private val generation = GeneratorConfig(generateStackSafeCodecs = true)
   private lazy val target = Path.of(sys.props("avro2s.wire.property.target"), "generated-evolution")
 
   private def schema(json: String): Schema = new Schema.Parser().setValidateDefaults(true).parse(json)
@@ -18,7 +20,7 @@ final class GeneratedEvolutionPropertiesSuite extends munit.FunSuite:
     result
   private def one(s: Schema, datum: AnyRef): SchemaCase = SchemaCase(s, Vector(datum))
   private def compile(c: SchemaCase, name: String): CompiledCases =
-    CompiledCases.compile(Vector(c), Files.createTempDirectory(target, s"$name-"))
+    CompiledCases.compile(Vector(c), Files.createTempDirectory(target, s"$name-"), generation)
 
   private def rejects(writer: Schema, reader: CompiledCase, bytes: Array[Byte]): Unit =
     reader.codecs.foreach { codec =>

@@ -131,7 +131,9 @@ provide the lower-level APIs. Codecs are shareable; mutable input/output instanc
 must be confined to their caller. Raw datum bytes contain no schema identifier:
 the caller must already know the exact writer schema.
 
-Each generated companion also provides an explicit `stackSafeCodec`:
+Generation emits the direct `codec` by default. Enable
+`GeneratorConfig(generateStackSafeCodecs = true)` or CLI
+`--generate-stack-safe-codecs` to also generate an explicit `stackSafeCodec`:
 
 ```scala
 val safeBytes = Trade.stackSafeCodec.encode(trade)
@@ -163,7 +165,8 @@ val config = GeneratorConfig(
   logicalTypes = Map(
     LogicalType.Date -> LogicalTypeMode.Raw,
     LogicalType.TimestampMicros -> LogicalTypeMode.Converted
-  )
+  ),
+  generateStackSafeCodecs = true // Defaults to false.
 )
 
 SchemaCompiler.generate(Path.of("schemas"), Path.of("generated"), config)
@@ -175,6 +178,11 @@ For example, `com.acme.orders.Order` becomes `myapp.model.orders.Order`, while
 `com.acme.events.Created` becomes `myapp.events.Created`. Avro schema names,
 aliases and schema JSON keep their original identities.
 
+`generateStackSafeCodecs` applies to every reachable named type. It adds the
+alternative codec while preserving the direct `given codec`. Leaving it `false`
+requires no runtime or resolver configuration: the generated direct codec works
+with the same runtime, resolution and registry APIs.
+
 `Raw` selects the physical value: for example, `date` becomes `Int` and
 `timestamp-micros` becomes `Long`. Unspecified logical types use `Converted`.
 Logical fixed types retain their named wrappers, containing `Bytes` in raw mode.
@@ -183,7 +191,7 @@ The decimal option selects Java values for converted `decimal` and `big-decimal`
 The equivalent command-line options are repeatable for namespaces and logical types:
 
 ```sh
-sbt 'compiler/run --decimal-type java --namespace-map com.acme=myapp.model --namespace-map com.acme.events=myapp.events --logical-type date=raw --logical-type timestamp-micros=converted schemas generated'
+sbt 'compiler/run --generate-stack-safe-codecs --decimal-type java --namespace-map com.acme=myapp.model --namespace-map com.acme.events=myapp.events --logical-type date=raw --logical-type timestamp-micros=converted schemas generated'
 ```
 
 Settings apply throughout generated records, collections, unions and named fixed

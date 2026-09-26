@@ -1,6 +1,9 @@
 # Direct and stack-safe codecs
 
-Every generated record, enum and fixed companion offers two codecs:
+Every generated record, enum and fixed companion offers the direct `codec`.
+Set `GeneratorConfig(generateStackSafeCodecs = true)` or pass CLI
+`--generate-stack-safe-codecs` to additionally generate `stackSafeCodec`.
+The setting defaults to `false` and applies to all reachable named types:
 
 | API | Execution | Selection |
 | --- | --- | --- |
@@ -9,10 +12,20 @@ Every generated record, enum and fixed companion offers two codecs:
 
 Both expose the same `AvroCodec[A]` read/write and encode/decode methods. They use
 the same models, schema JSON, logical mappings and wire bytes. The default remains
-direct; application code can opt into stack safety where it needs it. No generator
-flag, mutable configuration or registry setting is required. Regenerate models
-with the updated compiler and use the corresponding runtime to obtain the new
-companion member.
+direct; application code can opt into stack safety where it needs it. Generation
+controls whether the alternative exists; passing a codec selects which execution
+to use. Direct-only generated code works with the same runtime, resolver and
+registry APIs, without any references to the stack-safe generation support.
+The runtime JAR still contains both implementations. No mutable configuration or
+separate registry execution setting is required.
+
+```scala
+import avro2s.wire.compiler.{GeneratorConfig, SchemaCompiler}
+import java.nio.file.Path
+
+val config = GeneratorConfig(generateStackSafeCodecs = true)
+SchemaCompiler.generate(Path.of("schemas"), Path.of("generated"), config)
+```
 
 ## Complete runnable example
 
@@ -26,7 +39,7 @@ Run it from the repository root:
 
 ```sh
 sbt \
-  'compiler/run docs/examples/stack-safety/schemas target/stack-safety-example-generated' \
+  'compiler/run --generate-stack-safe-codecs docs/examples/stack-safety/schemas target/stack-safety-example-generated' \
   'set resolution / Compile / unmanagedSourceDirectories ++= Seq(file("docs/examples/stack-safety"), file("target/stack-safety-example-generated"))' \
   'resolution/runMain example.stack.Usage'
 ```
@@ -130,11 +143,14 @@ for testing the expected maximum depth on the deployment JVM.
 - [`ResolvingReader.scala`](../resolution/src/main/scala/avro2s/wire/resolution/ResolvingReader.scala)
   contains both resolution implementations and selects the one requested by the codec.
 
-Adding a generated companion member extends the compiler's reserved-name set.
-An Avro enum symbol named `stackSafeCodec` is renamed in Scala using the existing
+Enabling the alternative extends the compiler's reserved-name set.
+An Avro enum symbol named `stackSafeCodec` is then renamed in Scala using the existing
 collision policy; its Avro symbol and ordinal remain unchanged. Default-package
 type names that would shadow the new codec members are rejected like other
 ambiguous default-package names; a namespace mapping can move them into a package.
+These additional restrictions do not apply to direct-only generation. Regenerating
+with the flag disabled overwrites the generated sources without the alternative;
+application references to `.stackSafeCodec` must then be removed too.
 
 ## Verification and performance
 
@@ -145,6 +161,12 @@ They cover both successful traversal and cleanup after deep failures, plus
 resolved, skipped and registry-framed values. JVMs may adjust the requested
 thread stack size. The existing Java interoperability and generated-property
 campaigns also exercise both modes, including logical mappings and malformed input.
+Additional tests combine 10,000 levels with sibling branches and multiple
+structural fields, inject failures at every observed input/output callback of a
+branching sample, and share codecs/resolving readers between concurrent workers.
+Deeper matching-schema, evolution and wire campaigns run with three fixed seeds.
+Direct-only generation is independently compiled and checked against Java Avro;
+see [test coverage](testing.md) for exact counts, replay instructions and remaining gaps.
 
 The dedicated [benchmark profile](../benchmarks/README.md) compares complete
 `encode`, `decode` and resolved `decode` operations in both modes for shallow,

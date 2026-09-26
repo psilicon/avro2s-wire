@@ -154,3 +154,61 @@ final class StepSuite extends munit.FunSuite:
       assert(intercept[IllegalArgumentException](Step.run(program)) eq failure)
       assertEquals(events.toVector, Vector("frame", "outer"))
   }
+
+  test("throwing frame cleanup runs once and preserves finally ordering on every exit path") {
+    for
+      phase <- Vector("entry", "child", "resume", "result", "completed", "immediate")
+      failOuter <- Vector(false, true)
+    do
+      val events = scala.collection.mutable.ArrayBuffer.empty[String]
+      val bodyFailure = new IllegalArgumentException(phase)
+      val innerFailure = new IllegalStateException("inner cleanup")
+      val outerFailure = new IllegalStateException("outer cleanup")
+      val inner = new Step.Frame[Int]:
+        private var started = false
+        override def advance(completed: Any): Step[?] =
+          if !started then
+            started = true
+            events += "enter"
+            if phase == "entry" then throw bodyFailure
+            if phase == "immediate" then null
+            else Step.guarantee {
+              Step.delay {
+                events += "child"
+                if phase == "child" then throw bodyFailure
+                42
+              }
+            } { events += "child cleanup" }
+          else
+            events += "resume"
+            if phase == "resume" then throw bodyFailure
+            null
+        override def result: Int =
+          events += "result"
+          if phase == "result" then throw bodyFailure
+          42
+        override def cleanup(): Unit =
+          events += "inner cleanup"
+          throw innerFailure
+      val outer = new Step.Frame[Int]:
+        private var started = false
+        override def advance(completed: Any): Step[?] =
+          if started then fail("An inner cleanup failure must discard the outer continuation")
+          started = true
+          inner
+        override def result: Int = fail("An inner cleanup failure must discard the outer continuation")
+        override def cleanup(): Unit =
+          events += "outer cleanup"
+          if failOuter then throw outerFailure
+      val program = Step.guarantee(outer) { events += "final cleanup" }
+      val beforeCleanup = phase match
+        case "entry" => Vector("enter")
+        case "child" => Vector("enter", "child", "child cleanup")
+        case "resume" => Vector("enter", "child", "child cleanup", "resume")
+        case "immediate" => Vector("enter", "result")
+        case _ => Vector("enter", "child", "child cleanup", "resume", "result")
+      val context = s"phase=$phase, failing outer cleanup=$failOuter"
+      val thrown = intercept[IllegalStateException](Step.run(program))
+      assert(thrown eq (if failOuter then outerFailure else innerFailure), context)
+      assertEquals(events.toVector, beforeCleanup ++ Vector("inner cleanup", "outer cleanup", "final cleanup"), context)
+  }

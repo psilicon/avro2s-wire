@@ -1,5 +1,6 @@
 package avro2s.wire.properties
 
+import avro2s.wire.compiler.GeneratorConfig
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import java.util.concurrent.atomic.AtomicReference
@@ -13,6 +14,7 @@ import scala.util.control.NonFatal
 
 final class GeneratedPropertiesSuite extends munit.FunSuite:
   override val munitTimeout = 10.minutes
+  private val generation = GeneratorConfig(generateStackSafeCodecs = true)
   private val seed = sys.env.get("AVRO2S_WIRE_TEST_SEED").fold(20260917L)(_.toLong)
   private def setting(name: String, default: Int, min: Int, max: Int): Int =
     val value = sys.env.get(name).fold(default)(_.toInt)
@@ -69,7 +71,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
     val (minimal, attempts) = FailureReplay.minimize(first, 32) { candidate =>
       attempt += 1
       try
-        val compiled = CompiledCases.compile(Vector(candidate), directory.resolve(s"shrink-$attempt"))
+        val compiled = CompiledCases.compile(Vector(candidate), directory.resolve(s"shrink-$attempt"), generation)
         try
           try { check(candidate, compiled.cases.head); false }
           catch case failed: PropertyFailure => failed.kind == original.kind
@@ -99,7 +101,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
     println(s"avro2s-wire properties: seed=$seed, ${cases.size} schemas, ${cases.map(_.values.size).sum} values; coverage: ${run.resolve("coverage.txt")}")
     // Bound compiler memory for larger developer-selected campaigns.
     cases.grouped(32).zipWithIndex.foreach { (batch, batchIndex) =>
-      val compiled = try CompiledCases.compile(batch, run.resolve(s"batch-$batchIndex"))
+      val compiled = try CompiledCases.compile(batch, run.resolve(s"batch-$batchIndex"), generation)
       catch
         case NonFatal(error) =>
           // Compilation failures also retain exact independent input datums for replay.
@@ -133,7 +135,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
       datum.put("value", payload)
       SchemaCase(schema, Vector(datum))
     Files.createDirectories(target)
-    val compiled = CompiledCases.compile(collectionCases, Files.createTempDirectory(target, "collection-depth-"))
+    val compiled = CompiledCases.compile(collectionCases, Files.createTempDirectory(target, "collection-depth-"), generation)
     try collectionCases.zip(compiled.cases).foreach { (c, code) =>
       check(c, code)
       val codec = code.alternatives.head
@@ -157,6 +159,89 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
       assert(JavaOracle.nativeEqual(observed.get()._2, code.values.head))
     }
     finally compiled.close()
+  }
+
+  test("default generation compiles and interoperates without any stack-safe companion members") {
+    Files.createDirectories(target)
+    val run = Files.createTempDirectory(target, "direct-only-")
+    assert(!GeneratorConfig().generateStackSafeCodecs)
+    SchemaCases.mandatoryCases.grouped(32).zipWithIndex.foreach { (batch, index) =>
+      // Use the real default configuration, including the harness default. No
+      // alternative getter is compiled, and the harness checks its absence.
+      val compiled = CompiledCases.compile(batch, run.resolve(s"batch-$index"))
+      try batch.zip(compiled.cases).foreach { (c, code) =>
+        assertEquals(code.alternatives.size, 0)
+        check(c, code)
+        avro2s.wire.compiler.CodeGenerator.generate(c.schema).foreach { source =>
+          assert(!source.content.contains("runtime.codegen."), source.relativePath)
+        }
+      }
+      finally compiled.close()
+    }
+  }
+
+  test("deeper generated schemas agree with Java across multiple reproducible seeds") {
+    if !sys.env.contains("AVRO2S_WIRE_TEST_REPLAY") then
+      Files.createDirectories(target)
+      var observedDepth = 0
+      for campaignSeed <- Vector(0L, 42L, 20260926L) do
+        val batch = Gen.listOfN(16, SchemaCases.randomCase(5, 8, valueDepth = 8))
+          .apply(Gen.Parameters.default, Seed(campaignSeed)).get.toVector
+        val run = Files.createTempDirectory(target, s"deep-seed-$campaignSeed-")
+        val actualDepth = batch.flatMap(c => c.values.map(v => WireLayouts.resources(c.schema, v).nestingDepth)).max
+        observedDepth = math.max(observedDepth, actualDepth)
+        Files.writeString(run.resolve("coverage.txt"), s"seed=$campaignSeed\nschemaDepthBudget=5\nvalueDepthBudget=8\nobservedNestingDepth=$actualDepth\n")
+        // Save exact schemas and independent datums before compilation so
+        // compiler failures and runtime failures are both replayable.
+        batch.zipWithIndex.foreach((c, i) => FailureReplay.save(c, run.resolve(s"case-$i"), s"seed=$campaignSeed\ndepth=5\n"))
+        val compiled = CompiledCases.compile(batch, run.resolve("compiled"), generation)
+        try batch.zip(compiled.cases).zipWithIndex.foreach { case ((c, code), index) =>
+          assertEquals(code.codecs.size, 2)
+          try check(c, code)
+          catch case NonFatal(error) => fail(s"Deep campaign seed=$campaignSeed; replay: ${run.resolve(s"case-$index")}", error)
+        }
+        finally compiled.close()
+      assert(observedDepth >= 6, s"The deeper campaign must actually traverse nested values, observed $observedDepth")
+      println(s"avro2s-wire deeper matching properties: seeds=0,42,20260926; 48 schemas, 384 values, both codecs; observed depth=$observedDepth")
+  }
+
+  test("mutually recursive generated companions compile and resolve in either generation mode") {
+    val left = new Schema.Parser().parse("""{"type":"record","name":"Left","namespace":"flag.mutual","fields":[
+      {"name":"next","type":["null",{"type":"record","name":"Right","fields":[
+        {"name":"next","type":["Left","null"]},{"name":"label","type":"string"}]}]},
+      {"name":"value","type":"int"}]}""")
+    val right = left.getField("next").schema.getTypes.get(1)
+    val tail = new GenericData.Record(left)
+    tail.put("next", null)
+    tail.put("value", Int.box(-19))
+    val middle = new GenericData.Record(right)
+    middle.put("next", tail)
+    middle.put("label", "middle")
+    val head = new GenericData.Record(left)
+    head.put("next", middle)
+    head.put("value", Int.box(73))
+    val c = SchemaCase(left, Vector(tail, head))
+    Files.createDirectories(target)
+    for enabled <- Vector(false, true) do
+      val config = GeneratorConfig(generateStackSafeCodecs = enabled)
+      val compiled = CompiledCases.compile(Vector(c), Files.createTempDirectory(target, s"mutual-$enabled-"), config)
+      try
+        val code = compiled.cases.head
+        assertEquals(code.codecs.size, if enabled then 2 else 1)
+        check(c, code)
+        code.codecs.foreach { codec =>
+          val child = codec.namedCodec(right.getFullName)
+          assertEquals(child.execution, codec.execution)
+          assert(child.namedCodec(left.getFullName) eq codec)
+          // A doc difference forces schema resolution instead of exact JSON dispatch.
+          val writer = new Schema.Parser().parse(left.toString)
+          writer.addProp("testMetadata", "force resolution")
+          val reader = new avro2s.wire.resolution.ResolvingReader(writer.toString, codec)
+          c.values.zip(code.values).foreach { (reference, expected) =>
+            assert(JavaOracle.nativeEqual(reader.decode(JavaOracle.encode(writer, reference)), expected))
+          }
+        }
+      finally compiled.close()
   }
 
   test("ScalaCheck-generated cases and joint shrinks remain valid independent Avro datums") {
@@ -230,7 +315,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
     val replay = FailureReplay.load(directory)
     assertEquals(replay.schema, minimal.schema)
     assertEquals(JavaOracle.normalized(replay.schema, replay.values.head), JavaOracle.normalized(minimal.schema, minimal.values.head))
-    val compiled = CompiledCases.compile(Vector(replay), directory.resolve("compiled"))
+    val compiled = CompiledCases.compile(Vector(replay), directory.resolve("compiled"), generation)
     try
       check(replay, compiled.cases.head)
       val valid = compiled.cases.head
@@ -254,7 +339,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
     val c = SchemaCase(schema, Vector(record))
     Files.createDirectories(target)
     val directory = Files.createTempDirectory(target, "decoder-mutation-")
-    val compiled = CompiledCases.compile(Vector(c), directory)
+    val compiled = CompiledCases.compile(Vector(c), directory, generation)
     try
       val valid = compiled.cases.head
       check(c, valid)

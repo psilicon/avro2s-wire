@@ -5,8 +5,9 @@ import java.security.MessageDigest
 import org.apache.avro.Schema
 
 /** Hashes captured from the generator before namespace/raw options were implemented.
-  * The additive stack-safe codec is excluded; models and direct codecs must
-  * retain the exact historical output, including specialised collection paths.
+  * Default output must match completely. For opted-in generation, exclude only
+  * the additive stack-safe codec; models and direct codecs still must retain
+  * the exact historical output, including specialised collection paths.
   */
 class GeneratorCompatibilitySuite extends munit.FunSuite:
   private def resource(name: String): String =
@@ -25,8 +26,9 @@ class GeneratorCompatibilitySuite extends munit.FunSuite:
     val schema = new Schema.Parser().parse(resource("all-types.avsc"))
     CodeGenerator.generate(schema, config).map { source =>
       val alternativeStart = source.content.indexOf("\n  lazy val stackSafeCodec:")
-      assert(alternativeStart >= 0, s"Missing alternative codec in ${source.relativePath}")
-      val directSource = source.content.substring(0, alternativeStart)
+      assertEquals(alternativeStart >= 0, config.generateStackSafeCodecs, source.relativePath)
+      val directSource = if config.generateStackSafeCodecs then source.content.substring(0, alternativeStart)
+        else source.content
       val hash = MessageDigest.getInstance("SHA-256").digest(directSource.getBytes(UTF_8))
         .map(byte => f"${byte & 0xff}%02x").mkString
       source.relativePath -> hash
@@ -38,6 +40,12 @@ class GeneratorCompatibilitySuite extends munit.FunSuite:
 
   test("Java decimal models and direct codecs remain byte-for-byte identical across all supported types") {
     assertEquals(hashes(GeneratorConfig(decimalType = DecimalType.Java)), expected("java"))
+  }
+
+  test("opting into stack-safe codecs preserves historical models and direct codecs") {
+    for decimalType <- DecimalType.values do
+      assertEquals(hashes(GeneratorConfig(decimalType = decimalType, generateStackSafeCodecs = true)),
+        expected(if decimalType == DecimalType.Java then "java" else "scala"))
   }
 
   test("explicit Converted and identity or unmatched mappings do not change generated output") {

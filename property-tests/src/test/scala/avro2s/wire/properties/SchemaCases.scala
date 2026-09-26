@@ -145,9 +145,10 @@ object SchemaCases:
       examples(builder.record(Vector.empty, "EmptyRecord"), 2)
     )
 
-  def randomCase(maxDepth: Int, valuesPerSchema: Int): Gen[SchemaCase] =
+  def randomCase(maxDepth: Int, valuesPerSchema: Int, valueDepth: Int = 4): Gen[SchemaCase] =
     require(maxDepth >= 0 && maxDepth <= 5, "Schema depth must be between zero and five")
     require(valuesPerSchema > 0, "At least one value is required")
+    require(valueDepth >= 0, "Value depth must be non-negative")
     for
       schemaSeed <- Arbitrary.arbitrary[Long]
       valueSeeds <- Gen.listOfN(valuesPerSchema, Arbitrary.arbitrary[Long])
@@ -159,7 +160,7 @@ object SchemaCases:
       val builder = new Builder(s"avro2s.wire.propertyrandom.d$maxDepth.s${java.lang.Long.toUnsignedString(schemaSeed)}")
       val fields = Vector.tabulate(1 + random.nextInt(4))(i => s"field$i" -> builder.nested(maxDepth, random))
       val schema = new Schema.Parser().parse(builder.record(fields, "Root").toString)
-      val values = valueSeeds.zipWithIndex.map((seed, index) => datum(schema, index, new Random(seed), 4, randomized = true)).toVector
+      val values = valueSeeds.zipWithIndex.map((seed, index) => datum(schema, index, new Random(seed), valueDepth, randomized = true)).toVector
       SchemaCase(schema, values)
 
   private def examples(schema: Schema, count: Int): SchemaCase =

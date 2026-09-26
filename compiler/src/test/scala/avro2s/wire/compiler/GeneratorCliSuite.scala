@@ -35,6 +35,8 @@ class GeneratorCliSuite extends munit.FunSuite:
       assert(parent.contains("amount: _root_.java.math.BigDecimal"))
       assert(parent.contains("case \"old.detail.Child\" => _root_.model.Child.codec"))
       assert(child.contains("id: _root_.java.util.UUID"))
+      assert(!parent.contains("lazy val stackSafeCodec:"))
+      assert(!child.contains("lazy val stackSafeCodec:"))
       assert(!Files.exists(output.resolve("old")))
       val config = GeneratorConfig(DecimalType.Java, Map("old" -> "app", "old.detail" -> "model"),
         Map(LogicalType.Date -> LogicalTypeMode.Raw, LogicalType.Uuid -> LogicalTypeMode.Converted))
@@ -42,6 +44,57 @@ class GeneratorCliSuite extends munit.FunSuite:
       val timestamps = paths.map(Files.getLastModifiedTime(_))
       assertEquals(SchemaCompiler.generate(input, output, config), paths)
       assertEquals(paths.map(Files.getLastModifiedTime(_)), timestamps)
+    }
+  }
+
+  test("CLI opts every cross-file and mutually recursive type in and removes alternatives when disabled") {
+    withDirectory { directory =>
+      val input = Files.createDirectory(directory.resolve("schemas"))
+      Files.writeString(input.resolve("a-parent.avsc"), """{"type":"record","name":"Parent","namespace":"original","fields":[
+        {"name":"leaf","type":"Leaf"},
+        {"name":"peer","type":["null",{"type":"record","name":"Inner","fields":[{"name":"back","type":["null","Parent"]}]}]},
+        {"name":"amount","type":{"type":"bytes","logicalType":"big-decimal"}}
+      ]}""")
+      Files.writeString(input.resolve("z-leaf.avsc"), """{"type":"record","name":"Leaf","namespace":"original","fields":[
+        {"name":"date","type":{"type":"int","logicalType":"date"}},
+        {"name":"kind","type":{"type":"enum","name":"Kind","symbols":["stackSafeCodec","Other"]}},
+        {"name":"token","type":{"type":"fixed","name":"Token","size":4}}
+      ]}""")
+      val output = directory.resolve("output")
+      val options = Array("--namespace-map", "original=models", "--decimal-type", "java", "--logical-type", "date=raw")
+      val paths = Vector("Inner", "Kind", "Leaf", "Parent", "Token").map(name => output.resolve(s"models/$name.scala"))
+      val arguments = options ++ Array(input.toString, output.toString)
+      Main.main(arguments)
+      val directSources = paths.map(Files.readString(_))
+      assert(directSources.forall(!_.contains("runtime.codegen")))
+      assert(directSources(1).contains("case stackSafeCodec\n"))
+
+      // A presence flag works after positionals too; no boolean string is required.
+      Main.main(arguments :+ "--generate-stack-safe-codecs")
+      val enabledSources = paths.map(Files.readString(_))
+      enabledSources.foreach { source =>
+        assert(source.contains("lazy val stackSafeCodec:"))
+        assertEquals("given codec:".r.findAllIn(source).size, 1)
+        val safe = source.substring(source.indexOf("\n  lazy val stackSafeCodec:"))
+        assert(safe.contains("DecimalRepresentation.Java"))
+        assert(safe.contains("Set(\"date\")"))
+      }
+      val parent = enabledSources(3)
+      val inner = enabledSources(0)
+      assert(parent.contains("_root_.models.Leaf.stackSafeCodec.readStep(in)"))
+      assert(parent.contains("_root_.models.Inner.stackSafeCodec.readStep(in)"))
+      assert(inner.contains("_root_.models.Parent.stackSafeCodec.readStep(in)"))
+      for name <- Vector("Inner", "Kind", "Leaf", "Parent", "Token") do
+        assert(parent.contains(s"case \"original.$name\" => _root_.models.$name.stackSafeCodec"))
+      assert(enabledSources(1).contains("case avro_symbol_stackSafeCodec\n"))
+
+      val config = GeneratorConfig(decimalType = DecimalType.Java, namespaceMappings = Map("original" -> "models"),
+        logicalTypes = Map(LogicalType.Date -> LogicalTypeMode.Raw), generateStackSafeCodecs = true)
+      val timestamps = paths.map(Files.getLastModifiedTime(_))
+      assertEquals(SchemaCompiler.generate(input, output, config), paths)
+      assertEquals(paths.map(Files.getLastModifiedTime(_)), timestamps)
+      Main.main(arguments)
+      assertEquals(paths.map(Files.readString(_)), directSources)
     }
   }
 
@@ -71,7 +124,9 @@ class GeneratorCliSuite extends munit.FunSuite:
         Vector("--logical-type", "date"), Vector("--logical-type", "date=RAW"),
         Vector("--logical-type", "imaginary=raw"), Vector("--logical-type", "=raw"),
         Vector("--logical-type", "date=raw", "--logical-type", "date=converted"),
-        Vector("--decimal-type", "java", "--decimal-type", "scala"), Vector("--unknown")
+        Vector("--decimal-type", "java", "--decimal-type", "scala"), Vector("--unknown"),
+        Vector("--generate-stack-safe-codecs", "--generate-stack-safe-codecs"),
+        Vector("--generate-stack-safe-codecs=true"), Vector("--generate-stack-safe-codecs", "false")
       )
       for options <- invalid do
         intercept[GenerationException] { Main.main((options ++ Vector(input.toString, output.toString)).toArray) }

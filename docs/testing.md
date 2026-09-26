@@ -3,8 +3,8 @@
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
 The original **128 MUnit regression tests across 16 suites** remain in place.
-The ordinary correctness suite now declares **349 tests across 48 suites**,
-including 25 property tests, comparison-benchmark checks and focused runtime and
+The ordinary correctness suite now declares **367 tests across 50 suites**,
+including 32 property tests, comparison-benchmark checks and focused runtime and
 registry regressions. The separate real-service registry project is opt-in locally.
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
@@ -13,9 +13,28 @@ Both direct and stack-safe codecs run through the generated matching-schema,
 evolution, logical-configuration and wire-property campaigns using identical
 input values. They must produce identical bytes and agree with independent Java
 Avro readers/writers. The optimised stack-safe traversal passed the full suite on
-JDK 21 on 26 September 2026, including nested collections without child records
-and execution-frame cleanup on failure. The runnable [usage example](stack-safety.md) also passed,
-as did all eight real Kafka/Schema Registry integration tests (on the host's JDK 25).
+JDK 21 on 26 September 2026, including the default-off generator setting,
+direct-only compatibility, nested collections, branching, concurrent reuse and
+failure cleanup. The runnable [usage example](stack-safety.md) also passed.
+All eight real Kafka/Schema Registry integration tests passed during the initial
+stack-safe implementation (on the host's JDK 25); they were not rerun after the
+subsequent traversal optimisation or generator opt-in change.
+
+Production generation defaults to direct-only. Fixture generation and the dual-codec
+property campaigns explicitly set `generateStackSafeCodecs = true`; the dynamic
+compiler harness respects its supplied configuration. Separate default-configuration
+campaigns compile the mandatory schema and evolution corpora, check that no
+stack-safe codec accessor is emitted, and exercise direct-only codecs against the
+same Java oracle and runtime/resolver APIs. Every compiled probe also verifies that
+contextual `AvroCodec[A]` lookup still selects the direct codec.
+
+Additional campaigns run in ordinary `sbt test` with fixed seeds **0, 42 and
+20260926**. They add **48 matching schemas / 384 values**, **36 evolution pairs /
+216 values**, and **24 wire schemas / 96 values**, all exercising both codecs.
+Their schema-depth budgets are respectively 5, 3 and 4, with a value-depth budget
+of 8. Coverage files record actual observed nesting depths, and exact schema/data
+artifacts are retained for replay. These campaigns are skipped when replaying a
+single failure in their corresponding suite.
 
 ## Run the correctness suite
 
@@ -289,13 +308,13 @@ classes, rather than claiming exhaustive wire fuzzing.
 
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
-| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2), `StepSuite` (5) | 79 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges; iterative execution and failure cleanup. |
-| `compiler` | `CodeGeneratorSuite` (26), `GeneratorCliSuite` (5), `GeneratorCompatibilitySuite` (3), `GeneratorOptionsSuite` (15) | 49 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change direct-output compatibility and cross-file schemas. |
+| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2), `StepSuite` (9) | 83 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges; iterative execution and failure cleanup. |
+| `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (6), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16) | 59 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change direct-output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
-| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (5) | 81 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
-| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7) | 42 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
-| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5), `StackSafetyBenchmarkSuite` (3) | 22 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and comparative/evolution/stack-safety workloads. |
-| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (4), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (5), `GeneratorOptionsPropertiesSuite` (6), `WirePropertiesSuite` (4) | 24 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
+| `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (8), `StackSafeConcurrencySuite` (1) | 85 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
+| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7), `BranchingStackSafetySuite` (5) | 47 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
+| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5), `StackSafetyBenchmarkSuite` (4) | 23 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and comparative/evolution/stack-safety workloads. |
+| `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (6), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (9), `GeneratorOptionsPropertiesSuite` (7), `WirePropertiesSuite` (5) | 32 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
 | `schema-registry` | `RegistrySuite` (25), `RegistryStackSafetySuite` (1) | 26 | Confluent interoperability, framing, immutable key/value factories, default exact-schema lookup, typed settings, connection validation, caches, failures, resource limits, lifecycle and deep framed values. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
@@ -316,13 +335,29 @@ The stack-safety tests construct and inspect values iteratively rather than
 calling recursive model equality. They exercise 100,000 nested records,
 mutually recursive types, recursion through unions/arrays/maps, skipped fields,
 defaults, failure cleanup and cache reuse. These tests request a 256 KiB thread
-stack, so success does not depend on an unusually large application stack.
+stack; the JVM may adjust that requested size.
 See [stack safety](stack-safety.md) for the exact scope and benchmark command.
+
+`BranchingStackSafetySuite` adds a 10,000-level spine rotating between nullable
+record, array, map and general-union fields, with distinct siblings and scalar
+sentinels between structural fields. An independent iterative writer using Java
+Avro primitives provides the deep wire oracle; shallow values cross-check it
+against Java's generic writer and the direct codec. Fault adapters throw at every
+observed input/output callback of a branching sample, checking exception identity,
+record cleanup, no writes after failure and healthy subsequent codec reuse.
+
+Concurrency tests share generated codecs and compiled readers across four/eight
+workers, each with independent inputs and outputs. They check branching values,
+schema evolution, failed reads followed by successful ones, and fresh default
+construction. Mutable test-only default models make accidental sharing observable.
+`StepSuite` separately checks throwing frame cleanup during entry, child execution,
+resumption, result construction and successful completion, including a second
+outer cleanup failure and exactly-once cleanup ordering.
 
 ## Why targeted tests remain
 
 The original 20 checked-in `.avsc` fixture schemas are hand-written regressions;
-ten additional schemas support the broader comparative benchmarks, and five
+ten additional schemas support the broader comparative benchmarks, and six
 additional schema files support deep-value traversal and execution comparisons.
 The build generates the Scala models and codecs from those schemas, then
 compiles and exercises that generated source. Some compiler and resolver tests

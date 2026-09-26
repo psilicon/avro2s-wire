@@ -25,7 +25,8 @@ of the plan; a parsing-canonical fingerprint alone is not sufficient to identify
 resolution behavior.
 
 Execution follows the supplied codec: `Account.codec` keeps direct traversal;
-`Account.stackSafeCodec` opts into an iterative runtime. The choice is made once
+`Account.stackSafeCodec` opts into an iterative runtime when generated with
+`generateStackSafeCodecs = true` (CLI `--generate-stack-safe-codecs`). The choice is made once
 when constructing the reader and covers retained fields, skipped writer fields
 and materialized reader defaults. No separate resolver setting is needed.
 See [stack safety](stack-safety.md) for complete usage and performance results.

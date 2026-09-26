@@ -114,7 +114,7 @@ private[compiler] object SchemaModel:
       schema.getType match
         case Schema.Type.RECORD | Schema.Type.ENUM | Schema.Type.FIXED =>
           val name = schema.getFullName
-          ScalaNames.validateFullName(config.mappedFullName(name))
+          ScalaNames.validateFullName(config.mappedFullName(name), config.generateStackSafeCodecs)
           if seen.add(name) then
             val definition = schema.getType match
               case Schema.Type.RECORD =>
@@ -194,19 +194,31 @@ private[compiler] object ScalaNames:
     "productElementName", "productElementNames", "productIterator", "productPrefix", "getClass",
     "notify", "notifyAll", "wait", "clone", "finalize", "synchronized", "asInstanceOf", "isInstanceOf", "eq", "ne"
   )
-  val enumMembers: Set[String] = recordMembers ++ Set(
-    "values", "valueOf", "fromOrdinal", "ordinal", "codec", "stackSafeCodec", "schemaJson", "readResolve"
+  private val directEnumMembers: Set[String] = recordMembers ++ Set(
+    "values", "valueOf", "fromOrdinal", "ordinal", "codec", "schemaJson", "readResolve"
   )
+
+  def enumMembers(generateStackSafeCodecs: Boolean): Set[String] =
+    if generateStackSafeCodecs then directEnumMembers + "stackSafeCodec" else directEnumMembers
 
   def validateIdentifier(name: String): Unit =
     if !name.matches("[A-Za-z_][A-Za-z0-9_]*") || name == "_" || name == "_root_" then
       throw GenerationException(s"Avro identifier '$name' cannot safely be represented as a Scala identifier")
 
-  private val defaultPackageMembers = enumMembers ++ Set("in", "out", "value", "index", "read", "write", "readStep", "writeStep", "execution", "phase", "entered", "answer", "completed", "advance", "result", "cleanup", "map", "flatMap", "codecSelf", "apply", "unapply", "construct", "namedCodec", "fullName", "decimalRepresentation", "rawLogicalTypes")
+  private val directDefaultPackageMembers = directEnumMembers ++ Set(
+    "in", "out", "value", "index", "read", "write", "execution", "apply", "unapply",
+    "construct", "namedCodec", "fullName", "decimalRepresentation", "rawLogicalTypes"
+  )
+  private val stackSafeDefaultPackageMembers = Set(
+    "stackSafeCodec", "readStep", "writeStep", "phase", "entered", "answer", "completed",
+    "advance", "result", "cleanup", "map", "flatMap", "codecSelf"
+  )
 
-  def validateFullName(name: String): Unit =
+  def validateFullName(name: String, generateStackSafeCodecs: Boolean): Unit =
     name.split("\\.", -1).foreach(validateIdentifier)
-    if !name.contains('.') && (defaultPackageMembers(name) || name.matches("(?:field|builder|remaining|key|item|iterator|entry|branch)[0-9]+")) then
+    val reserved = directDefaultPackageMembers(name) ||
+      (generateStackSafeCodecs && stackSafeDefaultPackageMembers(name))
+    if !name.contains('.') && (reserved || name.matches("(?:field|builder|remaining|key|item|iterator|entry|branch)[0-9]+")) then
       throw GenerationException(s"Default-package type '$name' conflicts with a generated Scala member; give this type an Avro namespace")
 
   /** A named-package type and a package cannot occupy the same Scala symbol.

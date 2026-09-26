@@ -12,6 +12,24 @@ class GeneratorOptionsSuite extends munit.FunSuite:
   private val allRaw = GeneratorConfig(logicalTypes = LogicalType.values.map(_ -> LogicalTypeMode.Raw).toMap)
   private val allConverted = GeneratorConfig(logicalTypes = LogicalType.values.map(_ -> LogicalTypeMode.Converted).toMap)
 
+  test("stack-safe generation is an immutable opt-in and defaults to direct output only") {
+    val baseline = GeneratorConfig()
+    val enabled = baseline.copy(generateStackSafeCodecs = true)
+    assertEquals(baseline.generateStackSafeCodecs, false)
+    assertEquals(enabled.generateStackSafeCodecs, true)
+    val json = record("\"int\"")
+    val direct = generate(json).head.content
+    assertEquals(generate(json, baseline), generate(json))
+    assert(!direct.contains("runtime.codegen"))
+    assert(!direct.contains("lazy val stackSafeCodec:"))
+    val both = generate(json, enabled).head.content
+    assert(both.startsWith(direct))
+    assert(both.contains("lazy val stackSafeCodec:"))
+    assertEquals("given codec:".r.findAllIn(both).size, 1)
+    assert(!both.contains("given stackSafeCodec"))
+    assertEquals(generate(json, enabled.copy(generateStackSafeCodecs = false)).head.content, direct)
+  }
+
   test("logical type API names enumerate every supported annotation") {
     assertEquals(LogicalType.values.map(_.avroName).toSet, Set(
       "date", "time-millis", "time-micros", "timestamp-millis", "timestamp-micros", "timestamp-nanos",

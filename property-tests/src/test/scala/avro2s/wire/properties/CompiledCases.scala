@@ -59,10 +59,15 @@ object CompiledCases:
       // Separate methods keep large campaigns below the JVM method-size limit.
       val valueMethods = expressions.zipWithIndex.map((expr, i) => s"  private def value$i: Any = $expr").mkString("\n")
       val checks = if checkModelTypes then typeChecks(c.schema, options) else ""
+      val stackSafeGetter = if config.generateStackSafeCodecs then
+        s"  def stackSafeCodec: _root_.avro2s.wire.runtime.AvroCodec[Any] = ${NativeValues.namedType(c.schema, options)}.stackSafeCodec.asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]\n"
+      else ""
       // Default-package probes can reference models whose namespace was stripped.
       files(s"probes/Probe$index.scala") = s"""object Avro2sWirePropertyProbe$index:
   def codec: _root_.avro2s.wire.runtime.AvroCodec[Any] = ${NativeValues.namedType(c.schema, options)}.codec.asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]
-  def stackSafeCodec: _root_.avro2s.wire.runtime.AvroCodec[Any] = ${NativeValues.namedType(c.schema, options)}.stackSafeCodec.asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]
+  def contextualCodec: _root_.avro2s.wire.runtime.AvroCodec[Any] = _root_.avro2s.wire.runtime.AvroCodec[${NativeValues.namedType(c.schema, options)}].asInstanceOf[_root_.avro2s.wire.runtime.AvroCodec[Any]]
+  def hasStackSafeCodec: Boolean = ${NativeValues.namedType(c.schema, options)}.getClass.getMethods.exists(m => m.getName == "stackSafeCodec" && classOf[_root_.avro2s.wire.runtime.AvroCodec[?]].isAssignableFrom(m.getReturnType))
+$stackSafeGetter
 $valueMethods
 $checks
   def values: Vector[Any] = Vector(${expressions.indices.map(i => s"value$i").mkString(", ")})
@@ -84,10 +89,16 @@ $checks
         val clazz = loader.loadClass(s"Avro2sWirePropertyProbe$index$$")
         val module = clazz.getField("MODULE$").get(null)
         val direct = clazz.getMethod("codec").invoke(module).asInstanceOf[AvroCodec[Any]]
-        val stackSafe = clazz.getMethod("stackSafeCodec").invoke(module).asInstanceOf[AvroCodec[Any]]
+        require(clazz.getMethod("contextualCodec").invoke(module) eq direct, "Companion implicit lookup must select the direct codec")
         require(direct.execution == CodecExecution.Direct, "The implicit generated codec must remain direct")
-        require(stackSafe.execution == CodecExecution.StackSafe, "The alternative codec must select stack-safe resolution")
-        CompiledCase(direct, clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]], Vector(stackSafe))
+        val alternatives = if config.generateStackSafeCodecs then
+          val stackSafe = clazz.getMethod("stackSafeCodec").invoke(module).asInstanceOf[AvroCodec[Any]]
+          require(stackSafe.execution == CodecExecution.StackSafe, "The alternative codec must select stack-safe resolution")
+          Vector(stackSafe)
+        else
+          require(!clazz.getMethod("hasStackSafeCodec").invoke(module).asInstanceOf[Boolean], "Disabled generation must omit the stack-safe companion member")
+          Vector.empty
+        CompiledCase(direct, clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]], alternatives)
       }.toVector
       new CompiledCases(compiled, loader)
     catch

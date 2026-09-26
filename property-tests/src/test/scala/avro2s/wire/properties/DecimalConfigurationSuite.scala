@@ -54,7 +54,7 @@ final class DecimalConfigurationSuite extends munit.FunSuite:
     }
     assertEquals(cases.size, 18)
     modes.foreach { mode =>
-      val compiled = CompiledCases.compile(cases, directory(s"matrix-$mode-"), GeneratorConfig(mode))
+      val compiled = CompiledCases.compile(cases, directory(s"matrix-$mode-"), GeneratorConfig(mode, generateStackSafeCodecs = true))
       try cases.zip(compiled.cases).foreach((c, code) => checkWire(c, code, mode))
       finally compiled.close()
     }
@@ -136,7 +136,7 @@ final class DecimalConfigurationSuite extends munit.FunSuite:
   test("resolution preserves decimal mode and exact values through reordered fields, named models, and defaults") {
     val (writer, reader) = evolutionCase()
     modes.foreach { mode =>
-      val compiled = CompiledCases.compile(Vector(reader), directory(s"evolution-$mode-"), GeneratorConfig(mode))
+      val compiled = CompiledCases.compile(Vector(reader), directory(s"evolution-$mode-"), GeneratorConfig(mode, generateStackSafeCodecs = true))
       try
         val code = compiled.cases.head
         checkWire(reader, code, mode)

@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "BranchingNode",
+  "namespace": "avro2s.wire.fixtures.stacks",
+  "fields": [
+    {"name": "id", "type": "int"},
+    {"name": "left", "type": ["null", "BranchingNode"]},
+    {"name": "marker", "type": "long"},
+    {"name": "children", "type": {"type": "array", "items": "BranchingNode"}},
+    {"name": "label", "type": "string"},
+    {"name": "lookup", "type": {"type": "map", "values": "BranchingNode"}},
+    {"name": "choice", "type": ["null", "BranchingNode", "string", "long"]},
+    {"name": "tail", "type": "int"}
+  ]
+}

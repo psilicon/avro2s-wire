@@ -190,10 +190,10 @@ object EvolutionCases:
     }
   }
 
-  def randomCase(depth: Int, values: Int): Gen[EvolutionCase] = for
+  def randomCase(depth: Int, values: Int, valueDepth: Int = 4): Gen[EvolutionCase] = for
     rule <- Gen.oneOf(rules)
     context <- Gen.oneOf(contexts)
-    common <- SchemaCases.randomCase(depth, values)
+    common <- SchemaCases.randomCase(depth, values, valueDepth)
     aliasRecord <- Gen.oneOf(true, false)
     aliasField <- Gen.oneOf(true, false)
     drop <- Gen.oneOf(true, false)

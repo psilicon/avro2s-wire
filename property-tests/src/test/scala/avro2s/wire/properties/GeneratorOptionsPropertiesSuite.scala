@@ -23,7 +23,7 @@ final class GeneratorOptionsPropertiesSuite extends munit.FunSuite:
   private val mappings = Map("avro2s.wire.propertymatrix" -> "options.matrix", "option.source" -> "options.models",
     "option.source.deep" -> "options.precise", "" -> "options.unnamed", "option.strip" -> "")
   private def config(mode: DecimalType, raw: Set[String], names: Map[String, String] = mappings): GeneratorConfig =
-    GeneratorConfig(mode, namespaceMappings = names,
+    GeneratorConfig(mode, namespaceMappings = names, generateStackSafeCodecs = true,
       logicalTypes = LogicalType.values.map(t => t -> (if raw(t.avroName) then LogicalTypeMode.Raw else LogicalTypeMode.Converted)).toMap)
   private def rawTypes(config: GeneratorConfig): Set[String] =
     config.logicalTypes.collect { case (logical, LogicalTypeMode.Raw) => logical.avroName }.toSet
@@ -258,11 +258,48 @@ final class GeneratorOptionsPropertiesSuite extends munit.FunSuite:
     compiled(Vector(c), "raw-physical", settings)(codes => check(c, codes.head, settings, exactWire = true))
   }
 
+  test("stack-safe-only names compile in default mode and enum renaming remains wire compatible when enabled") {
+    val namedCases = Vector("phase", "map", "codecSelf").map { name =>
+      val schema = new Schema.Parser().parse(s"""{"type":"record","name":"$name","fields":[
+        {"name":"number","type":"int"},{"name":"next","type":["null","$name"]}]}""")
+      val tail = datum(schema, Int.box(-73), null)
+      SchemaCase(schema, Vector(tail, datum(schema, Int.box(8192), tail)))
+    }
+    val enumSchema = new Schema.Parser().parse("""{"type":"enum","name":"SafeMemberEnum",
+      "symbols":["stackSafeCodec","avro_symbol_stackSafeCodec","Other"]}""")
+    val enumCase = SchemaCase(enumSchema,
+      enumSchema.getEnumSymbols.asScala.map(symbol => new GenericData.EnumSymbol(enumSchema, symbol)).toVector)
+    val cases = namedCases :+ enumCase
+
+    // Use the harness's actual default. Its reflection check must distinguish
+    // the enum case named stackSafeCodec from an optional codec getter.
+    val direct = CompiledCases.compile(cases, target.resolve("default-safe-only-names"), checkModelTypes = true)
+    try cases.zip(direct.cases).foreach { (c, code) =>
+      assertEquals(code.alternatives.size, 0)
+      check(c, code, GeneratorConfig(), exactWire = true)
+    }
+    finally direct.close()
+
+    val enabled = GeneratorConfig(generateStackSafeCodecs = true)
+    namedCases.foreach { c =>
+      val error = intercept[avro2s.wire.compiler.GenerationException] {
+        CodeGenerator.generate(c.schema, enabled)
+      }
+      assert(error.getMessage.contains(s"Default-package type '${c.schema.getName}' conflicts"))
+    }
+    val enumSource = CodeGenerator.generate(enumSchema, enabled).head.content
+    assert(enumSource.contains("case avro_symbol_stackSafeCodec_\n"))
+    compiled(Vector(enumCase), "enabled-safe-only-enum", enabled) { codes =>
+      assertEquals(codes.head.codecs.size, 2)
+      check(enumCase, codes.head, enabled, exactWire = true)
+    }
+  }
+
   test("explicit Converted entries emit exactly the default source in either decimal mode") {
     for decimal <- Vector(DecimalType.Scala, DecimalType.Java); names <- Vector(Map.empty[String, String], mappings) do
       // The mixed named/default-package graph needs its mapping to be representable in Scala.
       val cases = matrix ++ (if names.isEmpty then namespaceCases.tail else namespaceCases)
-      val default = GeneratorConfig(decimal, namespaceMappings = names)
+      val default = GeneratorConfig(decimal, namespaceMappings = names, generateStackSafeCodecs = true)
       val converted = config(decimal, Set.empty, names)
       cases.foreach(c => assertEquals(CodeGenerator.generate(c.schema, converted), CodeGenerator.generate(c.schema, default)))
   }

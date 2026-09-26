@@ -1,5 +1,6 @@
 package avro2s.wire.properties
 
+import avro2s.wire.compiler.GeneratorConfig
 import avro2s.wire.resolution.{ResolvingReader, SchemaResolutionException}
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, BinaryInput}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -14,6 +15,7 @@ import scala.util.control.NonFatal
 
 final class EvolutionPropertiesSuite extends munit.FunSuite:
   override val munitTimeout = 10.minutes
+  private val generation = GeneratorConfig(generateStackSafeCodecs = true)
   private val seed = sys.env.get("AVRO2S_WIRE_TEST_SEED").fold(20260917L)(_.toLong)
   private def setting(name: String, default: Int, min: Int, max: Int): Int =
     val value = sys.env.get(name).fold(default)(_.toInt)
@@ -76,7 +78,7 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
         // Shrinks must still resolve in Java. Unrelated schema/compiler failures
         // cannot become a reproduction of a runtime resolution defect.
         val expected = EvolutionOracle.expected(candidate)
-        val compiled = CompiledCases.compile(Vector(expected), directory.resolve(s"shrink-$attempt"))
+        val compiled = CompiledCases.compile(Vector(expected), directory.resolve(s"shrink-$attempt"), generation)
         try
           try { check(candidate, expected, compiled.cases.head); false }
           catch case failed: PropertyFailure => failed.kind == original.kind
@@ -140,7 +142,7 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
           EvolutionReplay.save(c, run.resolve(s"oracle-failure-$batchIndex-$index"), s"seed=$seed\n${error.toString}\n")
           throw error
       }
-      val compiled = try CompiledCases.compile(expected, run.resolve(s"batch-$batchIndex"))
+      val compiled = try CompiledCases.compile(expected, run.resolve(s"batch-$batchIndex"), generation)
       catch case NonFatal(error) =>
         batch.zipWithIndex.foreach((c, i) => EvolutionReplay.save(c, run.resolve(s"compile-failure-$batchIndex-$i"), s"seed=$seed\n${error.toString}\n"))
         throw error
@@ -150,6 +152,41 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
       }
       finally compiled.close()
     }
+  }
+
+  test("default direct-only generated readers support evolved schemas and named codec lookup") {
+    Files.createDirectories(target)
+    val run = Files.createTempDirectory(target, "direct-only-")
+    EvolutionCases.mandatory.grouped(24).zipWithIndex.foreach { (batch, index) =>
+      val expected = batch.map(EvolutionOracle.expected)
+      val compiled = CompiledCases.compile(expected, run.resolve(s"batch-$index"))
+      try batch.zip(expected).zip(compiled.cases).foreach { case ((c, reference), code) =>
+        assertEquals(code.alternatives.size, 0)
+        check(c, reference, code)
+      }
+      finally compiled.close()
+    }
+  }
+
+  test("deeper evolution agrees with Java across multiple reproducible seeds") {
+    if !sys.env.contains("AVRO2S_WIRE_EVOLUTION_REPLAY") then
+      Files.createDirectories(target)
+      for campaignSeed <- Vector(0L, 42L, 20260926L) do
+        val batch = Gen.listOfN(12, EvolutionCases.randomCase(3, 6, valueDepth = 8))
+          .apply(Gen.Parameters.default, Seed(campaignSeed)).get.toVector
+        val run = Files.createTempDirectory(target, s"deep-seed-$campaignSeed-")
+        val actualDepth = batch.flatMap(c => c.values.map(v => WireLayouts.resources(c.writer, v).nestingDepth)).max
+        Files.writeString(run.resolve("coverage.txt"), s"seed=$campaignSeed\nschemaDepthBudget=3\nvalueDepthBudget=8\nobservedWriterNestingDepth=$actualDepth\n")
+        batch.zipWithIndex.foreach((c, i) => EvolutionReplay.save(c, run.resolve(s"case-$i"), s"seed=$campaignSeed\ndepth=3\n"))
+        val expected = batch.map(EvolutionOracle.expected)
+        val compiled = CompiledCases.compile(expected, run.resolve("compiled"), generation)
+        try batch.zip(expected).zip(compiled.cases).zipWithIndex.foreach { case (((c, reference), code), index) =>
+          assertEquals(code.codecs.size, 2)
+          try check(c, reference, code)
+          catch case NonFatal(error) => fail(s"Deep evolution seed=$campaignSeed; replay: ${run.resolve(s"case-$index")}", error)
+        }
+        finally compiled.close()
+      println("avro2s-wire deeper evolution properties: seeds=0,42,20260926; 36 pairs, 216 values, both codecs; depth=3")
   }
 
   test("random pair and value shrinks retain compatible Java resolution") {
@@ -199,7 +236,7 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
     assertEquals(replay.reader, minimal.reader)
     assertEquals(JavaOracle.normalized(replay.writer, replay.values.head), JavaOracle.normalized(minimal.writer, minimal.values.head))
     val expected = EvolutionOracle.expected(replay)
-    val compiled = CompiledCases.compile(Vector(expected), directory.resolve("compiled"))
+    val compiled = CompiledCases.compile(Vector(expected), directory.resolve("compiled"), generation)
     try check(replay, expected, compiled.cases.head)
     finally compiled.close()
   }
@@ -217,7 +254,7 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
     val expected = examples.map(EvolutionOracle.expected)
     Files.createDirectories(target)
     val directory = Files.createTempDirectory(target, "oracle-mutations-")
-    val compiled = CompiledCases.compile(expected, directory)
+    val compiled = CompiledCases.compile(expected, directory, generation)
     try
       examples.zip(expected).zip(compiled.cases).foreach { case ((c, reference), code) => check(c, reference, code) }
       val code = compiled.cases.head
