@@ -126,7 +126,7 @@ class SuiteCorrectnessSuite extends munit.FunSuite:
     assertEquals(official - expected, 999000000L, "Revisit the capability exclusion if the pinned Avro bug changes")
     for id <- Vector("L06", "L09") do
       val c = SuiteCatalog.byId(id)
-      assertEquals(SuiteSupport.enginesFor(c, "encode"), Vector("wire"))
+      assertEquals(SuiteSupport.enginesFor(c, "encode"), SuiteSupport.wireEngines)
       assert(SuiteSupport.enginesFor(c, "decode").contains("java-specific"))
       assert(SuiteSupport.enginesFor(c, "decode").contains("java-generic"))
       intercept[IllegalArgumentException](SuiteWorkload.prepared(id, "java-specific", "encode"))

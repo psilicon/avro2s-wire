@@ -8,7 +8,9 @@ builds and benchmarks need no external generator checkout.
 - Current avro2s revision **861c816b63643edfaf012d2b84f1bc0ea8b4ce99**, Scala 3
   output, logical types enabled and **ScalaEnum** selected explicitly.
 - Wire sources generated during the build from `src/main/resources/suite/schemas`,
-  using the default direct codecs. Evolution writer schemas are separate inputs.
+  with both direct and stack-safe codecs for the selectable Wire engines. The
+  default engine still uses the direct native codec. Evolution writer schemas
+  are separate inputs.
 
 From the repository root:
 

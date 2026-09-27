@@ -14,6 +14,34 @@ avro2s subset covers the agreed primitives, arrays/maps, ASCII strings and
 unions; its enum is a Scala 3 enum. There is no weighted overall score or mixed
 payload headline benchmark.
 
+## Implementations and Wire configurations
+
+Use repeatable `--engine` flags to choose the implementations in a comparison.
+The existing default campaigns keep their original five engines (four in reuse
+mode); the additional Wire configurations are explicitly selected.
+
+| Engine | Generated model/codec | Binary I/O |
+| --- | --- | --- |
+| `wire` | Wire, direct codec | Native |
+| `wire-stack-safe` | Wire, stack-safe codec | Native |
+| `wire-java` | Wire, direct codec | Java Avro through `JavaAvroInput`/`JavaAvroOutput` |
+| `wire-java-stack-safe` | Wire, stack-safe codec | Java Avro through the same adapters |
+| `java-specific` | Official generated Java specific records | Java Avro specific datum readers/writers |
+| `java-generic` | Official generic records | Java Avro generic datum readers/writers |
+| `java-custom` | Official generated Java custom coders, where supported | Java Avro |
+| `avro2s` | Pinned base avro2s generated Scala records | Java Avro specific machinery |
+
+All four Wire engines support the complete catalogue in fresh and reuse modes,
+including schema evolution. The benchmark build generates both Wire codecs;
+this does not change the library generator's default. The Java backend retains
+Wire's Scala model and logical conversions, so it is a different comparison
+from official `java-specific`. The avro2s engine supports fresh mode only.
+
+`--reference-engine` chooses the denominator for timing ratios (default `wire`).
+For example, with reference `wire-java`, a `wire-stack-safe / wire-java` ratio
+above one means native stack-safe execution took longer. Results always retain
+the absolute timing and allocation values as well.
+
 Apache Avro 1.12.1's timestamp-nanos and local-timestamp-nanos conversions encode
 fractional pre-epoch values incorrectly (a 999 ms shift). Java-specific and
 Java-generic encoding for L06 and L09 is therefore N/A with an explicit reason;
@@ -57,6 +85,15 @@ The `reuse-check` diagnostic uses a separate `reuse` usage mode:
   must not be described as isolating buffer reuse alone. No concurrency policy
   or new reuse API is added to the Wire runtime.
 
+Here, the `BinaryOutput` path means native `wire`/`wire-stack-safe`, and the raw
+message helpers mean official `java-specific`/`java-generic`/`java-custom`.
+The Wire Java backend (`wire-java`/`wire-java-stack-safe`) instead uses the public
+`JavaAvroOutput`/`JavaAvroInput` adapters. Fresh mode creates a buffered encoder
+and array decoder; reuse mode reconfigures and retains those same kinds of
+encoder/decoder, adapters and output stream. It always copies the output into
+an owned array and checks complete input consumption. Its buffered/array I/O
+therefore differs from the direct stream I/O inside the official raw helpers.
+
 Wire encoding rejects unpaired UTF-16 surrogates by default. Use
 `--wire-string-policy replace` to select the runtime's immutable writer setting
 that permits the JDK's replacement with ASCII `?`, matching Java Avro's string
@@ -66,6 +103,12 @@ unchanged, so this measures the cost of the policy rather than malformed inputs.
 Replacement runs are explicitly marked diagnostic, and the policy is frozen in
 the plan, JMH parameters, raw records and report. Archived runs without this
 parameter retain their original contract and report; they are not relabelled.
+
+The policy applies to `wire` and `wire-stack-safe`. The Java-backed Wire engines
+use Java Avro's replacement behavior regardless of this flag, because the public
+`JavaAvroOutput` API delegates string encoding to Java. Select `replace` for a
+comparison where both backends use that policy. Their input adapters also retain
+Java's UTF-8 decoding behavior; this is not validation-equivalent to native input.
 
 Correctness tests check cross-engine values and wire interoperability, fresh
 results, generated custom dispatch, String output, and the agreed input shapes.
@@ -102,6 +145,20 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick -
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
   --wire-string-policy replace --select T11:encode --select P06:decode \
   --engine wire --engine java-specific
+
+# Every primitive case, both operations: native versus Java-backed Wire.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
+  --case 'P*' --engine wire --engine wire-java --dry-run
+
+# Every text encoding: compare direct and stack-safe codecs on both backends.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
+  --select 'T*:encode' --wire-string-policy replace \
+  --engine wire --engine wire-stack-safe --engine wire-java --engine wire-java-stack-safe --dry-run
+
+# Compare two variants without the ordinary native direct engine.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
+  --case 'R*' --engine wire-java --engine wire-java-stack-safe \
+  --reference-engine wire-java --dry-run
 ```
 
 `--dry-run` does not run sbt, start JMH or create output. It validates the pinned
@@ -109,6 +166,73 @@ generated-source hashes and prints every selected case, operation and engine,
 including the deterministic schedule. Use `--case P03` and/or `--engine wire`
 (repeatable) to narrow diagnostic work. Any narrowed run is marked diagnostic,
 even when it uses the full timing settings.
+
+Case selectors accept case-sensitive glob patterns against catalogue IDs:
+`--case 'P*'` selects primitives, `--case 'T*'` selects text, and
+`--select 'T*:encode'` selects only text encoding. Quote patterns so the shell
+does not expand them. Repeat selectors to combine families. Overlapping patterns
+do not repeat measurements; unmatched patterns fail instead of producing an
+empty or broader campaign. `--case` and `--select` cannot be mixed. The expanded
+case/operation/engine list is frozen in the dry-run plan and run metadata.
+
+`quick` reduces time per measurement, not default membership: without selectors
+it still runs the complete default matrix. `reuse-check` has fixed membership;
+use `quick` or `full` for custom engine/case selections. Remove `--dry-run` from
+the examples above to execute after checking the estimated duration.
+
+## Comparing configurations in one campaign
+
+Use repeatable `--variant 'name=LABEL,engine=ENGINE,usage=USAGE,string-policy=POLICY'`
+to vary usage or native string policy within a single campaign. The name identifies the report row and
+raw files. Each configuration gets its own JVM per round; configurations for
+the same case and operation are adjacent, with order rotated between rounds.
+Output ownership remains the same in fresh and reuse mode.
+
+```sh
+# Native Wire fresh versus native Wire reuse, with the same replacement policy.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --select 'P*:encode' \
+  --variant 'name=fresh-output,engine=wire,usage=fresh,string-policy=replace' \
+  --variant 'name=reused-output,engine=wire,usage=reuse,string-policy=replace' \
+  --reference-variant fresh-output --dry-run
+
+# Strict versus replacement encoding, with reuse held constant.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --select 'T*:encode' \
+  --variant 'name=strict,engine=wire,usage=reuse,string-policy=reject' \
+  --variant 'name=replacement,engine=wire,usage=reuse,string-policy=replace' \
+  --reference-variant strict --dry-run
+
+# Compare multiple libraries under both lifecycle settings in one campaign.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --select P03:encode \
+  --variant 'name=wire-fresh,engine=wire,usage=fresh,string-policy=replace' \
+  --variant 'name=wire-reuse,engine=wire,usage=reuse,string-policy=replace' \
+  --variant 'name=java-fresh,engine=java-specific,usage=fresh' \
+  --variant 'name=java-reuse,engine=java-specific,usage=reuse' \
+  --reference-variant wire-fresh --dry-run
+```
+
+Each variant requires `name`, `engine` and `usage`. `name` is an arbitrary report
+label; it does not change behavior. `usage=reuse` retains working buffers while
+still returning independently owned output. `string-policy=replace` concerns
+malformed UTF-16, not buffer reuse. Fields can appear in any order. Duplicate,
+unknown or empty fields are rejected.
+
+For native Wire, fresh versus reuse changes encoding only: both decode modes
+still use `codec.decode` and create a `BinaryInput`. Select encode operations
+when investigating native output reuse; native decode rows would exercise the
+same implementation twice. Java-backed Wire and the official Java engines also
+have different fresh/reuse decoder lifecycles as documented above.
+
+In variant mode, `--reference-variant` names the ratio denominator and defaults
+to the first declared variant. For `reused-output / fresh-output`, a ratio below one means reuse
+took less time. The optional policy defaults to `--wire-string-policy` (itself
+`reject` by default); Java-backed engines retain their fixed replacement policy.
+Do not combine `--variant` with `--engine`, `--usage` or `--reference-engine`:
+each variant already specifies those settings. `reuse-check` keeps its fixed
+membership and cannot accept variants. Plans and reports retain each variant's
+effective engine, lifecycle, string policy and API contract.
 
 Use repeatable `--select CASE:OPERATION` to choose exact case/operation pairs
 instead of `--case`. The `quick` profile uses two independent rounds, with
@@ -123,6 +247,21 @@ the compiled JMH classpath. Measurements then launch `org.openjdk.jmh.Main`
 directly, with one fresh fork per selected cell per round. It does not repeatedly
 start sbt thousands of times. `--skip-tests` is an explicit escape hatch after
 separately validating the exact same sources; its use is recorded.
+
+## Comparing source revisions
+
+There is no dedicated `--baseline-ref`/`--compare-ref` command or automatic
+cross-revision report in this runner. Each campaign records its Git revision,
+dirty state and exact measured sources. Separate checkouts can be measured with
+the same selections, JDK, usage, string policy and timing settings; `--root`
+selects which checkout to build. It does not check out a revision or adapt an
+older Scala harness to newer parameters.
+
+For a runtime before/after comparison, use a compatible copy of the same harness
+and corpus in both checkouts and run correctness checks for each. If the harness
+or API contract changed between commits, the resulting campaign timings do not
+isolate the runtime change. Retain both results directories and their original
+reports; do not combine separate campaigns as if they were paired JVM rounds.
 
 ## Frozen measurement protocol
 

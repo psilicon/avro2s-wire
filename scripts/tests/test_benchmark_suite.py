@@ -159,6 +159,77 @@ class CatalogueTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "avro2s is outside"):
             runner.make_plan(self.catalog, self.capabilities, "smoke", usage="reuse", engines=["avro2s"])
 
+    def test_wire_variants_are_opt_in_and_preserve_every_default_membership(self):
+        for profile in ("full", "pilot", "smoke", "reuse-check", "quick"):
+            for usage in (("reuse",) if profile == "reuse-check" else ("fresh", "reuse")):
+                plan = runner.make_plan(self.catalog, self.capabilities, profile, usage=usage)
+                self.assertFalse({cell[2] for cell in plan["cells"]}.intersection(report.WIRE_VARIANTS))
+                self.assertEqual(plan["wireVariantContracts"], {})
+        for usage in ("fresh", "reuse"):
+            base = runner.make_plan(self.catalog, self.capabilities, "quick", engines=["wire"], usage=usage)
+            expected = {(case_id, operation) for case_id, operation, _ in base["cells"]}
+            for engine in report.WIRE_VARIANTS:
+                plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=[engine], usage=usage,
+                                        reference_engine=engine)
+                self.assertEqual({(case_id, operation) for case_id, operation, _ in plan["cells"]}, expected)
+                self.assertEqual(plan["expectedCells"], 119)
+                self.assertEqual(set(plan["wireVariantContracts"]), {engine})
+                self.assertEqual(plan["referenceEngine"], engine)
+
+    def test_wire_variant_capabilities_follow_wire_instead_of_java_specific(self):
+        engines = ["wire"] + list(report.WIRE_VARIANTS)
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=engines,
+                                selections=["L06:encode", "L09:encode", "E*:decode"])
+        self.assertEqual(plan["expectedCells"], 5 * len(engines))
+        changed = copy.deepcopy(self.capabilities)
+        row = next(case for case in changed["cases"] if case["id"] == "L06")
+        row["engines"]["wire"].update(operations=["decode"], reason="Test capability exclusion")
+        with self.assertRaisesRegex(ValueError, "no supported cells.*L06:encode"):
+            runner.make_plan(self.catalog, changed, "quick", engines=["wire-java"], selections=["L06:encode", "P03:encode"])
+
+    def test_case_globs_expand_in_catalogue_order_and_overlap_is_deduplicated(self):
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=["wire"], cases=["P*", "P03", "P0?"])
+        self.assertEqual(plan["expectedCells"], 20)
+        self.assertEqual({cell[0] for cell in plan["cells"]}, {f"P{index:02d}" for index in range(1, 11)})
+        cases = runner.expand_selectors(["T0[12]", "T1*", "T01"], {case["id"]: case["operations"] for case in self.catalog["cases"]})
+        self.assertEqual(cases, ["T01", "T02", "T10", "T11", "T12", "T13", "T14", "T15"])
+        for selected, error in ((["p*"], "case-sensitive"), (["Q*"], "no catalogue IDs"),
+                                (["P03", "P03"], "Duplicate"), (["P*", "P*"], "Duplicate")):
+            with self.subTest(selected=selected), self.assertRaisesRegex(ValueError, error):
+                runner.make_plan(self.catalog, self.capabilities, "quick", cases=selected)
+
+    def test_operation_globs_expand_exact_pairs_and_reject_unsupported_matches(self):
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=["wire", "wire-java"],
+                                selections=["T*:encode", "T01:encode", "T0?:decode"])
+        expected = [[f"T{index:02d}", "encode"] for index in range(1, 16)]
+        expected += [[f"T{index:02d}", "decode"] for index in range(1, 10)]
+        self.assertEqual(plan["selectedOperations"], expected)
+        self.assertEqual(plan["expectedCells"], 48)
+        for selections, error in ((["t*:encode"], "no catalogue IDs"), (["E*:encode"], "Unsupported catalogue operation"),
+                                  (["*:encode"], "Unsupported catalogue operation"), (["P*:write"], "Invalid"),
+                                  (["T*:encode", "T*:encode"], "Duplicate")):
+            with self.subTest(selections=selections), self.assertRaisesRegex(ValueError, error):
+                runner.make_plan(self.catalog, self.capabilities, "quick", selections=selections)
+        with self.assertRaisesRegex(ValueError, "no supported cells.*L06:encode"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", engines=["java-specific"],
+                             selections=["L0[56]:encode"])
+
+    def test_cli_accepts_quoted_globs_and_an_explicit_comparison_denominator(self):
+        args = runner.parse_args(["--java", sys.executable, "--select", "T*:encode", "--engine", "wire-java",
+                                  "--engine", "wire-java-stack-safe", "--reference-engine", "wire-java"])
+        self.assertEqual(args.selections, ["T*:encode"])
+        self.assertEqual(args.engines, ["wire-java", "wire-java-stack-safe"])
+        self.assertEqual(args.reference_engine, "wire-java")
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=args.engines,
+                                selections=args.selections, reference_engine=args.reference_engine)
+        self.assertEqual(plan["referenceEngine"], "wire-java")
+        self.assertEqual(plan["expectedCells"], 30)
+        with self.assertRaisesRegex(ValueError, "reference engine must be one of"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", engines=["wire"], reference_engine="wire-java")
+        # Existing engine-only selection remains valid without a reference row.
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", engines=["java-specific"])
+        self.assertEqual(plan["referenceEngine"], "wire")
+
     def test_string_policy_is_explicit_in_cli_plan_and_contract(self):
         args = runner.parse_args(["--java", sys.executable])
         self.assertEqual(args.wire_string_policy, "reject")
@@ -183,13 +254,14 @@ class CatalogueTests(unittest.TestCase):
             runner.make_plan(self.catalog, self.capabilities, "full", cases=["NOPE"])
 
     def test_rounds_are_complete_and_engine_positions_rotate(self):
-        cells = [["P03", "encode", engine] for engine in report.ENGINES]
-        schedule = runner.schedule(cells, 5, 123)
-        self.assertEqual(schedule, runner.schedule(cells, 5, 123))
-        by_round = [[row["engine"] for row in schedule if row["round"] == index] for index in range(1, 6)]
-        for index, engines in enumerate(by_round):
-            self.assertEqual(engines, by_round[0][index:] + by_round[0][:index])
-        self.assertEqual({engines[0] for engines in by_round}, set(report.ENGINES))
+        for selected in (report.DEFAULT_ENGINES, report.ENGINES):
+            cells = [["P03", "encode", engine] for engine in selected]
+            schedule = runner.schedule(cells, len(selected), 123)
+            self.assertEqual(schedule, runner.schedule(cells, len(selected), 123))
+            by_round = [[row["engine"] for row in schedule if row["round"] == index] for index in range(1, len(selected) + 1)]
+            for index, engines in enumerate(by_round):
+                self.assertEqual(engines, by_round[0][index:] + by_round[0][:index])
+            self.assertEqual({engines[0] for engines in by_round}, set(selected))
 
     def test_capability_mismatch_and_changed_generated_source_fail(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -413,6 +485,183 @@ class StatisticsTests(unittest.TestCase):
             records[0]["params"]["wireStringPolicy"] = "replace"
             with self.assertRaisesRegex(ValueError, "Result Wire string policy"):
                 report.render(records, metadata)
+
+    def test_wire_configuration_ratios_use_explicit_denominator_and_preserve_round_pairs(self):
+        catalog, caps = runner.load_inputs(SCRIPTS.parent)
+        for denominator in ("wire", "wire-java", "wire-stack-safe"):
+            engines = ["wire", "wire-java", "wire-stack-safe"]
+            plan = runner.make_plan(catalog, caps, "quick", engines=engines, selections=["P03:encode"],
+                                    reference_engine=denominator, usage="reuse")
+            records = []
+            for index, base in enumerate((100, 120), 1):
+                for engine, factor in zip(engines, (1, 2, 4)):
+                    record = sample_record(engine=engine, values=[base * factor] * 5)
+                    record["params"].update(usage="reuse", wireStringPolicy="reject")
+                    records.append({**record, "_round": index, "_sourceFile": f"raw/{engine}-{index}.json"})
+            rendered = report.render(records, {"plan": plan, "catalog": catalog, "gitRevision": "test"})
+            self.assertIn(f"Engine / {denominator}", rendered)
+            self.assertIn(f"denominator is `{denominator}`", rendered)
+            self.assertIn("Java-backed Wire always uses Java string", rendered)
+            self.assertIn("Retained ByteArrayOutputStream, buffered BinaryEncoder", rendered)
+            self.assertIn("explicit complete-consumption check", rendered)
+            self.assertIn("Generated stackSafeCodec", rendered)
+            for engine, factor in zip(engines, (1, 2, 4)):
+                row = next(line for line in rendered.splitlines() if line.startswith(f"| {engine} |"))
+                expected = factor / (1, 2, 4)[engines.index(denominator)]
+                self.assertIn("| — |" if engine == denominator else f"{expected:.3f} [{expected:.3f}, {expected:.3f}]", row)
+
+
+class ConfigurationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.catalog, cls.capabilities = runner.load_inputs(SCRIPTS.parent)
+
+    def plan(self, variants=None, **kwargs):
+        return runner.make_plan(self.catalog, self.capabilities, "quick", selections=["P03:encode"],
+                                variants=variants or ["name=fresh,engine=wire,usage=fresh,string-policy=replace", "name=reuse,engine=wire,usage=reuse,string-policy=replace"], **kwargs)
+
+    def records(self, plan):
+        records = []
+        for row in plan["schedule"]:
+            variant = plan["variants"][row["engine"]]
+            # Same actual engine, different configuration and inter-round base.
+            factor = 2 if row["engine"] == next(iter(plan["variants"])) else 1
+            record = sample_record(engine=variant["engine"], values=[(100 + row["round"] * 10) * factor] * 5)
+            record["params"].update(usage=variant["usage"], wireStringPolicy=variant["wireStringPolicy"])
+            records.append({**record, "_variant": row["engine"], "_round": row["round"],
+                            "_sourceFile": f"raw/{row['engine']}-{row['round']}.json"})
+        return records
+
+    def test_same_engine_usage_and_policy_variants_have_distinct_cells_and_paired_rounds(self):
+        for variants in (["name=fresh,engine=wire,usage=fresh,string-policy=replace", "name=reuse,engine=wire,usage=reuse,string-policy=replace"],
+                         ["name=strict,engine=wire,usage=reuse,string-policy=reject", "name=replacement,engine=wire,usage=reuse,string-policy=replace"]):
+            plan = self.plan(variants)
+            names = list(plan["variants"])
+            self.assertEqual(plan["cells"], [["P03", "encode", name] for name in names])
+            self.assertEqual(plan["referenceVariant"], names[0])
+            self.assertEqual(plan["expectedCells"], 2)
+            self.assertEqual(plan["expectedJVMForks"], 4)
+            self.assertEqual(plan["warmupAndMeasurementSeconds"], 40)
+            self.assertNotIn("usage", plan)
+            self.assertNotIn("wireStringPolicy", plan)
+            records = self.records(plan)
+            rendered = report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+            self.assertIn(f"Configuration / {names[0]}", rendered)
+            self.assertIn("0.500 [0.500, 0.500]", rendered)
+            for name in names:
+                for index in (1, 2):
+                    self.assertIn(f"raw/{name}-{index}.json", rendered)
+            for round_number in (1, 2):
+                self.assertEqual({row["engine"] for row in plan["schedule"] if row["round"] == round_number}, set(names))
+
+    def test_variant_reference_override_and_global_policy_default(self):
+        plan = self.plan(["name=fresh,engine=wire,usage=fresh", "name=reuse,engine=wire,usage=reuse,string-policy=reject"], wire_string_policy="replace", reference_variant="reuse")
+        self.assertEqual(plan["variants"]["fresh"]["wireStringPolicy"], "replace")
+        self.assertEqual(plan["variants"]["reuse"]["wireStringPolicy"], "reject")
+        rendered = report.render(self.records(plan), {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        self.assertIn("Configuration / reuse", rendered)
+        self.assertIn("2.000 [2.000, 2.000]", rendered)
+
+    def test_named_variant_fields_are_order_independent_and_trim_whitespace(self):
+        specification = " usage = reuse , string-policy = replace , engine = wire , name = reused-output "
+        args = runner.parse_args(["--java", sys.executable, "--variant", specification])
+        plan = self.plan(args.variants)
+        self.assertEqual(list(plan["variants"]), ["reused-output"])
+        self.assertEqual(plan["variants"]["reused-output"]["engine"], "wire")
+        self.assertEqual(plan["variants"]["reused-output"]["usage"], "reuse")
+        self.assertEqual(plan["variants"]["reused-output"]["wireStringPolicy"], "replace")
+
+    def test_named_variant_fields_reject_missing_duplicate_unknown_and_empty_values(self):
+        complete = "name=reused,engine=wire,usage=reuse"
+        for field in ("name", "engine", "usage"):
+            tokens = complete.split(",")
+            missing = ",".join(token for token in tokens if not token.startswith(field + "="))
+            empty = ",".join(field + "= " if token.startswith(field + "=") else token for token in tokens)
+            duplicate = complete + "," + next(token for token in tokens if token.startswith(field + "="))
+            for specification, error in ((missing, "Missing --variant fields"), (empty, "Empty --variant field"),
+                                         (duplicate, "Duplicate --variant field")):
+                with self.subTest(specification=specification), self.assertRaisesRegex(ValueError, error):
+                    self.plan([specification])
+        invalid = [(complete + ",string-policy=", "Empty --variant field"),
+                   (complete + ",string-policy=reject,string-policy=replace", "Duplicate --variant field"),
+                   (complete + ",policy=replace", "Unknown --variant field"),
+                   (complete + ",=replace", "Unknown --variant field"),
+                   (complete + ",string-policy=replace=reject", "Invalid --variant field"),
+                   (complete + ",", "Invalid --variant field"),
+                   ("reuse:wire:reuse:replace", "Invalid --variant field"),
+                   ("", "Invalid --variant field")]
+        for specification, error in invalid:
+            with self.subTest(specification=specification), self.assertRaisesRegex(ValueError, error):
+                self.plan([specification])
+
+    def test_variant_parameters_and_contracts_cannot_be_mislabelled(self):
+        plan = self.plan()
+        for key, value in (("engine", "wire-stack-safe"), ("usage", "fresh"), ("wireStringPolicy", "reject")):
+            records = self.records(plan)
+            record = next(record for record in records if record["_variant"] == "reuse")
+            record["params"][key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "parameters do not match frozen variant"):
+                report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        for label in (None, "unknown"):
+            records = self.records(plan)
+            records[0]["_variant"] = label
+            with self.assertRaisesRegex(ValueError, "missing or unknown variant"):
+                report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        records = self.records(plan)
+        for broken in (records[:-1], records + [records[0]]):
+            with self.assertRaises(ValueError):
+                report.render(broken, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        plan["variants"]["reuse"]["apiContract"] = report.api_contract("fresh", "replace")
+        with self.assertRaisesRegex(ValueError, "Frozen variant contract"):
+            report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+
+    def test_variant_validation_rejects_ambiguous_or_unsupported_configuration(self):
+        invalid = [(["name=same,engine=wire,usage=fresh", "name=same,engine=wire,usage=reuse"], "Duplicate variant name"),
+                   (["name=Fast,engine=wire,usage=fresh", "name=fast,engine=wire,usage=reuse"], "Duplicate variant name"),
+                   (["name=../escape,engine=wire,usage=fresh"], "Invalid --variant"), (["name=bad,engine=wire,usage=unknown"], "Invalid engine"),
+                   (["name=bad,engine=unknown,usage=fresh"], "Invalid engine"), (["name=bad,engine=wire,usage=fresh,string-policy=unknown"], "Invalid engine"),
+                   (["name=bad,engine=avro2s,usage=reuse"], "avro2s is outside"), (["bad:wire"], "Invalid --variant")]
+        for variants, error in invalid:
+            with self.subTest(variants=variants), self.assertRaisesRegex(ValueError, error):
+                self.plan(variants)
+        for kwargs in ({"engines": ["wire"]}, {"usage": "reuse"}, {"reference_engine": "wire"}):
+            with self.assertRaisesRegex(ValueError, "cannot be combined"):
+                self.plan(**kwargs)
+        with self.assertRaisesRegex(ValueError, "Reference variant"):
+            self.plan(reference_variant="missing")
+        with self.assertRaisesRegex(ValueError, "requires --variant"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", reference_variant="fresh")
+        with self.assertRaisesRegex(ValueError, "reuse-check fixes"):
+            runner.make_plan(self.catalog, self.capabilities, "reuse-check", variants=["name=one,engine=wire,usage=reuse"])
+
+    def test_mixed_capability_variants_keep_na_but_fail_globally_unsupported_operations(self):
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", selections=["P03:encode", "L06:encode"],
+                                variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh"])
+        self.assertEqual(plan["cells"], [["P03", "encode", "native"], ["P03", "encode", "specific"], ["L06", "encode", "native"]])
+        self.assertIn("999 ms", plan["omitted"]["L06"]["encode"]["specific"])
+        only_native = runner.make_plan(self.catalog, self.capabilities, "quick", selections=["L06:encode"],
+                                      variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh"])
+        self.assertEqual(only_native["cells"], [["L06", "encode", "native"]])
+        with self.assertRaisesRegex(ValueError, "no supported cells.*L06:encode"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", selections=["P03:encode", "L06:encode"],
+                             variants=["name=specific,engine=java-specific,usage=fresh", "name=generic,engine=java-generic,usage=fresh"])
+        with self.assertRaisesRegex(ValueError, "no supported benchmark cells"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", selections=["L06:encode"],
+                             variants=["name=specific,engine=java-specific,usage=fresh"])
+
+    def test_command_uses_actual_parameters_but_unique_labelled_output_paths(self):
+        plan = self.plan()
+        outputs = set()
+        for row in plan["schedule"]:
+            variant = plan["variants"][row["engine"]]
+            command, result = runner.jmh_command(Path("/jdk/bin/java"), ["/classes"], row, plan["timing"], Path("/results"),
+                                                 variant["usage"], variant["wireStringPolicy"], actual_engine=variant["engine"])
+            self.assertIn("engine=wire", command)
+            self.assertIn(f"usage={variant['usage']}", command)
+            self.assertIn("wireStringPolicy=replace", command)
+            self.assertNotIn(f"engine={row['engine']}", command)
+            outputs.add(result)
+        self.assertEqual(len(outputs), plan["expectedJVMForks"])
 
 
 class ProvenanceTests(unittest.TestCase):

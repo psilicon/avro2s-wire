@@ -2,6 +2,7 @@
 """Run the approved Avro benchmark catalogue with a frozen, auditable protocol."""
 import argparse
 from datetime import datetime, timezone
+from fnmatch import fnmatchcase
 import hashlib
 import json
 import os
@@ -14,7 +15,8 @@ import subprocess
 import sys
 import tarfile
 
-from benchmark_suite_report import BENCHMARK, ENGINES, api_contract, render, validate_fork
+from benchmark_suite_report import (BENCHMARK, DEFAULT_ENGINES, ENGINES, WIRE_VARIANTS,
+                                    api_contract, render, validate_fork, wire_variant_contracts)
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = Path("benchmarks/src/main/resources/suite/catalog.json")
@@ -53,9 +55,9 @@ def load_inputs(root):
             raise ValueError("Catalogue avro2s support must be boolean")
     operations = {case["id"]: case["operations"] for case in cases}
     for case in capability_rows:
-        if set(case["engines"]) != set(ENGINES):
+        if set(case["engines"]) != set(DEFAULT_ENGINES):
             raise ValueError("Capability manifest must describe every engine")
-        for engine in ENGINES:
+        for engine in DEFAULT_ENGINES:
             capability = case["engines"][engine]
             supported_ops = capability["operations"]
             if (not isinstance(capability["supported"], bool)
@@ -71,8 +73,49 @@ def load_inputs(root):
     return catalog, capabilities
 
 
+def matching_cases(selector, operations, flag):
+    matches = [case_id for case_id in operations if fnmatchcase(case_id, selector)]
+    if not matches:
+        raise ValueError(f"Invalid {flag} {selector!r}: no catalogue IDs match (case-sensitive)")
+    return matches
+
+
+def expand_selectors(selectors, operations, with_operation=False):
+    """Expand quoted shell-style globs; overlap is a set union, duplicate tokens are errors."""
+    flag = "--select" if with_operation else "--case"
+    expanded, seen_selectors = [], set()
+    for selector in selectors or ():
+        if selector in seen_selectors:
+            raise ValueError(f"Duplicate {flag}: {selector}")
+        seen_selectors.add(selector)
+        if with_operation:
+            parts = selector.split(":")
+            if len(parts) != 2 or parts[1] not in ("encode", "decode"):
+                raise ValueError(f"Invalid --select {selector!r}; expected CASE:encode or CASE:decode (CASE may be a glob)")
+            case_selector, operation = parts
+        else:
+            case_selector, operation = selector, None
+        for case_id in matching_cases(case_selector, operations, flag):
+            if operation is not None and operation not in operations[case_id]:
+                raise ValueError(f"Unsupported catalogue operation: {case_id}:{operation} (selected by {selector})")
+            value = [case_id, operation] if with_operation else case_id
+            if value not in expanded:
+                expanded.append(value)
+    return expanded
+
+
 def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines=None, usage=None, selections=None,
-              wire_string_policy="reject"):
+              wire_string_policy="reject", reference_engine=None, variants=None, reference_variant=None,
+              _allow_unsupported=False):
+    if variants:
+        if engines or usage or reference_engine:
+            raise ValueError("--variant cannot be combined with --engine, --usage or --reference-engine")
+        if profile == "reuse-check":
+            raise ValueError("reuse-check fixes the approved ten operations; use quick for named variants")
+        return make_variant_plan(catalog, capabilities, profile, seed, cases, selections,
+                                 wire_string_policy, variants, reference_variant)
+    if reference_variant is not None:
+        raise ValueError("--reference-variant requires --variant")
     if wire_string_policy not in ("reject", "replace"):
         raise ValueError("Unknown Wire string policy")
     usage = usage or ("reuse" if profile == "reuse-check" else "fresh")
@@ -82,28 +125,22 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
         raise ValueError("reuse-check fixes the approved ten operations, supported Java variants, and reuse usage")
     if cases and selections:
         raise ValueError("--case and --select are mutually exclusive")
-    selected_operations = []
     operations = {case["id"]: case["operations"] for case in catalog["cases"]}
-    for selection in selections or ():
-        parts = selection.split(":")
-        if len(parts) != 2 or parts[0] not in operations or parts[1] not in ("encode", "decode"):
-            raise ValueError(f"Invalid --select {selection!r}; expected a known CASE:encode or CASE:decode")
-        if parts[1] not in operations[parts[0]]:
-            raise ValueError(f"Unsupported catalogue operation: {selection}")
-        if parts in selected_operations:
-            raise ValueError(f"Duplicate --select: {selection}")
-        selected_operations.append(parts)
+    selected_operations = expand_selectors(selections, operations, with_operation=True)
     operation_filter = {tuple(selection) for selection in selected_operations}
     selected_ids = {case_id for case_id, _ in operation_filter}
     default_cases = ("P03", "T11", "C02") if profile == "pilot" else ("P03",) if profile == "smoke" else ()
-    case_filter = set(cases or (() if selections else default_cases))
+    case_filter = set(expand_selectors(cases, operations) if cases else (() if selections else default_cases))
     selected_engines = tuple(engines or (("wire", "java-specific") if profile in ("pilot", "smoke")
-                                       else ENGINES[:-1] if usage == "reuse" else ENGINES))
+                                       else DEFAULT_ENGINES[:-1] if usage == "reuse" else DEFAULT_ENGINES))
     all_ids = {case["id"] for case in catalog["cases"]}
     if case_filter - all_ids or set(selected_engines) - set(ENGINES):
         raise ValueError("Unknown case ID or engine")
     if len(selected_engines) != len(set(selected_engines)):
         raise ValueError("Duplicate selected engines")
+    if reference_engine is not None and reference_engine not in selected_engines:
+        raise ValueError("The explicit reference engine must be one of the selected engines")
+    reference_engine = reference_engine or "wire"
     if usage == "reuse" and "avro2s" in selected_engines:
         raise ValueError("Reuse usage supports Wire and Java; avro2s is outside this diagnostic")
     engine_capabilities = {case["id"]: case["engines"] for case in capabilities["cases"]}
@@ -120,17 +157,19 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
                 continue
             omitted[case["id"]][operation] = {}
             for engine in ENGINES:
-                capability = engine_capabilities[case["id"]][engine]
+                # These use Wire's generated codecs and resolution plans; the
+                # generated external baseline manifest stays immutable.
+                capability = engine_capabilities[case["id"]]["wire" if engine in WIRE_VARIANTS else engine]
                 if engine == "avro2s" and not case["avro2s"]:
                     omitted[case["id"]][operation][engine] = "Outside the approved avro2s subset"
                 elif operation not in capability["operations"]:
                     omitted[case["id"]][operation][engine] = capability["reason"]
                 elif engine in selected_engines:
                     cells.append([case["id"], operation, engine])
-    if not cells:
+    if not cells and not _allow_unsupported:
         raise ValueError("Selection contains no supported benchmark cells")
     missing_operations = operation_filter - {(case_id, operation) for case_id, operation, _ in cells}
-    if missing_operations:
+    if missing_operations and not _allow_unsupported:
         missing = ", ".join(f"{case_id}:{operation}" for case_id, operation in sorted(missing_operations))
         raise ValueError(f"Selected operations have no supported cells for the chosen engines: {missing}")
     if profile == "reuse-check" and {tuple(cell) for cell in cells} != REUSE_CHECK_CELLS:
@@ -148,6 +187,8 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
                                     + timing["measurementIterations"] * duration_seconds(timing["measurementTime"]))
     return {"profile": profile, "usage": usage, "wireStringPolicy": wire_string_policy,
             "apiContract": api_contract(usage, wire_string_policy),
+            "wireVariantContracts": wire_variant_contracts(usage, wire_string_policy, selected_engines),
+            "referenceEngine": reference_engine,
             "diagnostic": profile != "full" or usage != "fresh" or wire_string_policy != "reject" or bool(cases or engines or selections),
             "selectedOperations": selected_operations,
             "seed": seed, "rounds": rounds, "timing": timing, "cells": cells, "omitted": omitted,
@@ -155,6 +196,69 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
             "warmupAndMeasurementSeconds": seconds,
             "estimateExcludes": "Compilation, correctness checks, JVM startup, corpus/reader setup, reporting and any GC overruns",
             "schedule": schedule(cells, rounds, seed)}
+
+
+def make_variant_plan(catalog, capabilities, profile, seed, cases, selections, default_policy, specifications, reference):
+    variants, plans = {}, {}
+    for specification in specifications:
+        fields = {}
+        for token in specification.split(","):
+            if token.count("=") != 1:
+                raise ValueError(f"Invalid --variant field {token!r}; expected name=NAME,engine=ENGINE,usage=USAGE[,string-policy=POLICY]")
+            key, value = (part.strip() for part in token.split("="))
+            if key not in ("name", "engine", "usage", "string-policy"):
+                raise ValueError(f"Unknown --variant field: {key!r}")
+            if key in fields:
+                raise ValueError(f"Duplicate --variant field: {key}")
+            if not value:
+                raise ValueError(f"Empty --variant field: {key}")
+            fields[key] = value
+        missing = {"name", "engine", "usage"} - set(fields)
+        if missing:
+            raise ValueError("Missing --variant fields: " + ", ".join(sorted(missing)))
+        label, engine, usage = fields["name"], fields["engine"], fields["usage"]
+        policy = fields.get("string-policy", default_policy)
+        if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", label):
+            raise ValueError(f"Invalid --variant name {label!r}; use a simple alphanumeric name")
+        if label.casefold() in {name.casefold() for name in variants}:
+            raise ValueError(f"Duplicate variant name: {label}")
+        if engine not in ENGINES or usage not in ("fresh", "reuse") or policy not in ("reject", "replace"):
+            raise ValueError(f"Invalid engine, usage or policy in variant: {specification}")
+        plan = make_plan(catalog, capabilities, profile, seed, cases, [engine], usage, selections, policy,
+                         reference_engine=engine, _allow_unsupported=True)
+        variants[label] = {"engine": engine, "usage": usage, "wireStringPolicy": policy,
+                           "apiContract": plan["apiContract"], "wireVariantContracts": plan["wireVariantContracts"]}
+        plans[label] = plan
+    reference = reference or next(iter(variants))
+    if reference not in variants:
+        raise ValueError("Reference variant must be one of the declared variant names")
+    first = next(iter(plans.values()))
+    # Preserve catalogue/operation order with adjacent configurations, independent
+    # of which engine lacks a particular operation.
+    supported = {label: {tuple(cell[:2]) for cell in plan["cells"]} for label, plan in plans.items()}
+    cells, omitted = [], {}
+    for case in catalog["cases"]:
+        for operation in case["operations"]:
+            if not any((case["id"], operation) in pairs for pairs in supported.values()):
+                continue
+            omitted.setdefault(case["id"], {})[operation] = {}
+            for label, variant in variants.items():
+                if (case["id"], operation) in supported[label]:
+                    cells.append([case["id"], operation, label])
+                else:
+                    omitted[case["id"]][operation][label] = plans[label]["omitted"].get(case["id"], {}).get(operation, {}).get(variant["engine"], "Unsupported configuration")
+    if not cells:
+        raise ValueError("Selection contains no supported benchmark cells")
+    missing = {tuple(pair) for pair in first["selectedOperations"]} - {(case_id, operation) for case_id, operation, _ in cells}
+    if missing:
+        description = ", ".join(f"{case_id}:{operation}" for case_id, operation in sorted(missing))
+        raise ValueError(f"Selected operations have no supported cells for the chosen variants: {description}")
+    result = {key: first[key] for key in ("profile", "seed", "rounds", "timing", "selectedOperations", "estimateExcludes")}
+    result.update(variants=variants, referenceVariant=reference, diagnostic=True, cells=cells, omitted=omitted,
+                  expectedCells=len(cells), expectedJVMForks=first["rounds"] * len(cells),
+                  warmupAndMeasurementSeconds=sum(plan["warmupAndMeasurementSeconds"] for plan in plans.values()),
+                  schedule=schedule(cells, first["rounds"], seed))
+    return result
 
 
 def schedule(cells, rounds, seed):
@@ -270,7 +374,7 @@ def classpath_signature(classpath):
     return {str(path): [path.stat().st_size, path.stat().st_mtime_ns] for path in classpath_files(classpath)}
 
 
-def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string_policy="reject"):
+def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string_policy="reject", actual_engine=None):
     if usage not in ("fresh", "reuse"):
         raise ValueError("Unknown API usage mode")
     if wire_string_policy not in ("reject", "replace"):
@@ -278,7 +382,7 @@ def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string
     result = output / "raw" / f"r{row['round']:02d}-{row['caseId']}-{row['operation']}-{row['engine']}.json"
     command = [str(java), "-cp", os.pathsep.join(classpath), "org.openjdk.jmh.Main",
                "^" + re.escape(BENCHMARK + row["operation"]) + "$",
-               "-p", "caseId=" + row["caseId"], "-p", "engine=" + row["engine"],
+               "-p", "caseId=" + row["caseId"], "-p", "engine=" + (actual_engine or row["engine"]),
                "-p", "usage=" + usage, "-p", "wireStringPolicy=" + wire_string_policy,
                "-jvm", str(java), "-jvmArgs", " ".join(timing["jvmArgs"]),
                "-f", "1", "-wi", str(timing["warmupIterations"]), "-w", timing["warmupTime"],
@@ -301,15 +405,20 @@ def parse_args(argv=None):
     parser.add_argument("--usage", choices=("fresh", "reuse"),
                         help="API lifecycle: defaults to reuse for reuse-check, fresh otherwise; reuse excludes avro2s")
     parser.add_argument("--wire-string-policy", choices=("reject", "replace"), default="reject",
-                        help="Wire malformed UTF-16 policy; replace matches Java encoding, default reject preserves strict validation")
+                        help="Native Wire malformed UTF-16 policy; Java-backed Wire always uses Java string behavior")
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--seed", type=int, default=20260926)
     selection = parser.add_mutually_exclusive_group()
-    selection.add_argument("--case", action="append", dest="cases", help="Narrow to an ID; repeatable, marks results diagnostic")
+    selection.add_argument("--case", action="append", dest="cases", help="Case ID or quoted glob, e.g. 'P*'; repeatable, overlapping matches deduplicated")
     selection.add_argument("--select", action="append", dest="selections", metavar="CASE:OP",
-                           help="Select an exact case and encode/decode operation; repeatable, marks results diagnostic")
+                           help="Case ID or quoted glob with operation, e.g. 'T*:encode'; repeatable")
     parser.add_argument("--engine", action="append", choices=ENGINES, dest="engines", help="Narrow engines; repeatable, marks results diagnostic")
+    parser.add_argument("--reference-engine", choices=ENGINES,
+                        help="Ratio denominator; defaults to wire (no ratios if wire is absent); explicit choice must be selected")
+    parser.add_argument("--variant", action="append", dest="variants", metavar="name=NAME,engine=ENGINE,usage=USAGE[,string-policy=POLICY]",
+                        help="Compare named configurations in one paired run; repeatable; optional string-policy defaults to --wire-string-policy; cannot combine with --engine or --usage")
+    parser.add_argument("--reference-variant", help="Ratio denominator for named configurations; defaults to the first --variant")
     parser.add_argument("--skip-tests", action="store_true", help="Explicitly skip correctness tests after validating these exact sources separately")
     parser.add_argument("--dry-run", action="store_true", help="Print exact membership, order, settings and timed-stage estimate; do not write or run anything")
     args = parser.parse_args(argv)
@@ -332,7 +441,8 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     catalog, capabilities = load_inputs(args.root)
-    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines, args.usage, args.selections, args.wire_string_policy)
+    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines, args.usage, args.selections,
+                     args.wire_string_policy, args.reference_engine, args.variants, args.reference_variant)
     if args.dry_run:
         print(json.dumps({"java": str(args.java), "output": str(args.output), "correctness": "explicitly skipped" if args.skip_tests else "benchmarks/test",
                           "build": "One sbt invocation: tests, Jmh/compile, show Jmh/fullClasspath; every measurement launches JMH directly", "plan": plan}, indent=2))
@@ -388,18 +498,21 @@ def main(argv=None):
             assert_unchanged(args.root, before, args.output)
             if classpath_signature(classpath) != compiled_signature or sha256(args.java) != metadata["javaSha256"]:
                 raise RuntimeError("Compiled classpath or Java executable changed during campaign")
-            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output, plan["usage"], plan["wireStringPolicy"])
+            variant = plan["variants"][row["engine"]] if "variants" in plan else {"engine": row["engine"], **plan}
+            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output,
+                                         variant["usage"], variant["wireStringPolicy"], actual_engine=variant["engine"])
             log_path = result.with_suffix(".log")
             metadata["commands"].append({**row, "command": command, "log": str(log_path.relative_to(args.output)), "result": str(result.relative_to(args.output))})
             write_json(metadata_path, metadata)
             print(f"[{index}/{plan['expectedJVMForks']}] round {row['round']}: {row['caseId']} {row['operation']} {row['engine']}", flush=True)
             with log_path.open("w") as log:
                 subprocess.run(command, cwd=args.root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
-            record = validate_fork(json.loads(result.read_text()), (row["caseId"], row["operation"], row["engine"]),
-                                   plan["timing"], args.java, log_path.read_text(), usage=plan["usage"],
-                                   wire_string_policy=plan["wireStringPolicy"])
+            record = validate_fork(json.loads(result.read_text()), (row["caseId"], row["operation"], variant["engine"]),
+                                   plan["timing"], args.java, log_path.read_text(), usage=variant["usage"],
+                                   wire_string_policy=variant["wireStringPolicy"])
             assert_unchanged(args.root, before, args.output)
-            records.append({**record, "_round": row["round"], "_sourceFile": str(result.relative_to(args.output))})
+            records.append({**record, "_round": row["round"], "_sourceFile": str(result.relative_to(args.output)),
+                            **({"_variant": row["engine"]} if "variants" in plan else {})})
             metadata["completedForks"] = index
             write_json(args.output / "records.json", records)
             write_json(metadata_path, metadata)

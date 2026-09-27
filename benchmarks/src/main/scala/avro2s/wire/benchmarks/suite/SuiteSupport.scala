@@ -1,6 +1,7 @@
 package avro2s.wire.benchmarks.suite
 
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import _root_.avro2s.wire.runtime.{AvroCodec, CodecExecution}
 import org.apache.avro.{Conversions, Schema}
 import org.apache.avro.data.TimeConversions
 import org.apache.avro.generic.{GenericData, IndexedRecord}
@@ -43,7 +44,25 @@ object SuiteCatalog:
 object SuiteSupport:
   private val mapper = new ObjectMapper()
   val namespace = "avro2s.wire.benchmarks.suite"
-  val engineOrder = Vector("wire", "java-specific", "java-generic", "java-custom", "avro2s")
+  val wireEngines = Vector("wire", "wire-stack-safe", "wire-java", "wire-java-stack-safe")
+  val engineOrder = Vector("wire", "java-specific", "java-generic", "java-custom", "avro2s") ++ wireEngines.tail
+
+  def isWire(engine: String): Boolean = wireEngines.contains(engine)
+
+  /** Codec selection occurs outside measurement; a variant must never fall back to direct. */
+  private[suite] def wireCodec(c: SuiteCase, engine: String): AvroCodec[Any] =
+    require(isWire(engine), s"Not a Wire engine: $engine")
+    val stackSafe = engine.endsWith("-stack-safe")
+    val codec = if stackSafe then
+      val companionClass = Class.forName(s"$namespace.wire.${c.model}$$")
+      val companion = companionClass.getField("MODULE$").get(null)
+      companionClass.getMethod("stackSafeCodec").invoke(companion).asInstanceOf[AvroCodec[Any]]
+    else
+      val codecClass = Class.forName(s"$namespace.wire.${c.model}$$codec$$")
+      codecClass.getField("MODULE$").get(null).asInstanceOf[AvroCodec[Any]]
+    val expected = if stackSafe then CodecExecution.StackSafe else CodecExecution.Direct
+    require(codec.execution == expected, s"$engine selected ${codec.execution}, expected $expected")
+    codec
 
   def resource(path: String): String =
     val stream = Option(getClass.getResourceAsStream(path))
@@ -64,7 +83,10 @@ object SuiteSupport:
   def operationsFor(c: SuiteCase, engine: String): Vector[String] =
     val engines = capabilities.getOrElse(c.id,
       throw new IllegalArgumentException(s"No generated capability declaration for ${c.id}"))
-    val capability = Option(engines.get(engine)).getOrElse(
+    // Additional Wire execution/backends use the same generated models and operations.
+    // Keep the pinned external-baseline manifest unchanged.
+    val capabilityEngine = if isWire(engine) then "wire" else engine
+    val capability = Option(engines.get(capabilityEngine)).getOrElse(
       throw new IllegalArgumentException(s"No generated capability declaration for ${c.id}/$engine"))
     if capability.path("supported").asBoolean(false) then
       capability.get("operations").elements().asScala.map(_.asText()).toVector
@@ -74,7 +96,8 @@ object SuiteSupport:
     engineOrder.filter(engine => operationsFor(c, engine).contains(operation))
 
   def unsupportedReason(c: SuiteCase, engine: String): Option[String] =
-    Option(capabilities(c.id).path(engine).get("reason")).map(_.asText())
+    val capabilityEngine = if isWire(engine) then "wire" else engine
+    Option(capabilities(c.id).path(capabilityEngine).get("reason")).map(_.asText())
 
   /** All logical cases use their domain values in Java as well as Wire. */
   def conversions[A <: GenericData](data: A): A =

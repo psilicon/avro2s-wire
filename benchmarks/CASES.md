@@ -2,9 +2,13 @@
 
 This catalogue is the approved controlled comparison. Each row below identifies one input distribution, not a group of hidden benchmarks. Cases have separate encode and decode measurements except E01–E03, which measure decode only. The machine-readable source is [`src/main/resources/suite/catalog.json`](src/main/resources/suite/catalog.json).
 
-There are **61 cases, 119 operations per fully supporting engine, and 468 implementation/operation combinations**: Wire 119, Java specific 117, Java generic 117, generated Java custom 81, and avro2s 34. Custom capabilities come from genuine generated code and are checked by dispatch probes before measurement. Unsupported combinations are omitted with a reason, not measured through a fallback.
+There are **61 cases, 119 operations per fully supporting engine, and 468 default implementation/operation combinations**: Wire 119, Java specific 117, Java generic 117, generated Java custom 81, and avro2s 34. The opt-in `wire-stack-safe`, `wire-java` and `wire-java-stack-safe` engines each support all 119 operations, without expanding the default campaign. Custom capabilities come from genuine generated code and are checked by dispatch probes before measurement. Unsupported combinations are omitted with a reason, not measured through a fallback.
 
 ## Operation contract
+
+The following describes fresh usage. Reuse usage and the additional Wire engines
+are documented in [the harness guide](README.md); those choices change the I/O
+lifecycle, not the case definitions below.
 
 - Encode starts from an already constructed public model containing Strings and domain values, and returns an independent byte array. Buffer creation, encoding, flushing and the final output copy are included.
 - Decode starts from prepared Avro bytes, creates a fresh model and its contents, and consumes the complete input. String fields and map keys are Strings for every engine.
@@ -143,4 +147,4 @@ The id fields use P06 values. The avro2s comparison does not include evolution. 
 
 ## Scope
 
-This suite excludes Kafka/Schema Registry framing, cold reader/plan construction, stack-safe codecs, malformed-input timings, empty collection diagnostics and reused-buffer-only writes. Those need their own explicitly approved questions rather than silently becoming part of a summary. Full results retain every approved case and each engine's supported/not-supported status.
+This suite excludes Kafka/Schema Registry framing, cold reader/plan construction, malformed-input timings, empty collection diagnostics and reused-buffer-only writes. Those need their own explicitly approved questions rather than silently becoming part of a summary. Stack-safe codecs and the Wire Java backend are selectable on the same controlled inputs; these finite record shapes do not measure extreme-depth stack safety. Full results retain every approved case and each engine's supported/not-supported status.

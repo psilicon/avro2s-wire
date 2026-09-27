@@ -1,6 +1,7 @@
 package avro2s.wire.benchmarks.suite
 
-import _root_.avro2s.wire.runtime.{AvroCodec, BinaryOutput, MalformedStringPolicy, WriterSettings}
+import _root_.avro2s.wire.runtime.{AvroInput, BinaryOutput, MalformedStringPolicy, WriterSettings}
+import _root_.avro2s.wire.javabackend.{JavaAvroInput, JavaAvroOutput}
 import _root_.avro2s.wire.resolution.ResolvingReader
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -42,7 +43,8 @@ final class SuiteWorkload(
 
   // Construction branches only here: another implementation's codecs/models are not prepared.
   private val implementation: Implementation = engine match
-    case "wire" => new WireImplementation
+    case "wire" | "wire-stack-safe" => new WireImplementation
+    case "wire-java" | "wire-java-stack-safe" => new WireJavaImplementation
     case "java-generic" => new GenericImplementation
     case "java-specific" | "java-custom" | "avro2s" => new SpecificImplementation
     case _ => throw new IllegalArgumentException(s"Unknown engine $engine")
@@ -137,8 +139,7 @@ final class SuiteWorkload(
     def checkModel(value: Any): Unit
 
   private final class WireImplementation extends Implementation:
-    private val codecClass = Class.forName(s"$namespace.wire.${caseDef.model}$$codec$$")
-    private val codec = codecClass.getField("MODULE$").get(null).asInstanceOf[AvroCodec[Any]]
+    private val codec = wireCodec(caseDef, engine)
     private val settings = WriterSettings(malformedStrings = wireStringPolicy match
       case "reject" => MalformedStringPolicy.Reject
       case "replace" => MalformedStringPolicy.Replace
@@ -159,6 +160,60 @@ final class SuiteWorkload(
       else codec.encode(value, settings)
     def decode(bytes: Array[Byte]): Any = read(bytes)
     def checkModel(value: Any): Unit = () // Generated Wire field types already require String.
+
+  /** The same generated immutable models and codec traversal, using the public Java IO backend.
+    * Its string policy is Java's replacement behavior, independent of the native writer setting.
+    * Reuse reconfigures the official buffered encoder/array decoder and retains the adapters.
+    */
+  private final class WireJavaImplementation extends Implementation:
+    private val codec = wireCodec(caseDef, engine)
+    val readerSchema = canonicalReaderSchema
+    val writerSchema = canonicalWriterSchema
+    private val read: AvroInput => Any =
+      if caseDef.kind == "evolution" then ResolvingReader(writerSchema.toString, codec).read
+      else codec.read
+    private val encoderFactory = EncoderFactory.get()
+    private val decoderFactory = DecoderFactory.get()
+    private val output = if usage == "reuse" then new ByteArrayOutputStream() else null
+    private var encoder = if usage == "reuse" then encoderFactory.binaryEncoder(output, null) else null
+    private var avroOutput = if usage == "reuse" then new JavaAvroOutput(encoder) else null
+    private var decoder = if usage == "reuse" then decoderFactory.binaryDecoder(Array.emptyByteArray, null) else null
+    private var avroInput = if usage == "reuse" then new JavaAvroInput(decoder) else null
+
+    def encode(value: Any): Array[Byte] =
+      if usage == "reuse" then
+        val configured = encoderFactory.binaryEncoder(output, encoder)
+        if !(configured eq encoder) then
+          encoder = configured
+          avroOutput = new JavaAvroOutput(encoder)
+        // Reconfiguration may flush a prior failed write; discard it before the next datum.
+        output.reset()
+        codec.write(value, avroOutput)
+        encoder.flush()
+        output.toByteArray
+      else
+        val bytes = new ByteArrayOutputStream()
+        val freshEncoder = encoderFactory.binaryEncoder(bytes, null)
+        codec.write(value, new JavaAvroOutput(freshEncoder))
+        freshEncoder.flush()
+        bytes.toByteArray
+
+    def decode(bytes: Array[Byte]): Any =
+      if usage == "reuse" then
+        val configured = decoderFactory.binaryDecoder(bytes, decoder)
+        if !(configured eq decoder) then
+          decoder = configured
+          avroInput = new JavaAvroInput(decoder)
+        val value = read(avroInput)
+        require(decoder.isEnd, "Decoder left trailing bytes")
+        value
+      else
+        val freshDecoder = decoderFactory.binaryDecoder(bytes, null)
+        val value = read(new JavaAvroInput(freshDecoder))
+        require(freshDecoder.isEnd, "Decoder left trailing bytes")
+        value
+
+    def checkModel(value: Any): Unit = () // These are the same generated Wire model types.
 
   private abstract class JavaImplementation extends Implementation:
     def data: GenericData

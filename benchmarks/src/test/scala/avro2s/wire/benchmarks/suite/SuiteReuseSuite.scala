@@ -49,7 +49,7 @@ class SuiteReuseSuite extends munit.FunSuite:
         assertEquals(normalized(reader.decodeBytes(payloads(1))), expected(1), s"$engine failed-call recovery")
 
         val withTrailing = payloads(0) ++ Array[Byte](0)
-        if engine == "wire" then intercept[Exception](reader.decodeBytes(withTrailing))
+        if SuiteSupport.isWire(engine) then intercept[Exception](reader.decodeBytes(withTrailing))
         else assertEquals(normalized(reader.decodeBytes(withTrailing)), expected(0),
           "Official raw-message decode reads one datum and accepts trailing bytes")
 
@@ -61,7 +61,7 @@ class SuiteReuseSuite extends munit.FunSuite:
           val writer = new SuiteWorkload(c, engine, payloads, "encode", "reuse")
           val indices = if diagnosticOperations(c.id -> "encode") then payloads.indices.toVector else boundaries
           val retained = writer.encodeAt(0)
-          if engine == "wire" then assert(retained.isInstanceOf[Array[Byte]])
+          if SuiteSupport.isWire(engine) then assert(retained.isInstanceOf[Array[Byte]])
           else assert(retained.isInstanceOf[ByteBuffer], "JMH must consume the raw helper's natural output")
           val snapshot = encodedBytes(retained).clone()
           for index <- indices do
@@ -111,9 +111,10 @@ class SuiteReuseSuite extends munit.FunSuite:
 
 
   test("Wire string policy reaches the measured encoder in fresh and reuse modes") {
-    for usage <- Vector("fresh", "reuse"); id <- Vector("T01", "T11") do
-      val rejecting = SuiteWorkload.prepared(id, "wire", "encode", usage)
-      val replacing = SuiteWorkload.prepared(id, "wire", "encode", usage, "replace")
+    for usage <- Vector("fresh", "reuse"); id <- Vector("T01", "T11")
+        engine <- Vector("wire", "wire-stack-safe") do
+      val rejecting = SuiteWorkload.prepared(id, engine, "encode", usage)
+      val replacing = SuiteWorkload.prepared(id, engine, "encode", usage, "replace")
       val valid = rejecting.inputAt(0).asInstanceOf[wire.TextValue]
       val malformed = valid.copy(value = valid.value + "\ud800")
       intercept[IllegalArgumentException](rejecting.encodeValue(malformed))
@@ -140,6 +141,41 @@ class SuiteReuseSuite extends munit.FunSuite:
   }
 
   test("unknown Wire string policy cannot silently use the default") {
-    for engine <- Vector("wire", "java-specific") do
+    for engine <- SuiteSupport.wireEngines :+ "java-specific" do
       intercept[IllegalArgumentException](SuiteWorkload.prepared("T01", engine, "encode", "reuse", "unknown"))
+  }
+
+  test("Wire variants select the actual generated direct and stack-safe codecs") {
+    import _root_.avro2s.wire.runtime.CodecExecution
+    for c <- SuiteCatalog.all; engine <- SuiteSupport.wireEngines do
+      val codec = SuiteSupport.wireCodec(c, engine)
+      val expected = if engine.endsWith("-stack-safe") then CodecExecution.StackSafe else CodecExecution.Direct
+      assertEquals(codec.execution, expected, s"${c.id}/$engine")
+    val text = SuiteCatalog.byId("T01")
+    assert(SuiteSupport.wireCodec(text, "wire") eq wire.TextValue.codec)
+    assert(SuiteSupport.wireCodec(text, "wire-java") eq wire.TextValue.codec)
+    assert(SuiteSupport.wireCodec(text, "wire-stack-safe") eq wire.TextValue.stackSafeCodec)
+    assert(SuiteSupport.wireCodec(text, "wire-java-stack-safe") eq wire.TextValue.stackSafeCodec)
+  }
+
+  test("Java-backed Wire follows the public backend's fixed string replacement behavior") {
+    for engine <- Vector("wire-java", "wire-java-stack-safe"); usage <- Vector("fresh", "reuse")
+        policy <- Vector("reject", "replace") do
+      val writer = SuiteWorkload.prepared("T01", engine, "encode", usage, policy)
+      val malformed = wire.TextValue("A\ud800B")
+      assertEquals(writer.decodeBytes(encodedBytes(writer.encodeValue(malformed))), wire.TextValue("A?B"))
+      assertEquals(writer.decodeBytes(Array[Byte](2, 0xff.toByte)), wire.TextValue("\ufffd"))
+    for engine <- Vector("wire", "wire-stack-safe"); usage <- Vector("fresh", "reuse") do
+      val reader = SuiteWorkload.prepared("T01", engine, "decode", usage, "replace")
+      intercept[Exception](reader.decodeBytes(Array[Byte](2, 0xff.toByte)))
+  }
+
+  test("Java-backed Wire resets buffered encoder state after a partial failed write") {
+    for engine <- Vector("wire-java", "wire-java-stack-safe") do
+      val writer = SuiteWorkload.prepared("C03", engine, "encode", "reuse")
+      val malformed = wire.LongMapValue(Map(null.asInstanceOf[String] -> 1L))
+      intercept[Exception](writer.encodeValue(malformed))
+      val expected = writer.inputAt(1)
+      val encoded = encodedBytes(writer.encodeAt(1))
+      assertEquals(writer.decodeBytes(encoded), expected, engine)
   }
