@@ -27,7 +27,7 @@ def finite_number(value, label, positive=False):
     return float(value)
 
 
-def validate_fork(records, expected, timing, java=None, log_text=""):
+def validate_fork(records, expected, timing, java=None, log_text="", usage=None):
     """Each launcher selects exactly one case/operation/engine and one JVM fork."""
     try:
         if not isinstance(records, list) or len(records) != 1:
@@ -35,8 +35,13 @@ def validate_fork(records, expected, timing, java=None, log_text=""):
         record = records[0]
         if cell_key(record) != tuple(expected) or record["benchmark"] != BENCHMARK + expected[1]:
             raise ValueError("Unexpected JMH result membership")
-        if set(record["params"]) != {"caseId", "engine"}:
+        # Archived campaigns predate the lifecycle parameter. Only metadata
+        # without an explicit usage permits that old two-parameter shape.
+        expected_params = {"caseId", "engine"} if usage is None else {"caseId", "engine", "usage"}
+        if set(record["params"]) != expected_params:
             raise ValueError("Unexpected JMH parameters")
+        if usage is not None and (usage not in ("fresh", "reuse") or record["params"]["usage"] != usage):
+            raise ValueError("Unexpected API usage mode")
         if "<failure>" in log_text or record["mode"] != "avgt" or record["forks"] != 1 or record["threads"] != 1:
             raise ValueError("JMH failure or unexpected mode/forks/threads")
         for field in ("warmupIterations", "measurementIterations"):
@@ -126,20 +131,67 @@ def fmt_interval(result):
     return fmt(mean) if low is None else f"{fmt(mean)} [{fmt(low)}, {fmt(high)}]"
 
 
+def api_contract(usage):
+    """Freeze the public result and lifecycle contracts alongside each run."""
+    if usage == "reuse":
+        return {
+            "wireEncode": "Retained BinaryOutput: reset, codec.write, toByteArray; fresh independently owned Array[Byte]",
+            "javaEncode": "Retained official RawMessageEncoder with default output copying and its direct encoder; independently owned ByteBuffer",
+            "wireDecode": "codec.decode with fresh BinaryInput and fresh model; rejects trailing bytes",
+            "javaDecode": "Retained official RawMessageDecoder and its direct decoder with no record reuse; fresh model; no trailing-byte rejection check",
+            "text": "String values and map keys for every measured implementation",
+            "inputs": "Valid raw Avro datum bytes; equivalent values, not equivalent malformed-input validation",
+            "setup": "Input construction and retained codec, reader/writer, schema, message-helper, and working-buffer setup outside measurement",
+            "scope": "Wire and supported Java variants; avro2s excluded",
+        }
+    if usage == "fresh":
+        return {
+            "wireEncode": "codec.encode with fresh BinaryOutput; fresh independently owned Array[Byte]",
+            "javaEncode": "Fresh ByteArrayOutputStream and buffered BinaryEncoder; fresh independently owned Array[Byte]",
+            "wireDecode": "codec.decode with fresh BinaryInput and fresh model; rejects trailing bytes",
+            "javaDecode": "Fresh BinaryDecoder and fresh model; explicit complete-consumption check",
+            "text": "String values and map keys for every measured implementation",
+            "inputs": "Valid raw Avro datum bytes",
+            "setup": "Input construction and reusable schema/reader setup outside measurement",
+        }
+    raise ValueError("Unknown API usage mode")
+
+
 def render(records, metadata):
     plan = metadata["plan"]
+    usage = plan.get("usage", "fresh")
+    contract = api_contract(usage)
+    if "apiContract" in plan and plan["apiContract"] != contract:
+        raise ValueError("Frozen API contract does not match usage mode")
+    if any(record["params"].get("usage", "fresh") != usage for record in records):
+        raise ValueError("Result API usage does not match the report")
     values = aggregate(records, plan["cells"], plan["rounds"])
     cases = {case["id"]: case for case in metadata["catalog"]["cases"]}
     diagnostic = plan["diagnostic"]
+    contract_summary = (
+        "Wire encode uses caller-owned reusable BinaryOutput and returns a fresh independently owned Array[Byte]. "
+        "Java encode uses the official retained RawMessageEncoder, including its direct encoder and default output copying, "
+        "and returns an independently owned ByteBuffer. No additional array conversion is measured. "
+        "Wire decode uses codec.decode with fresh BinaryInput; Java decode uses retained RawMessageDecoder and its direct decoder without record reuse. "
+        "Each decode creates a fresh model with String text. Wire rejects trailing bytes; Java RawMessageDecoder has no "
+        "complete-consumption check. This compares valid-message APIs, not identical malformed-input validation. "
+        "Input construction and retained codec, schema, reader/writer, message-helper, and working-buffer setup are outside measurement."
+        if usage == "reuse" else
+        "Each encode returns a fresh byte array; each decode creates a fresh model with String text. "
+        "Working outputs and encoders/decoders are created per call. "
+        "Input construction and reusable schema/reader setup are outside measurement."
+    )
     lines = ["# Consolidated Avro benchmark results", "",
-             "**Diagnostic run: unsuitable for publication claims.**" if diagnostic else "Five independent JVM rounds; individual comparisons only.", "",
+             "**Diagnostic run: unsuitable for publication claims.**" if diagnostic else f"{plan['rounds']} independent JVM rounds; individual comparisons only.", "",
              f"Source revision: `{metadata['gitRevision']}`. Profile: `{plan['profile']}`. "
-             f"Order seed: `{plan['seed']}`. {len(values)} implementation/operation cells.", "",
-             "Each encode returns a fresh byte array; each decode creates a fresh model with String text. "
-             "Input construction and reusable schema/reader setup are outside measurement.", "",
+             f"API usage: `{usage}`. Order seed: `{plan['seed']}`. {len(values)} implementation/operation cells; "
+             f"{plan['rounds']} independent JVM rounds.", "",
+             contract_summary, "",
              "Time is ns/op; allocation is allocated heap B/op, including temporary objects, not retained or peak memory. "
              "Bracketed intervals are pointwise 95% Student t intervals over the independent JVM-round means. "
-             "They assume approximately normal independent round means; five rounds cannot establish that assumption. "
+             f"They assume approximately normal independent round means; {plan['rounds']} rounds cannot establish that assumption. "
+             + ("Two JVM observations provide only a preliminary diagnostic; inspect both individual means rather than treating the interval as strong certainty. "
+                if plan["rounds"] == 2 else "") +
              "Iterations within a JVM are not independent replicates. Timing intervals are not tail latency.", "",
              "Ratios pair the same case/operation within a round and use a Student t interval on log(reference time / Wire time). "
              "The reported centre is the geometric mean of round ratios. A ratio above one means the reference took more time. "
@@ -188,7 +240,8 @@ def main():
     # Revalidate raw files rather than trusting the convenience aggregate.
     for record in records:
         raw = json.loads((args.run / record["_sourceFile"]).read_text())
-        validated = validate_fork(raw, cell_key(record), metadata["plan"]["timing"], metadata["java"])
+        validated = validate_fork(raw, cell_key(record), metadata["plan"]["timing"], metadata["java"],
+                                  usage=metadata["plan"].get("usage"))
         if validated != {key: value for key, value in record.items() if not key.startswith("_")}:
             raise ValueError("Raw file and aggregate records disagree")
     (args.output or args.run / "report.md").write_text(render(records, metadata))

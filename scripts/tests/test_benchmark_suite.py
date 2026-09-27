@@ -71,6 +71,93 @@ class CatalogueTests(unittest.TestCase):
         self.assertTrue(plan["diagnostic"])
         self.assertEqual(plan["timing"]["warmupIterations"], 10)
 
+    def test_reuse_check_is_exactly_the_ten_approved_operations_and_720_seconds(self):
+        plan = runner.make_plan(self.catalog, self.capabilities, "reuse-check")
+        approved = {("P03", "encode"), ("R01", "encode"), ("L12", "encode"),
+                    ("L16", "encode"), ("T01", "encode"), ("P02", "decode"),
+                    ("P10", "decode"), ("R02", "decode"), ("L12", "decode"), ("L08", "decode")}
+        expected = {(case_id, operation, engine) for case_id, operation in approved
+                    for engine in ("wire", "java-specific", "java-generic", "java-custom")
+                    if engine != "java-custom" or not case_id.startswith("L")}
+        self.assertEqual({tuple(cell) for cell in plan["cells"]}, expected)
+        self.assertEqual(plan["expectedCells"], 36)
+        self.assertEqual(plan["expectedJVMForks"], 72)
+        self.assertEqual(plan["warmupAndMeasurementSeconds"], 720)
+        self.assertEqual(plan["usage"], "reuse")
+        self.assertEqual(plan["apiContract"], report.api_contract("reuse"))
+        self.assertTrue(plan["diagnostic"])
+        self.assertEqual(plan["timing"]["warmupIterations"], 5)
+        self.assertEqual(plan["timing"]["measurementIterations"], 5)
+        for round_number in (1, 2):
+            self.assertEqual({(row["caseId"], row["operation"], row["engine"])
+                              for row in plan["schedule"] if row["round"] == round_number}, expected)
+
+    def test_reuse_check_cannot_silently_change_approved_membership(self):
+        for kwargs in ({"cases": ["P03"]}, {"engines": ["wire"]}, {"usage": "fresh"},
+                       {"selections": ["P03:encode"]}):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(ValueError, "fixes the approved"):
+                runner.make_plan(self.catalog, self.capabilities, "reuse-check", **kwargs)
+        changed = copy.deepcopy(self.capabilities)
+        row = next(case for case in changed["cases"] if case["id"] == "P03")
+        row["engines"]["java-custom"]["operations"] = ["decode"]
+        row["engines"]["java-custom"]["reason"] = "Changed capabilities"
+        with self.assertRaisesRegex(ValueError, "membership changed"):
+            runner.make_plan(self.catalog, changed, "reuse-check")
+
+    def test_quick_exact_operations_have_24_cells_48_forks_and_480_seconds(self):
+        selections = ["T11:encode", "T11:decode", "B03:encode", "C02:decode", "C04:decode", "P06:decode"]
+        plan = runner.make_plan(self.catalog, self.capabilities, "quick", usage="reuse", selections=selections)
+        expected = {(case_id, operation, engine) for case_id, operation in (value.split(":") for value in selections)
+                    for engine in ("wire", "java-specific", "java-generic", "java-custom")}
+        self.assertEqual({tuple(cell) for cell in plan["cells"]}, expected)
+        self.assertEqual(plan["selectedOperations"], [value.split(":") for value in selections])
+        self.assertEqual(plan["expectedCells"], 24)
+        self.assertEqual(plan["expectedJVMForks"], 48)
+        self.assertEqual(plan["warmupAndMeasurementSeconds"], 480)
+        self.assertEqual(plan["usage"], "reuse")
+        self.assertTrue(plan["diagnostic"])
+        self.assertEqual(plan["timing"]["warmupIterations"], 5)
+        self.assertEqual(plan["timing"]["measurementIterations"], 5)
+        for round_number in (1, 2):
+            self.assertEqual({(row["caseId"], row["operation"], row["engine"])
+                              for row in plan["schedule"] if row["round"] == round_number}, expected)
+
+    def test_exact_operations_keep_profile_timing_and_default_fresh_usage(self):
+        for profile, rounds, iterations in (("full", 5, 10), ("quick", 2, 5), ("smoke", 1, 1)):
+            plan = runner.make_plan(self.catalog, self.capabilities, profile, selections=["T11:encode"], engines=["wire"])
+            self.assertEqual(plan["cells"], [["T11", "encode", "wire"]])
+            self.assertEqual(plan["usage"], "fresh")
+            self.assertTrue(plan["diagnostic"])
+            self.assertEqual(plan["rounds"], rounds)
+            self.assertEqual(plan["timing"]["warmupIterations"], iterations)
+            self.assertEqual(plan["timing"]["measurementIterations"], iterations)
+
+    def test_exact_operation_selectors_reject_invalid_or_unsupported_requests(self):
+        invalid = [(["P03:encode", "P03:encode"], "Duplicate"),
+                   (["UNKNOWN:encode"], "Invalid"), (["P03:write"], "Invalid"),
+                   (["P03"], "Invalid"), (["P03:encode:extra"], "Invalid"),
+                   (["E01:encode"], "Unsupported catalogue operation")]
+        for selections, message in invalid:
+            with self.subTest(selections=selections), self.assertRaisesRegex(ValueError, message):
+                runner.make_plan(self.catalog, self.capabilities, "quick", selections=selections)
+        with self.assertRaisesRegex(ValueError, "mutually exclusive"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", cases=["P03"], selections=["P03:encode"])
+        # One supported pair must not hide an explicitly selected pair excluded
+        # by the chosen engines' declared capabilities.
+        with self.assertRaisesRegex(ValueError, "no supported cells.*L06:encode"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", engines=["java-specific"],
+                             selections=["P03:encode", "L06:encode"])
+
+    def test_usage_defaults_preserve_full_protocol_and_reuse_excludes_avro2s(self):
+        full = runner.make_plan(self.catalog, self.capabilities, "full")
+        self.assertEqual(full["usage"], "fresh")
+        self.assertEqual(full["apiContract"], report.api_contract("fresh"))
+        reused = runner.make_plan(self.catalog, self.capabilities, "full", usage="reuse")
+        self.assertTrue(reused["diagnostic"])
+        self.assertNotIn("avro2s", {cell[2] for cell in reused["cells"]})
+        with self.assertRaisesRegex(ValueError, "avro2s is outside"):
+            runner.make_plan(self.catalog, self.capabilities, "smoke", usage="reuse", engines=["avro2s"])
+
     def test_smoke_and_narrowed_full_are_diagnostic(self):
         self.assertTrue(runner.make_plan(self.catalog, self.capabilities, "full", cases=["P03"])["diagnostic"])
         smoke = runner.make_plan(self.catalog, self.capabilities, "smoke")
@@ -115,6 +202,20 @@ class ValidationTests(unittest.TestCase):
         record = sample_record()
         self.assertEqual(report.validate_fork([record], ("P03", "encode", "wire"), self.timing, "/fake/java"), record)
 
+    def test_usage_parameter_must_match_frozen_protocol(self):
+        for usage in ("fresh", "reuse"):
+            record = sample_record()
+            record["params"]["usage"] = usage
+            self.assertEqual(report.validate_fork([record], ("P03", "encode", "wire"), self.timing,
+                                                 usage=usage), record)
+            other = "fresh" if usage == "reuse" else "reuse"
+            with self.assertRaisesRegex(ValueError, "usage mode"):
+                report.validate_fork([record], ("P03", "encode", "wire"), self.timing, usage=other)
+            with self.assertRaisesRegex(ValueError, "parameters"):
+                report.validate_fork([record], ("P03", "encode", "wire"), self.timing)
+        with self.assertRaisesRegex(ValueError, "parameters"):
+            report.validate_fork([sample_record()], ("P03", "encode", "wire"), self.timing, usage="reuse")
+
     def test_missing_allocation_nonfinite_units_and_iteration_loss_fail(self):
         changes = [lambda r: r["secondaryMetrics"].clear(),
                    lambda r: r["primaryMetric"].update(score=math.nan),
@@ -144,7 +245,16 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(command[command.index("-f") + 1], "1")
         self.assertIn("caseId=P03", command)
         self.assertIn("engine=wire", command)
+        self.assertIn("usage=fresh", command)
         self.assertEqual(result.name, "r02-P03-encode-wire.json")
+
+    def test_reuse_command_selects_reuse_without_adding_extra_forks(self):
+        command, _ = runner.jmh_command(Path("/jdk/bin/java"), ["/classes", "/jmh.jar"],
+                                        {"round": 2, "caseId": "P03", "operation": "encode", "engine": "wire"},
+                                        self.timing, Path("/results"), usage="reuse")
+        self.assertIn("usage=reuse", command)
+        self.assertNotIn("usage=fresh", command)
+        self.assertEqual(command[command.index("-f") + 1], "1")
 
 
 class StatisticsTests(unittest.TestCase):
@@ -189,6 +299,25 @@ class StatisticsTests(unittest.TestCase):
         for index in range(1, 6):
             self.assertIn(f"raw/wire-{index}.json", rendered)
         self.assertNotIn("winner", rendered)
+
+    def test_reuse_report_states_natural_outputs_and_validation_difference(self):
+        cells = [["P03", "encode", "wire"], ["P03", "encode", "java-specific"]]
+        metadata = {"plan": {"cells": cells, "rounds": 2, "diagnostic": True, "profile": "reuse-check", "seed": 123,
+                             "usage": "reuse", "apiContract": report.api_contract("reuse"), "omitted": {}},
+                    "catalog": {"cases": [{"id": "P03", "name": "int-3-byte"}]}, "gitRevision": "test-revision"}
+        records = [record for record in self.measurements() if record["_round"] <= 2]
+        for record in records:
+            record["params"]["usage"] = "reuse"
+        rendered = report.render(records, metadata)
+        for description in ("RawMessageEncoder", "direct encoder", "ByteBuffer", "Array[Byte]", "String text",
+                            "RawMessageDecoder", "no complete-consumption check", "2 independent JVM rounds",
+                            "Two JVM observations", "Diagnostic run"):
+            self.assertIn(description, rendered)
+        self.assertNotIn("Each encode returns a fresh byte array", rendered)
+        self.assertNotIn("five rounds", rendered)
+        records[0]["params"]["usage"] = "fresh"
+        with self.assertRaisesRegex(ValueError, "Result API usage"):
+            report.render(records, metadata)
 
 
 class ProvenanceTests(unittest.TestCase):

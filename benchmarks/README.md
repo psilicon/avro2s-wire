@@ -22,6 +22,8 @@ No reduced date range or replacement conversion is substituted to obtain a timin
 
 ## What an operation includes
 
+The default `fresh` usage mode preserves the original campaign's contract:
+
 - Encoding starts with the library's public model and returns a **fresh byte
   array**, including output allocation and the final byte-array copy.
 - Decoding consumes a prepared encoded datum, creates a **fresh result model**,
@@ -36,6 +38,24 @@ No reduced date range or replacement conversion is substituted to obtain a timin
 - The catalogue names text sizes explicitly: 48 bytes, 3 KiB and 192 KiB of
   UTF-8 text. These are separate cases for ASCII, Latin-1, two-byte BMP,
   three-byte BMP and supplementary Unicode characters.
+
+The `reuse-check` diagnostic uses a separate `reuse` usage mode:
+
+- Wire retains a caller-owned `BinaryOutput`, calls `reset()` and `codec.write`,
+  and returns `toByteArray()`. Wire decoding still calls `codec.decode`; its
+  current `BinaryInput` has no reset API.
+- Java retains Apache Avro's official `RawMessageEncoder` and `RawMessageDecoder`,
+  with the same specific, generic or custom data model. These helpers internally
+  reuse their direct encoder/decoder and streams. The encoder's default copying
+  mode returns an independently owned `ByteBuffer`; Wire returns an independently
+  owned byte array. Each natural result reaches JMH without an extra conversion.
+- All decoders return fresh result models and materialize text as `String`.
+  The official Java raw decoder accepts trailing bytes; Wire rejects them. This
+  is a valid-message performance comparison, not validation-equivalent decoding.
+- This changes Java's encoder/decoder kind as well as reuse: the original fresh
+  path uses buffered encoding. It measures the official raw-message API and
+  must not be described as isolating buffer reuse alone. No concurrency policy
+  or new reuse API is added to the Wire runtime.
 
 Correctness tests check cross-engine values and wire interoperability, fresh
 results, generated custom dispatch, String output, and the agreed input shapes.
@@ -59,6 +79,14 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile pilot
 
 # Complete measurement campaign, after reviewing the pilot.
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile full
+
+# Approved ten-operation diagnostic using the official Java raw-message helpers.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile reuse-check
+
+# Targeted follow-up: large strings/binary, collections and five-byte-long decode.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
+  --select T11:encode --select T11:decode --select B03:encode \
+  --select C02:decode --select C04:decode --select P06:decode
 ```
 
 `--dry-run` does not run sbt, start JMH or create output. It validates the pinned
@@ -66,6 +94,14 @@ generated-source hashes and prints every selected case, operation and engine,
 including the deterministic schedule. Use `--case P03` and/or `--engine wire`
 (repeatable) to narrow diagnostic work. Any narrowed run is marked diagnostic,
 even when it uses the full timing settings.
+
+Use repeatable `--select CASE:OPERATION` to choose exact case/operation pairs
+instead of `--case`. The `quick` profile uses two independent rounds, with
+5 × 1-second warmup and 5 × 1-second measurement per JVM. It defaults to fresh
+usage; select `--usage reuse` explicitly for the official-helper comparison.
+The six-operation follow-up above runs all four Wire/Java variants: 24 cells,
+48 JVM forks and eight minutes of timed work (roughly nine minutes with startup,
+plus compilation and correctness checks). Like every quick run, it is diagnostic.
 
 The runner calls sbt **once** for `benchmarks/test`, `benchmarks/Jmh/compile` and
 the compiled JMH classpath. Measurements then launch `org.openjdk.jmh.Main`
@@ -98,6 +134,30 @@ corpus/reader setup, reporting and GC overruns add time. The dry-run plan is the
 authority if the capabilities change. No timing estimate includes implementation
 work or an independent confirmation campaign.
 
+The reuse check runs exactly these operations against Wire and every supported
+Java variant (specific, generic and genuine generated custom coders):
+
+| Case | Operation | Input |
+| --- | --- | --- |
+| P03 | Encode | Three-byte int |
+| R01 | Encode | Flat record containing four longs |
+| L12 | Encode and decode | 18-digit decimal as bytes |
+| L16 | Encode | BigDecimal logical type |
+| T01 | Encode | 48-byte ASCII string |
+| P02 | Decode | One-byte int |
+| P10 | Decode | Eight-symbol enum |
+| R02 | Decode | Chain of four nested records |
+| L08 | Decode | Local timestamp, microseconds |
+
+This is **36 cells in two independent rounds: 72 JVM forks**. Each fork has
+**5 × 1-second warmup and 5 × 1-second measurement**, with the same heap,
+collector, worker count and allocation profiler as above. The timed stages total
+**12 minutes**, approximately **13–15 minutes with JVM startup**; compilation and
+correctness checks happen first. There is no avro2s column in this diagnostic.
+Two JVM observations per cell provide a quick directional check, not the
+certainty of the full campaign. Retain and inspect both JVM means and all
+allocation results; do not turn this selected subset into a library-wide score.
+
 Within each round, engines for the same case and operation run adjacent to one
 another. Their initial order is seeded and their positions rotate between
 rounds. The seed and entire schedule are preserved. This reduces systematic
@@ -117,7 +177,8 @@ has four degrees of freedom, not 49. Approximate normality and independence of
 round means are assumptions, not facts established by five forks.
 
 A reference/Wire ratio is computed within each matched round; its geometric
-mean and interval use Student t on the five log ratios. The predeclared practical
+mean and interval use Student t on the log ratios (five in a full campaign).
+The predeclared practical
 ratio band is **0.95–1.05**. An interval fully inside that band supports practical
 similarity under the measured conditions; one entirely beyond the band supports
 a meaningful directional difference under the statistical assumptions. An

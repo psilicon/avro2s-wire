@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tarfile
 
-from benchmark_suite_report import BENCHMARK, ENGINES, render, validate_fork
+from benchmark_suite_report import BENCHMARK, ENGINES, api_contract, render, validate_fork
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = Path("benchmarks/src/main/resources/suite/catalog.json")
@@ -24,6 +24,14 @@ SOURCE_SUFFIXES = {".scala", ".java", ".avsc", ".avdl", ".sbt", ".properties", "
 ENV_KEYS = {"HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "TMP", "TEMP", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
             "SBT_GLOBAL_BASE", "SBT_BOOT_DIRECTORY", "SBT_IVY_HOME", "COURSIER_CACHE", "IVY_HOME", "XDG_CACHE_HOME"}
 OPTION_VARIABLES = ("JAVA_OPTS", "JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "SBT_OPTS", "JVM_OPTS")
+REUSE_CHECK_PAIRS = frozenset({("P03", "encode"), ("R01", "encode"), ("L12", "encode"),
+                              ("L16", "encode"), ("T01", "encode"), ("P02", "decode"),
+                              ("P10", "decode"), ("R02", "decode"), ("L12", "decode"),
+                              ("L08", "decode")})
+REUSE_CHECK_CELLS = frozenset((case_id, operation, engine)
+                             for case_id, operation in REUSE_CHECK_PAIRS
+                             for engine in ("wire", "java-specific", "java-generic", "java-custom")
+                             if engine != "java-custom" or not case_id.startswith("L"))
 
 
 def load_inputs(root):
@@ -63,21 +71,50 @@ def load_inputs(root):
     return catalog, capabilities
 
 
-def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines=None):
-    case_filter = set(cases or (("P03", "T11", "C02") if profile == "pilot" else ("P03",) if profile == "smoke" else ()))
-    selected_engines = tuple(engines or (("wire", "java-specific") if profile in ("pilot", "smoke") else ENGINES))
+def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines=None, usage=None, selections=None):
+    usage = usage or ("reuse" if profile == "reuse-check" else "fresh")
+    if usage not in ("fresh", "reuse"):
+        raise ValueError("Unknown API usage mode")
+    if profile == "reuse-check" and (cases or engines or selections or usage != "reuse"):
+        raise ValueError("reuse-check fixes the approved ten operations, supported Java variants, and reuse usage")
+    if cases and selections:
+        raise ValueError("--case and --select are mutually exclusive")
+    selected_operations = []
+    operations = {case["id"]: case["operations"] for case in catalog["cases"]}
+    for selection in selections or ():
+        parts = selection.split(":")
+        if len(parts) != 2 or parts[0] not in operations or parts[1] not in ("encode", "decode"):
+            raise ValueError(f"Invalid --select {selection!r}; expected a known CASE:encode or CASE:decode")
+        if parts[1] not in operations[parts[0]]:
+            raise ValueError(f"Unsupported catalogue operation: {selection}")
+        if parts in selected_operations:
+            raise ValueError(f"Duplicate --select: {selection}")
+        selected_operations.append(parts)
+    operation_filter = {tuple(selection) for selection in selected_operations}
+    selected_ids = {case_id for case_id, _ in operation_filter}
+    default_cases = ("P03", "T11", "C02") if profile == "pilot" else ("P03",) if profile == "smoke" else ()
+    case_filter = set(cases or (() if selections else default_cases))
+    selected_engines = tuple(engines or (("wire", "java-specific") if profile in ("pilot", "smoke")
+                                       else ENGINES[:-1] if usage == "reuse" else ENGINES))
     all_ids = {case["id"] for case in catalog["cases"]}
     if case_filter - all_ids or set(selected_engines) - set(ENGINES):
         raise ValueError("Unknown case ID or engine")
     if len(selected_engines) != len(set(selected_engines)):
         raise ValueError("Duplicate selected engines")
+    if usage == "reuse" and "avro2s" in selected_engines:
+        raise ValueError("Reuse usage supports Wire and Java; avro2s is outside this diagnostic")
     engine_capabilities = {case["id"]: case["engines"] for case in capabilities["cases"]}
     cells, omitted = [], {}
     for case in catalog["cases"]:
-        if case_filter and case["id"] not in case_filter:
+        if ((case_filter and case["id"] not in case_filter)
+                or (selected_ids and case["id"] not in selected_ids)):
             continue
         omitted[case["id"]] = {}
         for operation in case["operations"]:
+            if operation_filter and (case["id"], operation) not in operation_filter:
+                continue
+            if profile == "reuse-check" and (case["id"], operation) not in REUSE_CHECK_PAIRS:
+                continue
             omitted[case["id"]][operation] = {}
             for engine in ENGINES:
                 capability = engine_capabilities[case["id"]][engine]
@@ -89,9 +126,16 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
                     cells.append([case["id"], operation, engine])
     if not cells:
         raise ValueError("Selection contains no supported benchmark cells")
-    rounds = {"full": 5, "pilot": 2, "smoke": 1}[profile]
-    timing = {"warmupIterations": 1 if profile == "smoke" else 10,
-              "measurementIterations": 1 if profile == "smoke" else 10,
+    missing_operations = operation_filter - {(case_id, operation) for case_id, operation, _ in cells}
+    if missing_operations:
+        missing = ", ".join(f"{case_id}:{operation}" for case_id, operation in sorted(missing_operations))
+        raise ValueError(f"Selected operations have no supported cells for the chosen engines: {missing}")
+    if profile == "reuse-check" and {tuple(cell) for cell in cells} != REUSE_CHECK_CELLS:
+        raise ValueError("reuse-check membership changed; expected the approved ten operations and 36 cells")
+    rounds = {"full": 5, "pilot": 2, "smoke": 1, "reuse-check": 2, "quick": 2}[profile]
+    iterations = 1 if profile == "smoke" else 5 if profile in ("reuse-check", "quick") else 10
+    timing = {"warmupIterations": iterations,
+              "measurementIterations": iterations,
               "warmupTime": "100ms" if profile == "smoke" else "1s",
               "measurementTime": "100ms" if profile == "smoke" else "1s",
               "forksPerSelection": 1, "threads": 1, "mode": "avgt", "timeUnit": "ns",
@@ -99,7 +143,9 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
     from benchmark_suite_report import duration_seconds
     seconds = rounds * len(cells) * (timing["warmupIterations"] * duration_seconds(timing["warmupTime"])
                                     + timing["measurementIterations"] * duration_seconds(timing["measurementTime"]))
-    return {"profile": profile, "diagnostic": profile != "full" or bool(cases or engines),
+    return {"profile": profile, "usage": usage, "apiContract": api_contract(usage),
+            "diagnostic": profile != "full" or usage != "fresh" or bool(cases or engines or selections),
+            "selectedOperations": selected_operations,
             "seed": seed, "rounds": rounds, "timing": timing, "cells": cells, "omitted": omitted,
             "expectedCells": len(cells), "expectedJVMForks": rounds * len(cells),
             "warmupAndMeasurementSeconds": seconds,
@@ -220,11 +266,14 @@ def classpath_signature(classpath):
     return {str(path): [path.stat().st_size, path.stat().st_mtime_ns] for path in classpath_files(classpath)}
 
 
-def jmh_command(java, classpath, row, timing, output):
+def jmh_command(java, classpath, row, timing, output, usage="fresh"):
+    if usage not in ("fresh", "reuse"):
+        raise ValueError("Unknown API usage mode")
     result = output / "raw" / f"r{row['round']:02d}-{row['caseId']}-{row['operation']}-{row['engine']}.json"
     command = [str(java), "-cp", os.pathsep.join(classpath), "org.openjdk.jmh.Main",
                "^" + re.escape(BENCHMARK + row["operation"]) + "$",
                "-p", "caseId=" + row["caseId"], "-p", "engine=" + row["engine"],
+               "-p", "usage=" + usage,
                "-jvm", str(java), "-jvmArgs", " ".join(timing["jvmArgs"]),
                "-f", "1", "-wi", str(timing["warmupIterations"]), "-w", timing["warmupTime"],
                "-i", str(timing["measurementIterations"]), "-r", timing["measurementTime"],
@@ -242,11 +291,16 @@ def write_json(path, value):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--java", required=True, type=Path, help="Absolute executable JDK java; used for compilation and every JMH fork")
-    parser.add_argument("--profile", choices=("full", "pilot", "smoke"), default="full")
+    parser.add_argument("--profile", choices=("full", "pilot", "smoke", "reuse-check", "quick"), default="full")
+    parser.add_argument("--usage", choices=("fresh", "reuse"),
+                        help="API lifecycle: defaults to reuse for reuse-check, fresh otherwise; reuse excludes avro2s")
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--seed", type=int, default=20260926)
-    parser.add_argument("--case", action="append", dest="cases", help="Narrow to an ID; repeatable, marks results diagnostic")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--case", action="append", dest="cases", help="Narrow to an ID; repeatable, marks results diagnostic")
+    selection.add_argument("--select", action="append", dest="selections", metavar="CASE:OP",
+                           help="Select an exact case and encode/decode operation; repeatable, marks results diagnostic")
     parser.add_argument("--engine", action="append", choices=ENGINES, dest="engines", help="Narrow engines; repeatable, marks results diagnostic")
     parser.add_argument("--skip-tests", action="store_true", help="Explicitly skip correctness tests after validating these exact sources separately")
     parser.add_argument("--dry-run", action="store_true", help="Print exact membership, order, settings and timed-stage estimate; do not write or run anything")
@@ -270,7 +324,7 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     catalog, capabilities = load_inputs(args.root)
-    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines)
+    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines, args.usage, args.selections)
     if args.dry_run:
         print(json.dumps({"java": str(args.java), "output": str(args.output), "correctness": "explicitly skipped" if args.skip_tests else "benchmarks/test",
                           "build": "One sbt invocation: tests, Jmh/compile, show Jmh/fullClasspath; every measurement launches JMH directly", "plan": plan}, indent=2))
@@ -326,7 +380,7 @@ def main(argv=None):
             assert_unchanged(args.root, before, args.output)
             if classpath_signature(classpath) != compiled_signature or sha256(args.java) != metadata["javaSha256"]:
                 raise RuntimeError("Compiled classpath or Java executable changed during campaign")
-            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output)
+            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output, plan["usage"])
             log_path = result.with_suffix(".log")
             metadata["commands"].append({**row, "command": command, "log": str(log_path.relative_to(args.output)), "result": str(result.relative_to(args.output))})
             write_json(metadata_path, metadata)
@@ -334,7 +388,7 @@ def main(argv=None):
             with log_path.open("w") as log:
                 subprocess.run(command, cwd=args.root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             record = validate_fork(json.loads(result.read_text()), (row["caseId"], row["operation"], row["engine"]),
-                                   plan["timing"], args.java, log_path.read_text())
+                                   plan["timing"], args.java, log_path.read_text(), usage=plan["usage"])
             assert_unchanged(args.root, before, args.output)
             records.append({**record, "_round": row["round"], "_sourceFile": str(result.relative_to(args.output))})
             metadata["completedForks"] = index

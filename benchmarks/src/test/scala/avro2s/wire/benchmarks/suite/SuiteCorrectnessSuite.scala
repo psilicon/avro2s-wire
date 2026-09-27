@@ -3,6 +3,7 @@ package avro2s.wire.benchmarks.suite
 import java.nio.charset.StandardCharsets.UTF_8
 import org.apache.avro.Schema
 import scala.jdk.CollectionConverters.*
+import SuiteWorkload.encodedBytes
 
 class SuiteCorrectnessSuite extends munit.FunSuite:
   override val munitTimeout = scala.concurrent.duration.Duration(5, "minutes")
@@ -33,7 +34,7 @@ class SuiteCorrectnessSuite extends munit.FunSuite:
         SuiteSupport.enginesFor(c, "encode").foreach { engine =>
           val writer = new SuiteWorkload(c, engine, payloads, "encode")
           for index <- payloads.indices do
-            val encoded = writer.encodeAt(index)
+            val encoded = encodedBytes(writer.encodeAt(index))
             val expected = SuiteVerification.normalize(SuiteCorpus.expected(c, index), schema)
             // All values pass an independent Java generic oracle; sampled boundaries also
             // exercise every writer/reader pairing without retaining every engine's corpus.
@@ -44,9 +45,9 @@ class SuiteCorrectnessSuite extends munit.FunSuite:
                 assertEquals(SuiteVerification.normalize(reader.decodeBytes(encoded), schema), expected,
                   s"$engine -> ${reader.engine} input $index")
               }
-          val first = writer.encodeAt(0)
+          val first = encodedBytes(writer.encodeAt(0))
           val snapshot = first.clone()
-          val second = writer.encodeAt(0)
+          val second = encodedBytes(writer.encodeAt(0))
           assert(!(first eq second), s"$engine reused returned array")
           assert(java.util.Arrays.equals(first, snapshot))
           second(0) = (second(0) ^ 0xff).toByte
@@ -54,7 +55,7 @@ class SuiteCorrectnessSuite extends munit.FunSuite:
           // Exercise cursor wraparound and repeated use of the same public input objects.
           for offset <- 0 until payloads.length * 2 do
             val index = offset % payloads.length
-            val encoded = writer.encode()
+            val encoded = encodedBytes(writer.encode())
             if index < 4 || index == 255 then
               val expected = SuiteVerification.normalize(SuiteCorpus.expected(c, index), schema)
               val oracle = readers.find(_.engine == "java-generic").get
