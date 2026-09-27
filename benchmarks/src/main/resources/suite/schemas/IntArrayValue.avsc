@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "IntArrayValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "array",
+        "items": "int"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "LocalTimestampMicrosValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "long",
+        "logicalType": "local-timestamp-micros"
+      }
+    }
+  ]
+}

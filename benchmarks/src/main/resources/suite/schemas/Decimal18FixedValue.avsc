@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "Decimal18FixedValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "fixed",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 4,
+        "name": "Decimal18FixedStorage",
+        "size": 8
+      }
+    }
+  ]
+}

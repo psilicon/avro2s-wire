@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "TimestampMillisValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

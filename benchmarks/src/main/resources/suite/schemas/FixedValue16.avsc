@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "FixedValue16",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "fixed",
+        "name": "Binary16",
+        "size": 16
+      }
+    }
+  ]
+}

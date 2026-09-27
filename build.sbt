@@ -117,7 +117,22 @@ lazy val benchmarks = (project in file("benchmarks"))
   .dependsOn(fixtures, javaBackend, resolution)
   .enablePlugins(JmhPlugin)
   .settings(testSettings)
-  .settings(name := "avro2s-wire-benchmarks", publish / skip := true)
+  .settings(
+    name := "avro2s-wire-benchmarks",
+    publish / skip := true,
+    Compile / sourceGenerators += Def.task {
+      val out = (Compile / sourceManaged).value / "suite-wire"
+      val input = (Compile / resourceDirectory).value / "suite" / "schemas"
+      IO.delete(out)
+      (compiler / Compile / runner).value.run(
+        "avro2s.wire.compiler.Main",
+        (compiler / Compile / fullClasspath).value.files,
+        Seq(input.getAbsolutePath, out.getAbsolutePath),
+        streams.value.log
+      ).get
+      (out ** "*.scala").get
+    }.taskValue
+  )
 
 // Test-only compiler and Java oracle. Generated sources compile against runtime + Scala alone.
 lazy val propertyTests = (project in file("property-tests"))

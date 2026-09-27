@@ -1,9 +1,7 @@
-# Benchmarks
+# Benchmark documentation
 
-The benchmark entry point is now [benchmarks/README.md](../../benchmarks/README.md).
-It contains run commands, profiles, methodology and result policy.
+The [maintained suite](../../benchmarks/README.md) is the entry point for commands,
+methodology and the [individual cases](../../benchmarks/CASES.md).
 
-- [Selected dated reference](../../benchmarks/reference/2026-09-17/README.md)
-- [Historical evidence and recovery](HISTORY.md)
-
-Development measurements are written to ignored `benchmarks/results/`.
+[Historical evidence](HISTORY.md) records recoverable revisions of previous
+harnesses, reports and exploratory results.

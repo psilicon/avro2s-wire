@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "Flat4",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "f0",
+      "type": "long"
+    },
+    {
+      "name": "f1",
+      "type": "long"
+    },
+    {
+      "name": "f2",
+      "type": "long"
+    },
+    {
+      "name": "f3",
+      "type": "long"
+    }
+  ]
+}

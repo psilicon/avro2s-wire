@@ -1,174 +1,184 @@
-# Benchmarks
+# Avro codec benchmarks
 
-Start here for commands, measurement policy and results.
+This is the maintained benchmark suite for avro2s-wire. The exact inputs and
+avro2s subset are defined in [the catalogue](src/main/resources/suite/catalog.json).
+The [generated-baseline manifest](generator/suite-baselines.json) pins Apache
+Avro, the avro2s revision and Scala-enum setting, generated source hashes, and
+actual Java custom-coder capabilities. Unsupported custom coders are N/A;
+ordinary readers are never relabelled as custom coders.
 
-- [Optimised stack-safe codecs: 26 September 2026](stack-safety-optimisation.md)
-  compares both modes across 30 cases, with an isolated original direct baseline,
-  allocation measurements and the intermediate experiments.
-- [Initial stack-safety prototype](stack-safety-results.md) preserves the earlier
-  18-case comparison; those measurements describe the unoptimised version.
+There are 61 controlled input cases: 58 encode/decode pairs and three decode-only
+schema-resolution cases. Every supported operation runs against Wire, Java
+specific and Java generic. Genuine generated Java custom coders run where supported. The 17-case
+avro2s subset covers the agreed primitives, arrays/maps, ASCII strings and
+unions; its enum is a Scala 3 enum. There is no weighted overall score or mixed
+payload headline benchmark.
 
-- [Selected reference results: 17 September 2026](reference/2026-09-17/README.md)
-  contains 148 implementation comparisons, eight evolution measurements and 15
-  explicit String-output controls. These are historical measurements, not a
-  fresh run of the current checkout.
-- [Comparative workloads](COMPARISON.md) describes the schemas, representations
-  and supported implementations, including the targeted big-decimal workload.
-- [Baseline provenance](generator/README.md) records the genuine generated Java
-  and avro2s sources, pinned versions and regeneration procedure.
-- [Historical evidence and recovery](../docs/benchmarks/HISTORY.md) explains where
-  earlier experiments, patches, logs and reports can be recovered.
+Apache Avro 1.12.1's timestamp-nanos and local-timestamp-nanos conversions encode
+fractional pre-epoch values incorrectly (a 999 ms shift). Java-specific and
+Java-generic encoding for L06 and L09 is therefore N/A with an explicit reason;
+their decoding remains measured. The agreed corpus keeps its negative dates.
+No reduced date range or replacement conversion is substituted to obtain a timing.
 
-## Run
+## What an operation includes
 
-Run from the repository root with Python 3 and sbt on `PATH`. Select the exact
-JDK executable for both sbt and JMH forks; JDK 21 is the reference environment.
+- Encoding starts with the library's public model and returns a **fresh byte
+  array**, including output allocation and the final byte-array copy.
+- Decoding consumes a prepared encoded datum, creates a **fresh result model**,
+  and verifies complete consumption. Text is materialized as **String** for
+  every implementation, including generated Java custom coders.
+- Each engine retains its actual public collection, binary and logical types.
+  Allocation differences caused by those models remain visible.
+- Schemas, readers, resolution plans and a deterministic 256-input corpus are
+  prepared outside measurement. One invocation processes one corpus element;
+  fixture construction, correctness assertions and manually batched codec loops
+  do not enter the timed path.
+- The catalogue names text sizes explicitly: 48 bytes, 3 KiB and 192 KiB of
+  UTF-8 text. These are separate cases for ASCII, Latin-1, two-byte BMP,
+  three-byte BMP and supplementary Unicode characters.
 
-```sh
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile comparison
-```
+Correctness tests check cross-engine values and wire interoperability, fresh
+results, generated custom dispatch, String output, and the agreed input shapes.
+Passing those tests is necessary before measurement. Performance stability is a
+separate question; a complete run is not automatically a publishable claim.
 
-Every run gets a new `benchmarks/results/<UTC timestamp>-<profile>/` directory.
-This directory is ignored by Git and survives `sbt clean`. Successful runs produce
-`report.md`, raw JMH JSON, logs and `environment.json`. The metadata records the
-source revision and hashes, JVM, commands, settings and expected case counts.
-Dirty source runs additionally retain a source snapshot. Existing artifacts are
-never silently overwritten.
+## Commands
 
-The runner first runs `benchmarks/test`, checks complete result membership and
-finite timing/allocation scores, and rejects source changes during measurement.
-Use `--skip-tests` only after separately validating the same sources. Reports are
-written only for successful runs. `--output` chooses another destination;
-`--label` optionally prefixes result filenames for older scripted commands.
-
-| Profile | Purpose | Default measured cases |
-| --- | --- | ---: |
-| `comparison` | Native Wire, Wire Java backend, avro2s and supported official Java variants across 13 workload configurations | 148 |
-| `evolution` | Different writer/reader schemas; resolved reads, same-schema control and plan construction reported separately | 8 |
-| `decoded-strings` | Explicit String-output readers; distinct from default Java Utf8 results | 15 |
-| `big-decimal` | Native Scala/Java decimal values and Java Avro conversion; 6/50/500 digits at scales 0/6/-6 | 54 |
-| `api` | Allocating native encode/decode convenience APIs | 14 |
-| `full` | All five profiles above without duplicate measurements | 239 |
-| `trade` | Original six-engine Trade workload, collection sizes 0/32/1024 | 36 |
-| `strings` | Native and Java-backend read/write/encode/decode across the detailed text corpus | 136 |
-| `stack-safety` | Direct and stack-safe native codecs: allocating encode/decode and planned resolution across shallow, collection-heavy and recursive values | 18 |
-| `focused` | Integer writes, string reads/writes and collection reads for investigations | — |
-| `pilot` | Short native-only diagnostic runs; unsuitable for performance claims | — |
-
-Plan commands and case counts without running sbt or writing output:
+Use Python 3.9 or later and sbt on PATH. Supply the absolute path to the exact
+native JDK executable; the same JDK is used for compilation and every JMH fork.
 
 ```sh
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile full --dry-run
+# Inspect exact membership, execution order and timed-stage duration first.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile full --dry-run
+
+# Execution smoke check: P03, Wire and Java specific, encode/decode.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile smoke
+
+# Short pilot: P03, 192 KiB ASCII (T11), 1024-int array (C02).
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile pilot
+
+# Complete measurement campaign, after reviewing the pilot.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile full
 ```
 
-Select a focused experiment or a quick execution smoke check:
+`--dry-run` does not run sbt, start JMH or create output. It validates the pinned
+generated-source hashes and prints every selected case, operation and engine,
+including the deterministic schedule. Use `--case P03` and/or `--engine wire`
+(repeatable) to narrow diagnostic work. Any narrowed run is marked diagnostic,
+even when it uses the full timing settings.
+
+The runner calls sbt **once** for `benchmarks/test`, `benchmarks/Jmh/compile` and
+the compiled JMH classpath. Measurements then launch `org.openjdk.jmh.Main`
+directly, with one fresh fork per selected cell per round. It does not repeatedly
+start sbt thousands of times. `--skip-tests` is an explicit escape hatch after
+separately validating the exact same sources; its use is recorded.
+
+## Frozen measurement protocol
+
+| Setting | Full campaign | Short pilot | Smoke check |
+| --- | --- | --- | --- |
+| Independent rounds / fresh JVMs per cell | 5 | 2 | 1 |
+| Warmup in each JVM | 10 × 1 second | 10 × 1 second | 1 × 100 ms |
+| Measurement in each JVM | 10 × 1 second | 10 × 1 second | 1 × 100 ms |
+| Worker threads | 1 | 1 | 1 |
+| Mode | Average time, ns/op | Same | Same |
+| Heap and collector | `-Xms1g -Xmx1g -XX:+UseG1GC` | Same | Same |
+| Profiler | JMH `gc`, including allocated B/op | Same | Same |
+
+The pilot runs 12 case/operation/engine cells, each in two fresh JVMs: **24 forks,
+480 seconds** of warmup and measurement, approximately 10–15 minutes including
+startup/setup and inspection. It covers small-operation overhead, large strings
+and returned byte arrays, and collection allocation. It does not establish the
+stability of every engine or logical/resolution case.
+
+The exact full matrix depends on the verified custom-coder capabilities. At
+468 cells, five rounds mean 2,340 fresh JVM forks and **13 hours** of warmup
+and measurement. Compilation, tests, process startup,
+corpus/reader setup, reporting and GC overruns add time. The dry-run plan is the
+authority if the capabilities change. No timing estimate includes implementation
+work or an independent confirmation campaign.
+
+Within each round, engines for the same case and operation run adjacent to one
+another. Their initial order is seeded and their positions rotate between
+rounds. The seed and entire schedule are preserved. This reduces systematic
+engine/order confounding; it does not eliminate heat, background work or drift.
+
+## Reviewing stability and uncertainty
+
+Inspect warmup and measured iteration traces and the independent JVM means
+before quoting results. Look for continuing warmup improvement, long pauses,
+session drift or forks that settle at different levels. More measurement time
+inside a single JVM does not provide additional independent JVM starts.
+
+Reports show timing and allocation with **pointwise 95% Student t intervals over
+round means**. Each independently started JVM contributes one observation,
+regardless of how many iterations it contains. The five-fork protocol therefore
+has four degrees of freedom, not 49. Approximate normality and independence of
+round means are assumptions, not facts established by five forks.
+
+A reference/Wire ratio is computed within each matched round; its geometric
+mean and interval use Student t on the five log ratios. The predeclared practical
+ratio band is **0.95–1.05**. An interval fully inside that band supports practical
+similarity under the measured conditions; one entirely beyond the band supports
+a meaningful directional difference under the statistical assumptions. An
+interval crossing a boundary leaves that conclusion unresolved. The report
+keeps the numerical intervals and does not assign winner labels.
+
+These are individual comparison intervals, not a simultaneous guarantee over
+hundreds of comparisons. There is no overall speedup or win count. A quotable
+claim needs independent-session confirmation. Do not select the fastest fork,
+discard a slower valid observation, or repeatedly run until an interval favours
+an implementation. If further measurement is needed, agree its budget and
+include every competing engine in that comparison; retain the original results.
+
+`gc.alloc.rate.norm` measures allocated heap bytes per operation, including
+temporary objects. It is not retained heap or peak process memory. GC count/time
+and all JMH secondary metrics remain in the raw JSON. Timing intervals describe
+mean-operation uncertainty, not p95 or p99 latency.
+
+## Machine preparation
+
+Use an adequately rated charger, disable Low Power Mode, finish compilation and
+downloads before measurement, and pause substantial background builds, VMs,
+backups and syncs. Keep the laptop on a ventilated surface with the lid open and
+leave it unused. On macOS the runner uses a temporary `caffeinate -i` process to
+prevent idle system sleep while permitting display sleep; it does not change
+permanent power settings. Avoid changing machine settings midway through a
+campaign. Power/load observations are diagnostics, not proof of a quiet system.
+
+## Artifacts and provenance
+
+Every run uses a new, ignored `benchmarks/results/<timestamp>-<profile>/`
+directory; `--output` can choose another new directory. No artifact is silently
+overwritten or committed. Each directory contains:
+
+- `environment.json`: exact Java executable/version, JVM flags, bounded child
+  environment, source revision/status/hashes, catalogue, baseline manifest,
+  complete execution order, commands and status.
+- `source-snapshot.tar.gz`: every fingerprinted source input, including modified
+  and untracked sources. Restore it over the recorded Git revision and remove
+  the recorded deleted source paths to reproduce the measured source tree.
+- `raw/`: separate JSON and console log for each round/case/operation/engine.
+  Logs retain warmup measurements; JSON retains all measured iteration data.
+- `records.json`: the same raw measurements with explicit round identity.
+- `report.md`: per-case timing/allocation intervals, paired ratios, individual
+  JVM means, raw-result links, and capability-based N/A explanations.
+- `SHA256SUMS`: checksums for all retained artifacts, including nested raw files.
+
+The runner fails on missing, duplicate, nonfinite or mismatched measurements,
+missing allocation data, source changes, changed compiled classpath, wrong JVM
+flags or incomplete rounds. Failed campaigns keep their evidence and have no
+successful report. Ambient Java/sbt option variables are not inherited; their
+names are recorded when present. Standard JIT optimization remains enabled.
+
+Regenerate a completed campaign's report without rerunning measurements:
 
 ```sh
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile big-decimal
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile stack-safety
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile comparison --param profile=string-ascii --filter '[.]ComparisonBenchmark[.].*Read$'
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile big-decimal --param digits=6 --param scale=0 --forks 1 --warmup-iterations 1 --measurement-iterations 1 --warmup-time 100ms --measurement-time 100ms
+python3 scripts/benchmark_suite_report.py benchmarks/results/<run>
+python3 -m unittest discover -s scripts/tests -p 'test_benchmark_suite*.py' -v
 ```
 
-A smoke check establishes that a path executes; it does not establish speed.
-For repeatable comparisons, keep timing settings, JDK, hardware and system load
-consistent. Normal profiles use two forks, three 500 ms warmups and five 500 ms
-measurements, one thread and a 512 MiB heap. `pilot` deliberately uses shorter
-settings. All actual settings appear in the output metadata and report.
-
-The `stack-safety` profile is an explicit experiment and is not included in `full`.
-Its `execution=direct,stack-safe` parameter selects the codec before timing;
-`shape=shallow,collections,recursive` selects a flat Trade, an array/map workload,
-or a 32-record chain whose recursive field precedes another field. Each pair uses
-identical inputs, wire bytes and immutable result types. `encode` includes a fresh
-output and final owned byte-array copy; `decode` includes a fresh input and the
-end-of-input check. `resolvedDecode` uses a cached resolution plan: shallow and
-collection schemas differ in metadata to exercise plan execution, and the recursive
-case also reorders fields, promotes an integer and supplies a reader default.
-Codec selection, fixture creation and plan compilation are outside timing. The
-unused stack-safe codec is passed lazily, so direct-only trials do not initialize
-an additional codec implementation that production direct-only use would leave
-unloaded. This is a setup refinement; datum values and timed operations are unchanged.
-The report retains the execution parameter and separates these three operations;
-latency is in ns/op and allocation in B/op. Deep small-stack correctness tests
-are separate from this performance experiment, so the direct mode is measured
-on inputs both implementations support.
-
-Two additional shapes are available for explicit scaling checks:
-`recursive-256` extends the linked-record workload to 256 records, and
-`recursive-containers` follows 64 records through alternating record, array and
-map union branches. The latter uses metadata-different schemas for planned
-resolution. These shapes are covered by correctness tests but do not expand the
-default 18-case matrix:
-
-```sh
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile stack-safety --param shape=recursive-256,recursive-containers
-```
-
-## Reports
-
-The runner and standalone formatter use the same report implementation:
-
-```sh
-python3 scripts/benchmark_report.py /path/to/run/Comparison.json /path/to/run/NestedComparison.json --metadata /path/to/run/environment.json -o /path/to/run/report.md
-```
-
-Supply only JMH result arrays as positional inputs, never `environment.json`.
-Repeat `--metadata` for separate recorded campaigns. Duplicate measurements are
-rejected: render repeated experiments separately instead of silently averaging
-them or picking favorable runs. The selected reference includes its complete
-regeneration command.
-
-Reports show average ns/op, JMH's 99.9% confidence error and allocated B/op for
-each explicitly named implementation. Missing comparisons are `N/A`.
-Wire's Java backend is the same generated Scala codec using Java primitive IO;
-it is distinct from official Java datum readers/writers. The Java-valued native
-big-decimal path still uses native IO. Evolution plan construction and same-schema
-controls do different work from resolved reads and have separate sections.
-
-## Measurement policy
-
-- Construct inputs outside timing. Compare the same valid Avro datum, retaining
-  union branch identity, numeric kinds and exact logical values during verification.
-- Read paths allocate fresh input contexts and fresh result models. Reusable
-  reader/codec state is prepared outside timing; mutable result reuse is not timed.
-- Direct writes reuse output buffers and flush Java encoders per operation. They
-  return byte counts and exclude the final byte-array copy. `Encode`/`Decode`
-  convenience APIs are reported separately because their allocation contracts differ.
-- Java-specific/custom/generic and avro2s baselines retain their actual model types.
-  Default Java readers may return Utf8; String controls explicitly materialize
-  Strings. Scala collections, byte ownership and strict native validation also
-  have real costs. Neither different representations nor validation policies are
-  hidden inside a blanket "Java" label.
-- `gc.alloc.rate.norm` is allocated heap bytes per operation, including temporary
-  objects. It is neither retained heap nor peak process memory. Small infrastructure
-  contributions and measurement variation remain possible.
-- Small mean differences may be noise. Confidence errors are reported per score;
-  they do not establish a confidence interval for a ratio or a paired significance
-  test. Microbenchmarks do not establish application latency or throughput.
-
-Benchmarks use JMH. Correctness tests verify cross-reading/writing and actual Java
-custom-coder dispatch; their generated baselines are unmodified. Java fast readers
-bypass custom decoding, so only the explicitly labeled custom path disables that
-optimization. Unsupported custom coders and unsupported avro2s logical models
-are left out rather than relabeled fallback implementations.
-
-## What belongs in Git
-
-Keep benchmark source, correctness tests, schemas, pinned generated reference
-models, regeneration tools and documentation. Retain a small selected reference
-with its raw measurements, environment metadata and source provenance when making
-a performance claim. Reference results are copied deliberately, never automatically
-promoted from local runs.
-
-Keep development runs, smoke results, failed runs, logs, dirty-source snapshots and
-experimental patches under ignored `benchmarks/results/`. Do not globally ignore
-JSON, generated source, patches or archives: those formats have legitimate tracked
-uses elsewhere. Older evidence remains recoverable from Git history; cleanup does
-not rewrite history.
-
-Check the Python tooling without running JMH:
-
-```sh
-python3 -m unittest discover -s scripts/tests -v
-```
+Keep the maintained sources, schemas, tests, generator tools, manifests and this
+protocol in Git. Local measurements, failed runs, logs and source snapshots stay
+under ignored results. Earlier exploratory suites and reports are historical
+material recoverable from Git; they are not another current headline suite.

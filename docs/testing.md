@@ -434,7 +434,7 @@ named checks, not the number of generated schemas, values or malformed inputs.
 
 `sbt test` checks correctness, not performance thresholds. JMH measurements are
 separate; see the [benchmark guide](../benchmarks/README.md) and
-[comparative workloads](../benchmarks/COMPARISON.md). Short JMH smoke runs
+[individual benchmark cases](../benchmarks/CASES.md). Short JMH smoke runs
 establish that workloads execute, not that an optimisation is faster.
 
 Remaining dimensions include:
@@ -452,11 +452,12 @@ Remaining dimensions include:
 There is no published code-coverage percentage or repository CI matrix across
 JDK/Scala versions. The suite does not establish exhaustive Avro conformance.
 Correctness coverage does not establish performance across the same types. The
-[selected historical comparison](../benchmarks/reference/2026-09-17/README.md)
-covers 13 workload configurations, evolution and explicit String-output controls.
-Its raw data and uncertainty support conclusions for those workloads. The larger
-text investigations remain available in [historical evidence](benchmarks/HISTORY.md).
-Measured cases remain separate from the much larger correctness corpus.
+[current benchmark catalogue](../benchmarks/CASES.md) is deliberately smaller than
+the full correctness corpus. Benchmark checks verify every prepared input against
+independently generated Avro data, every implementation's public model, cross-engine
+encoding, String text and map keys, owned binary results, complete consumption,
+logical values and genuine custom-coder dispatch. Historical performance evidence
+remains recoverable through [Git history](benchmarks/HISTORY.md).
 
 The runner and report tooling has a separate Python standard-library test suite:
 

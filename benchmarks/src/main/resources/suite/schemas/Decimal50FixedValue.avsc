@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "Decimal50FixedValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "fixed",
+        "logicalType": "decimal",
+        "precision": 50,
+        "scale": 10,
+        "name": "Decimal50FixedStorage",
+        "size": 32
+      }
+    }
+  ]
+}

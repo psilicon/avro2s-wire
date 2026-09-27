@@ -1,0 +1,1959 @@
+{
+  "version" : 1,
+  "avro2s" : {
+    "commit" : "861c816b63643edfaf012d2b84f1bc0ea8b4ce99",
+    "scalaVersion" : "3.3.6",
+    "targetScalaVersion" : "Scala_3",
+    "logicalTypesEnabled" : true,
+    "enumType" : "ScalaEnum"
+  },
+  "apacheAvro" : {
+    "version" : "1.12.1",
+    "stringType" : "String",
+    "enableDecimalLogicalType" : true,
+    "outputCharacterEncoding" : "UTF-8",
+    "additionalOfficialConversions" : [ "org.apache.avro.Conversions.DurationConversion", "org.apache.avro.Conversions.BigDecimalConversion" ]
+  },
+  "cases" : [ {
+    "id" : "P01",
+    "model" : "BooleanValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "P02",
+    "model" : "IntValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "P03",
+    "model" : "IntValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "P04",
+    "model" : "IntValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "P05",
+    "model" : "LongValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "P06",
+    "model" : "LongValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "P07",
+    "model" : "LongValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "P08",
+    "model" : "FloatValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "P09",
+    "model" : "DoubleValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "P10",
+    "model" : "EnumValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "T01",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "T02",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "T03",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T04",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T05",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T06",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T07",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T08",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T09",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T10",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T11",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "T12",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T13",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T14",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "T15",
+    "model" : "TextValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "B01",
+    "model" : "BytesValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "B02",
+    "model" : "BytesValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "B03",
+    "model" : "BytesValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "B04",
+    "model" : "FixedValue16",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "C01",
+    "model" : "IntArrayValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "C02",
+    "model" : "IntArrayValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "C03",
+    "model" : "LongMapValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "C04",
+    "model" : "LongMapValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "R01",
+    "model" : "Flat4",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "R02",
+    "model" : "Chain4",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "R03",
+    "model" : "Flat16",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "R04",
+    "model" : "Chain16",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "U01",
+    "model" : "OptionalIntValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "U02",
+    "model" : "OptionalIntValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "U03",
+    "model" : "UnionValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "U04",
+    "model" : "UnionValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "U05",
+    "model" : "UnionValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      }
+    }
+  }, {
+    "id" : "L01",
+    "model" : "DateValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L02",
+    "model" : "TimeMillisValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L03",
+    "model" : "TimeMicrosValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L04",
+    "model" : "TimestampMillisValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L05",
+    "model" : "TimestampMicrosValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L06",
+    "model" : "TimestampNanosValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "decode" ],
+        "reason" : "Apache Avro 1.12.1 fractional pre-epoch nanosecond encoding shifts by 999 ms"
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "decode" ],
+        "reason" : "Apache Avro 1.12.1 fractional pre-epoch nanosecond encoding shifts by 999 ms"
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L07",
+    "model" : "LocalTimestampMillisValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L08",
+    "model" : "LocalTimestampMicrosValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L09",
+    "model" : "LocalTimestampNanosValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "decode" ],
+        "reason" : "Apache Avro 1.12.1 fractional pre-epoch nanosecond encoding shifts by 999 ms"
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "decode" ],
+        "reason" : "Apache Avro 1.12.1 fractional pre-epoch nanosecond encoding shifts by 999 ms"
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L10",
+    "model" : "UuidValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L11",
+    "model" : "DurationValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L12",
+    "model" : "Decimal18BytesValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L13",
+    "model" : "Decimal18FixedValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L14",
+    "model" : "Decimal50BytesValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L15",
+    "model" : "Decimal50FixedValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "L16",
+    "model" : "BigDecimalValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "encode", "decode" ]
+      },
+      "java-custom" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Apache Avro SpecificCompiler did not generate custom coders for this model"
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "E01",
+    "model" : "ProjectionValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "E02",
+    "model" : "DefaultValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  }, {
+    "id" : "E03",
+    "model" : "PromotionValue",
+    "engines" : {
+      "wire" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-specific" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-generic" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "java-custom" : {
+        "supported" : true,
+        "operations" : [ "decode" ]
+      },
+      "avro2s" : {
+        "supported" : false,
+        "operations" : [ ],
+        "reason" : "Outside the approved avro2s comparison subset"
+      }
+    }
+  } ],
+  "sources" : [ {
+    "path" : "benchmarks/generator/GenerateSuiteBaselines.scala",
+    "sha256" : "5b2d1cef235fcbaa6fe8398444bc18eb63bafe5011a24f7afcda7404da151611"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/BigDecimalValue.java",
+    "sha256" : "46793ead98952ee6d6e35a32b5a7f685facf51312d39b4b69dd7550dade3dccd"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Binary16.java",
+    "sha256" : "721aefb20310a55ea4815722d9246e8b990fb7ab407e014c64a4047316c70710"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/BooleanValue.java",
+    "sha256" : "1fbf2358b018b0d374a730c97e94a613cf4053366b2d6920b2dde3311ad22c7c"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/BytesValue.java",
+    "sha256" : "94daa00b57bbd8e7fe573d7fd25c6b66860130556150aa9f6b840c94dd44c09f"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16.java",
+    "sha256" : "9ff132de97a9278190754cbb1ca383898a8fa55f5cd483a7ff0efd44c3beb0d8"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level10.java",
+    "sha256" : "33e22df745884372a80c19349e1cd6c4e5ca2637619cc53e2c2beb58f9e7dee3"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level11.java",
+    "sha256" : "1daf62330ce233cb0482e697e3c0743d503c10aa84f0ff2c768d9aa149966129"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level12.java",
+    "sha256" : "49d9cf9c4b802ac25fce2edf4d46d2de75b9bb36e248eeef9b91adf24d628e51"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level13.java",
+    "sha256" : "0e5c244b684fc3b65069741b87872ae1aa410f4b6b122e374693681c6e54f994"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level14.java",
+    "sha256" : "71fd376a592f2f0d100785b8c248f527e80113a8b901e9b11db8cf34fc438ed5"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level15.java",
+    "sha256" : "a38c83b9943730b138929557066f51c44e4e6384e062eb8ef280383431d516e0"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level16.java",
+    "sha256" : "1cd22268cbf9dd74b0ed6f615c5cd1bdeee3b2f328f82daa6e80e7c72a5c7ad7"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level2.java",
+    "sha256" : "9590b5579292ee7b0fea49b457b500451e7253bcb6e45c9ad5032d52e5cb5d30"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level3.java",
+    "sha256" : "167a2af28622467b8709a3994033350bfe4d8b08214ba936cbc5e18a83a1d550"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level4.java",
+    "sha256" : "39f5b81c14f3592efdd1bffc20f5f068479e87c90bf9999110cba376ac1552d8"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level5.java",
+    "sha256" : "714e7aa935f3f00692054f416fcf1abd554d63f8990ff41715c3264c7f2b757a"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level6.java",
+    "sha256" : "1d8693f1bd4801dc9b7dfae2314cd061996c6ec5b8cde87e5145de97213bc2b7"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level7.java",
+    "sha256" : "274233261bd24a55bed7d4001269e079f14598ec969cfe83741025d2d4b1809d"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level8.java",
+    "sha256" : "dea462713d47860cc2d45ec81ff34961557992335b37ab41ef99e08a0f730137"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain16Level9.java",
+    "sha256" : "1da013ab04b101c0f1d7612dbd5e67a30a3ee43672be2f5d84db68b4c4796372"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain4.java",
+    "sha256" : "1712d5eddab0e03c15d0f874377abad6ce7268036801b588bb7435ff6e4c73af"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain4Level2.java",
+    "sha256" : "b31d641f4dd07386d6672e9a79bb5e56d3d8b657e41c163791eb7f32f09160b1"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain4Level3.java",
+    "sha256" : "0a721ba8432f354381b63cb00a3377351221948b8dea54ee4580214995dd858d"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Chain4Level4.java",
+    "sha256" : "406f2039f4fd3b3b2bd124377edc3baced1bb1f81d4fb1b3aae12bd9293d9f71"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/DateValue.java",
+    "sha256" : "d99604b12ba44962f64954cd7010cc29e953ffd981dd5e6812cf90a1ca979ad7"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal18BytesValue.java",
+    "sha256" : "47e784e760f847bebd453e05cfd013ba06e635f3a622cb7cc4bf94dc45717f44"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal18FixedStorage.java",
+    "sha256" : "d2ccc3ef1f60bf19bdf801c7b77440844c33885befd5e670e5bf694a996fea73"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal18FixedValue.java",
+    "sha256" : "65ab70eaff325eb90e3826230af7a91d7bd92206c1dc04a8515b68c3ba20dd65"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal50BytesValue.java",
+    "sha256" : "10a83aef7835bb349e8456cabcabb412dfef741144cfd3512c715ceabed51db9"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal50FixedStorage.java",
+    "sha256" : "4b199e601a36fa1677113a854dc99fd6ac37a7cb047d5ff09261c93b83cac041"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Decimal50FixedValue.java",
+    "sha256" : "f5d3d324797bb4c17cbf99f3f9947618a3ad541aa2e0e0b60de82c1dea876758"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/DefaultValue.java",
+    "sha256" : "f07b65ecedd5a746e68846adc0e79c1a89376bf868f604b05664850c6348a859"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/DoubleValue.java",
+    "sha256" : "57046ccc95b8ccb498e99e4f19918d8cb5a14a1edec291e3f9c0da328778fdb4"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/DurationStorage.java",
+    "sha256" : "8234287a1eda31624cc44530f2f858526019865d74a695dc475c42714e6714e7"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/DurationValue.java",
+    "sha256" : "60542b9ed253406b8f4d3d3157b1a62649be5d9bf1e9b14f14df2fa5d83957d6"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/EightSymbols.java",
+    "sha256" : "061223d1a491a93cc8ca351c47a8d11053333811bb9c6ff370054112e776e69a"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/EnumValue.java",
+    "sha256" : "d3e13726ec383b292a8fc966cb38e254ab5817f50c2f9ec076d663986bcee5d5"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/FixedValue16.java",
+    "sha256" : "daaa27d03444294e320dc11bb52cde10eaa795c008a349adced0d59060c9b8e0"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Flat16.java",
+    "sha256" : "e6560b5d6b5aa9ba31ed5ad863e5886b4644508c3508c374111998826e34c3db"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/Flat4.java",
+    "sha256" : "ff9de71cbbaa3bdbbfa4e2dbd7cd27b3a5c3c9976a4deee04e358a04c355746b"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/FloatValue.java",
+    "sha256" : "d4c7461345a8f303dd8dcd065db379fb7aaa92a18ed0b0871068a842b8722f8b"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/IntArrayValue.java",
+    "sha256" : "583346bf1985978640497198280b43b0ebd09d7dd50843de932704ecf0549308"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/IntValue.java",
+    "sha256" : "48d139584505c1c7a1806d8c0e9bc7596400d3f5e8d0a4a6596e1b3eb3a3751b"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/LocalTimestampMicrosValue.java",
+    "sha256" : "40ca4ac0043fe430e4ee9aca3161e403b59895dddca8b5d37dff860b20b44883"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/LocalTimestampMillisValue.java",
+    "sha256" : "fd01038e8d90c198e0db2371b8bbae70c4b1ad31815325b53361b681b23b0d8a"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/LocalTimestampNanosValue.java",
+    "sha256" : "b316214acd8d48936ae71bdf0cac10b5a854ceb22833e182c776a28bb278a90b"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/LongMapValue.java",
+    "sha256" : "e7cada11515f48f22eb0c3c999864bc01cc048b4b25e057e0ed4bc8debb8fbe6"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/LongValue.java",
+    "sha256" : "d7b1f9f91fec17be408f3bbebceebf7aea78274daf1b7cae5a99a30a9b45fb25"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/OptionalIntValue.java",
+    "sha256" : "efd2dfc0ce1890cdf2add25a01385c6267108f1e92c3d30be74cbdc395d03f9d"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/ProjectionValue.java",
+    "sha256" : "cad8a6903eca1349157b90a208d6bf7e128a27ef97d70f8cc1105fbeffb34291"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/PromotionValue.java",
+    "sha256" : "7b5731b32eaaadd25f619b4dc17778db5f5f95a02d41cb0f3facb1c1f469763a"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TextValue.java",
+    "sha256" : "be8f994f6511f7f190d639f65bd4ee79c8dfd77d4ccc86aed524107e28f3742a"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TimeMicrosValue.java",
+    "sha256" : "9d7c919f85bf8cab1b634df0023e70147ee1fbe5e40dfd4837e7093ea8d62bfc"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TimeMillisValue.java",
+    "sha256" : "cfa682ae07e928694070212845e1de4af9dbf8e3bc7a3867a3620a62ca8cfb39"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TimestampMicrosValue.java",
+    "sha256" : "e5c668c6847974a19a941ef71c8ae61faf62794ff2a8959a197481baf0f9a5cb"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TimestampMillisValue.java",
+    "sha256" : "202647df78f3fe1e9d9ec29714cf5d720be0409319f269f42c57d28e09921e76"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/TimestampNanosValue.java",
+    "sha256" : "41b1d9598facdad2d6c93147c74676cfec79f10faa5561dd24af99bc4470faf5"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/UnionRecord.java",
+    "sha256" : "d39fc564f200d8d59826c37ae234cfb490e2b95b534200e1e5a35f7c553416d4"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/UnionValue.java",
+    "sha256" : "de6c57ace66cad2e275e605a8aea84bb8820648ad4266adb8af20e8cc8daa477"
+  }, {
+    "path" : "benchmarks/src/main/java/avro2s/wire/benchmarks/suite/javaavro/UuidValue.java",
+    "sha256" : "5ca6d3bbfcb8b8e6312f4982e590374ad0c7f409d2f72d45587ee9a76cbe4fcf"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/capabilities.json",
+    "sha256" : "86104ff03629f76ae9a1d6c18644eb45b829fca3f54ec4a87d47a9d93b1dc19d"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/catalog.json",
+    "sha256" : "6db59067963b70b538338a167558c0dd9f183323f5783c2603a148fa9b66a8a2"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/BigDecimalValue.avsc",
+    "sha256" : "c7bdee5033723a90e47ae2534f00181be9f21ce29f59daac6913b9956be4e1d1"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/BooleanValue.avsc",
+    "sha256" : "e8f3becae526884c0eec9995385dd4cdbdec3b41a2a8fe9e0ae973cf4efc9d1f"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/BytesValue.avsc",
+    "sha256" : "e2a68174f30c6cbdc4a784a1e3d5c3ceb53521e7e8d50a8c728291eb0f0f5e94"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Chain16.avsc",
+    "sha256" : "adfbf68359860fa0052803521a3fe556758c9ac95e1082707f23721c806ab4d1"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Chain4.avsc",
+    "sha256" : "7306bf952067f6fa5cea95318f18fa7dd99326490075acc02e41cc9d7c405f5c"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/DateValue.avsc",
+    "sha256" : "3bbb713bfb0e913a8a709ebd1b79823b83cf26bcc9c8570622ec0f648be3f760"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Decimal18BytesValue.avsc",
+    "sha256" : "43dcc0b68925fa7d1286afded0ecdda0340dbd2c8e90eb0f1390599e197caf94"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Decimal18FixedValue.avsc",
+    "sha256" : "697583f0d241696db07e6a5faff9fd5945057d498b45651600cee7a5e7480bac"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Decimal50BytesValue.avsc",
+    "sha256" : "8c88d021b17657cafe39a47949e3a97e90783d3ea729254dc61e9f1418292555"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Decimal50FixedValue.avsc",
+    "sha256" : "c359b755c26fc568a5d5d9847c32e0264e029b68455f29c18106c77f9f03a7d2"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/DefaultValue.avsc",
+    "sha256" : "8e2893c33c7857940a198cd229a0642441cb1a584c7fd6c3c193d0cd111f7ff9"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/DoubleValue.avsc",
+    "sha256" : "8d12e1245a9b8934f3589d6a5ea3e926e2eff2e100ca7b1f3ac20e18fc365c6a"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/DurationValue.avsc",
+    "sha256" : "3b30ae3e59e096942d8f9a04df75d69ed10d23ff1d89b0c32182fb3a6b57b934"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/EnumValue.avsc",
+    "sha256" : "34f783d8e28c52b3c8e14fb2cce5e6af75aa4628f2cedf8a7b7069568decf014"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/FixedValue16.avsc",
+    "sha256" : "0ba78af56350a55ee671a3151a6d818b5c50ba5bc65ca587d83d237cc41a1ff2"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Flat16.avsc",
+    "sha256" : "3679f3151243380cbe314a77ae60915d9fe988b358ac9750395a5f4f86c23f93"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/Flat4.avsc",
+    "sha256" : "f1c92c58f0884ef833992c9194ef01723530c3c25845207a746c347ca1ba877d"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/FloatValue.avsc",
+    "sha256" : "1f548ea67ed1a02ff90fd44d574ab4a407310cd1268952bd30a800fad8b45120"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/IntArrayValue.avsc",
+    "sha256" : "cac35d1d0eda63d3fc88de3570cd079c2fb24951abf30cc1df55482f4f5ee342"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/IntValue.avsc",
+    "sha256" : "82ccaa7c98d9a113871c12be22c2159ae1c62f65fe6deeac939a8f27896aae8d"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/LocalTimestampMicrosValue.avsc",
+    "sha256" : "bd1d49cb812ca29d51c08a058af966c69371c5d8a98b2b08b5ee5cc09ebe83af"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/LocalTimestampMillisValue.avsc",
+    "sha256" : "22ff170c037626eed1b7f8e767926d5c8465faa1e94886f2300646b22418b4fd"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/LocalTimestampNanosValue.avsc",
+    "sha256" : "53b6bfec7d3c1a6a79fa1ed9bcd49bea2f7392143f8224fb075dcc75402dec11"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/LongMapValue.avsc",
+    "sha256" : "fdbd6bbfa674f305241ad96fe34d05efae8e372d4d8eeb0d72549c80b20a4548"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/LongValue.avsc",
+    "sha256" : "d0ed5aaf6a964cb1161ef5569c751fd3c7973731e990a22bf185608fd90856f6"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/OptionalIntValue.avsc",
+    "sha256" : "33923cb0df4add9585315b1d2270edb61a298c16fea69107366bd30ea3cbef8e"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/ProjectionValue.avsc",
+    "sha256" : "bc99a21a38000073cbf4e0ad7297734bce732e963ef287be320a3f2e5f00e5a1"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/PromotionValue.avsc",
+    "sha256" : "9dbe0b18b5b68ce7552fcb31d129662fd448fc3f765aebbeb8842ad7460ee9bc"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TextValue.avsc",
+    "sha256" : "2148d95aadc432ae1253a1e93132f5b6e1f6173a2e1c66a62d8798c13d389cde"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TimeMicrosValue.avsc",
+    "sha256" : "2992d58f7a78521f509f37c089af17049d7e0351b9ca27bf16fbe2a9578f97b4"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TimeMillisValue.avsc",
+    "sha256" : "8a29707edddff23378b1984abc9db38581c7a8446fa34b7574c63e2663eb2a72"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TimestampMicrosValue.avsc",
+    "sha256" : "8f8b7595f9b87415e8ce2bb1980fa597d26388089811db272ce468b6deba5a8b"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TimestampMillisValue.avsc",
+    "sha256" : "c8a590d9c628d1a4071ce8c65060d7da61b9218a6b3639e4601f666fffc03957"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/TimestampNanosValue.avsc",
+    "sha256" : "81d0c61adaa52666d1686088b539ea157ae244c66094dad33934c14d280476a3"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/UnionValue.avsc",
+    "sha256" : "2e976b92156e5b58daf598a3e33f96598a2dfbcd49d29e42134f19a201c606e5"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/schemas/UuidValue.avsc",
+    "sha256" : "8b745f0b041f44273af9813884309e8b8147e7039c6716d535d3d45475b0ab66"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/writers/DefaultValue.avsc",
+    "sha256" : "a3e5b1c7815f104ae808cc277a9ef002c4a24e387dc57cc555d34727a24a2b19"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/writers/ProjectionValue.avsc",
+    "sha256" : "fae250d389da65ae63216cbf4b0e18b16ef26065d604515ff0916a4d660e1a54"
+  }, {
+    "path" : "benchmarks/src/main/resources/suite/writers/PromotionValue.avsc",
+    "sha256" : "503e5a14d1b382aa0b8985eb3f257183821409ae53b6a14a49cec4b22cea086a"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/GeneratedProbes.scala",
+    "sha256" : "b9d1b55a0b154f14310bdedfef3d80689db1286e80817c548cda0b9b8aea8f55"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/BooleanValue.scala",
+    "sha256" : "40dea623ff60a02a01eb9278e142dcf15f4b6bbff95938c9add00bb953115401"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/DoubleValue.scala",
+    "sha256" : "27d3441d07ada779abb79421b5fc1a05193976bff3f84cf6d696d0423b143ad3"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/EightSymbols.scala",
+    "sha256" : "c2b46b42dded781476be2adbd362d78204e43a8744205b3c0aae1c6a8ed95536"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/EnumValue.scala",
+    "sha256" : "a98e262e499984d3df87575fa82a56642ecbaa1d8a54f6387f648856207422f8"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/IntArrayValue.scala",
+    "sha256" : "2b816fcb01838fd04af6bd8a22a1790a114da03c9f4729ba9b089fc6f0136b4e"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/IntValue.scala",
+    "sha256" : "4a0fd4e330fa0c289e4c90df96a8af6776ef598b56e29ea2a29cc2d5ecf85249"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/LongMapValue.scala",
+    "sha256" : "a7a8e992c676b6ccfbe7c6786323c7d633f077cf274a7a57bd4a009ca84f4a2f"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/LongValue.scala",
+    "sha256" : "7e99546ef305547721ae136e6031de7adcfb69cac5bfd9fc6e68af229372d72c"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/OptionalIntValue.scala",
+    "sha256" : "c0ad525893acd23334aac288ffde9eb82f0f8e02b927da695cb642e0aca23aef"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/TextValue.scala",
+    "sha256" : "482a1cae6e82e7ef4cfb24db47b44999c4cedbf6c458905df73b68f50f894b42"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/UnionRecord.scala",
+    "sha256" : "e7aaff9fb595e8e94392dfc26e1a3fda7a30f122cd94dabdfe6f5480b7776f33"
+  }, {
+    "path" : "benchmarks/src/main/scala/avro2s/wire/benchmarks/suite/avro2s/UnionValue.scala",
+    "sha256" : "e2b2c567f05a4c085bd46c3703ce3dcdf007defae1bb4eac0165064bc45494d4"
+  }, {
+    "path" : "scripts/regenerate-suite-baselines.sh",
+    "sha256" : "4f84a91fbf5cd6dc05b2fbabd663d03aaa5b536d3082c7d0b244e20db15971d6"
+  } ]
+}

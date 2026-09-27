@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ProjectionValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long"
+    },
+    {
+      "name": "blob",
+      "type": "bytes"
+    }
+  ]
+}

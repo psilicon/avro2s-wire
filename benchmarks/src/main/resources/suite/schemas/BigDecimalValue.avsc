@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "BigDecimalValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "bytes",
+        "logicalType": "big-decimal"
+      }
+    }
+  ]
+}

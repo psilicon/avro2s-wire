@@ -30,7 +30,18 @@ The local big-decimal run was moved intact from `benchmarks/target/` to
 `benchmarks/results/big-decimal-2026-09-24/` so `sbt clean` cannot remove it.
 Neither local artifact is required to build, test or reproduce new measurements.
 
-The [selected reference](../../benchmarks/reference/2026-09-17/README.md) keeps a
-small, directly browsable subset of final observations. It is not a replacement
-for the original experiment history and does not relabel historical values as a
-measurement of today's code.
+The later benchmark harness, selected references, stack-safety experiments,
+generated baselines and report tools are retained in commit
+`eec752b7e4c7a2032c0782f620cbee190f38fdf6`. The consolidated suite replaces those
+tracked snapshots; it does not reinterpret their results as current measurements.
+
+Recover that complete source revision into an ignored local directory:
+
+```sh
+mkdir -p benchmarks/results/history-eec752b
+git archive eec752b7e4c7a2032c0782f620cbee190f38fdf6 | tar -x -C benchmarks/results/history-eec752b
+```
+
+New pilot, smoke and full-campaign outputs remain local under ignored
+`benchmarks/results/`. Only explicitly selected publication evidence should be
+promoted into version control after review; the runner never commits results.

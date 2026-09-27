@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "Decimal18BytesValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 4
+      }
+    }
+  ]
+}

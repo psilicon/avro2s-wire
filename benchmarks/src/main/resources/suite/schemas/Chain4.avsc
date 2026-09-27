@@ -1,0 +1,50 @@
+{
+  "type": "record",
+  "name": "Chain4",
+  "fields": [
+    {
+      "name": "value",
+      "type": "long"
+    },
+    {
+      "name": "next",
+      "type": {
+        "type": "record",
+        "name": "Chain4Level2",
+        "fields": [
+          {
+            "name": "value",
+            "type": "long"
+          },
+          {
+            "name": "next",
+            "type": {
+              "type": "record",
+              "name": "Chain4Level3",
+              "fields": [
+                {
+                  "name": "value",
+                  "type": "long"
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "type": "record",
+                    "name": "Chain4Level4",
+                    "fields": [
+                      {
+                        "name": "value",
+                        "type": "long"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "namespace": "avro2s.wire.benchmarks.suite.wire"
+}

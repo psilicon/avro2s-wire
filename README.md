@@ -343,22 +343,25 @@ This adapter does not perform schema evolution or turn generated models into
 
 ## Benchmarks
 
-Use the [benchmark guide](benchmarks/README.md) for profiles, methodology and
-[the selected dated reference results](benchmarks/reference/2026-09-17/README.md).
+The [benchmark guide](benchmarks/README.md) describes the single maintained suite
+and its [61 individual input cases](benchmarks/CASES.md).
 
 ```sh
-python3 scripts/run-performance.py --java "$JAVA_HOME/bin/java" --profile comparison
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile pilot
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile full
 ```
 
-The runner checks benchmark correctness, then records timing and allocation for
-native Wire, Wire's Java backend, avro2s and supported official Java variants.
-`--profile full` adds evolution, explicit String readers, big-decimal and allocating
-APIs. Reports, raw results and provenance go to ignored `benchmarks/results/`.
+Every encode returns fresh bytes; every decode produces a fresh model with String
+text. Comparisons cover direct Wire, official Java specific/generic and supported
+custom coders, plus the agreed smaller current-avro2s subset using Scala enums.
+The runner checks correctness first, measures time and allocation, rotates
+implementation order across independent JVM rounds, and records complete source
+provenance. Results and exploratory runs stay in ignored `benchmarks/results/`.
 
-The generated Java and avro2s comparison models remain checked in, with
+The genuine generated comparison models remain checked in, with
 [pinned provenance and regeneration instructions](benchmarks/generator/README.md).
-Normal tests and benchmarks need no avro2s checkout. Historical experiments remain
-recoverable through [Git history](docs/benchmarks/HISTORY.md).
+Normal tests and benchmarks need no avro2s checkout. Previous benchmark sources,
+reports and experiments remain recoverable through [Git history](docs/benchmarks/HISTORY.md).
 
 ## Modules and next steps
 
@@ -371,9 +374,9 @@ recoverable through [Git history](docs/benchmarks/HISTORY.md).
 - `benchmarks`: JMH comparisons.
 - `property-tests`: generated schemas, schema evolution, wire layouts, limits and ownership properties.
 
-The broader [comparison corpus](benchmarks/COMPARISON.md) covers 13 input profiles
-and includes a separate schema-evolution benchmark. The [testing guide](docs/testing.md)
-describes the bounded, reproducible property campaigns and their remaining gaps.
+The [benchmark catalogue](benchmarks/CASES.md) includes separate projection,
+default and numeric-promotion cases. The [testing guide](docs/testing.md) describes
+the bounded, reproducible correctness campaigns and their remaining gaps.
 
 Release automation is configured; repository credentials and the final Central
 Portal publication step are described in [releasing](docs/releasing.md). See the

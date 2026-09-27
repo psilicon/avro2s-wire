@@ -168,12 +168,9 @@ Deeper matching-schema, evolution and wire campaigns run with three fixed seeds.
 Direct-only generation is independently compiled and checked against Java Avro;
 see [test coverage](testing.md) for exact counts, replay instructions and remaining gaps.
 
-The dedicated [benchmark profile](../benchmarks/README.md) compares complete
-`encode`, `decode` and resolved `decode` operations in both modes for shallow,
-collection-heavy and recursive values. Codec selection and resolution compilation
-occur outside timing. It records latency and allocation with a fixed JDK, forks,
-source fingerprint and raw JMH results.
-
-See [the measured comparison](../benchmarks/stack-safety-optimisation.md) before choosing
-an execution mode for performance-sensitive code. The direct implementation remains
-the default while these costs are evaluated.
+The maintained [benchmark suite](../benchmarks/README.md) measures the default
+direct implementation. Earlier direct-versus-stack-safe experiments, their harness
+and raw measurements are recoverable through [benchmark history](benchmarks/HISTORY.md).
+They describe their recorded revisions and are not current performance claims.
+The direct implementation remains the default; measure representative workloads
+before selecting stack-safe execution for performance-sensitive code.

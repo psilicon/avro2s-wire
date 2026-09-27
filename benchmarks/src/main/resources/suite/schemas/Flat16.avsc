@@ -1,0 +1,71 @@
+{
+  "type": "record",
+  "name": "Flat16",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "f0",
+      "type": "long"
+    },
+    {
+      "name": "f1",
+      "type": "long"
+    },
+    {
+      "name": "f2",
+      "type": "long"
+    },
+    {
+      "name": "f3",
+      "type": "long"
+    },
+    {
+      "name": "f4",
+      "type": "long"
+    },
+    {
+      "name": "f5",
+      "type": "long"
+    },
+    {
+      "name": "f6",
+      "type": "long"
+    },
+    {
+      "name": "f7",
+      "type": "long"
+    },
+    {
+      "name": "f8",
+      "type": "long"
+    },
+    {
+      "name": "f9",
+      "type": "long"
+    },
+    {
+      "name": "f10",
+      "type": "long"
+    },
+    {
+      "name": "f11",
+      "type": "long"
+    },
+    {
+      "name": "f12",
+      "type": "long"
+    },
+    {
+      "name": "f13",
+      "type": "long"
+    },
+    {
+      "name": "f14",
+      "type": "long"
+    },
+    {
+      "name": "f15",
+      "type": "long"
+    }
+  ]
+}

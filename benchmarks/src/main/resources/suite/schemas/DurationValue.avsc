@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "DurationValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "type": "fixed",
+        "logicalType": "duration",
+        "name": "DurationStorage",
+        "size": 12
+      }
+    }
+  ]
+}

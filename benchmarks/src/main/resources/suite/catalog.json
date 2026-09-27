@@ -1,0 +1,844 @@
+{
+  "version": 1,
+  "corpusSize": 256,
+  "seed": 1374496521,
+  "cases": [
+    {
+      "id": "P01",
+      "name": "boolean",
+      "category": "primitives",
+      "model": "BooleanValue",
+      "kind": "boolean",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ]
+    },
+    {
+      "id": "P02",
+      "name": "int-1-byte",
+      "category": "primitives",
+      "model": "IntValue",
+      "kind": "int",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 1
+    },
+    {
+      "id": "P03",
+      "name": "int-3-byte",
+      "category": "primitives",
+      "model": "IntValue",
+      "kind": "int",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 3
+    },
+    {
+      "id": "P04",
+      "name": "int-5-byte",
+      "category": "primitives",
+      "model": "IntValue",
+      "kind": "int",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 5
+    },
+    {
+      "id": "P05",
+      "name": "long-1-byte",
+      "category": "primitives",
+      "model": "LongValue",
+      "kind": "long",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 1
+    },
+    {
+      "id": "P06",
+      "name": "long-5-byte",
+      "category": "primitives",
+      "model": "LongValue",
+      "kind": "long",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 5
+    },
+    {
+      "id": "P07",
+      "name": "long-10-byte",
+      "category": "primitives",
+      "model": "LongValue",
+      "kind": "long",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "width": 10
+    },
+    {
+      "id": "P08",
+      "name": "float",
+      "category": "primitives",
+      "model": "FloatValue",
+      "kind": "float",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ]
+    },
+    {
+      "id": "P09",
+      "name": "double",
+      "category": "primitives",
+      "model": "DoubleValue",
+      "kind": "double",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ]
+    },
+    {
+      "id": "P10",
+      "name": "scala-enum-8",
+      "category": "primitives",
+      "model": "EnumValue",
+      "kind": "enum",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "symbols": 8
+    },
+    {
+      "id": "T01",
+      "name": "ascii-48-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 48,
+      "stringFamily": "ascii"
+    },
+    {
+      "id": "T02",
+      "name": "ascii-3072-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 3072,
+      "stringFamily": "ascii"
+    },
+    {
+      "id": "T03",
+      "name": "latin1-48-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 48,
+      "stringFamily": "latin1"
+    },
+    {
+      "id": "T04",
+      "name": "latin1-3072-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 3072,
+      "stringFamily": "latin1"
+    },
+    {
+      "id": "T05",
+      "name": "bmp2-48-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 48,
+      "stringFamily": "bmp2"
+    },
+    {
+      "id": "T06",
+      "name": "bmp2-3072-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 3072,
+      "stringFamily": "bmp2"
+    },
+    {
+      "id": "T07",
+      "name": "bmp3-48-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 48,
+      "stringFamily": "bmp3"
+    },
+    {
+      "id": "T08",
+      "name": "bmp3-3072-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 3072,
+      "stringFamily": "bmp3"
+    },
+    {
+      "id": "T09",
+      "name": "supplementary-48-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 48,
+      "stringFamily": "supplementary"
+    },
+    {
+      "id": "T10",
+      "name": "supplementary-3072-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 3072,
+      "stringFamily": "supplementary"
+    },
+    {
+      "id": "T11",
+      "name": "ascii-196608-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 196608,
+      "stringFamily": "ascii"
+    },
+    {
+      "id": "T12",
+      "name": "latin1-196608-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 196608,
+      "stringFamily": "latin1"
+    },
+    {
+      "id": "T13",
+      "name": "bmp2-196608-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 196608,
+      "stringFamily": "bmp2"
+    },
+    {
+      "id": "T14",
+      "name": "bmp3-196608-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 196608,
+      "stringFamily": "bmp3"
+    },
+    {
+      "id": "T15",
+      "name": "supplementary-196608-bytes",
+      "category": "strings",
+      "model": "TextValue",
+      "kind": "string",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "utf8Bytes": 196608,
+      "stringFamily": "supplementary"
+    },
+    {
+      "id": "B01",
+      "name": "bytes-32",
+      "category": "binary",
+      "model": "BytesValue",
+      "kind": "bytes",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 32
+    },
+    {
+      "id": "B02",
+      "name": "bytes-4096",
+      "category": "binary",
+      "model": "BytesValue",
+      "kind": "bytes",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 4096
+    },
+    {
+      "id": "B03",
+      "name": "bytes-65536",
+      "category": "binary",
+      "model": "BytesValue",
+      "kind": "bytes",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 65536
+    },
+    {
+      "id": "B04",
+      "name": "fixed-16",
+      "category": "binary",
+      "model": "FixedValue16",
+      "kind": "fixed",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 16
+    },
+    {
+      "id": "C01",
+      "name": "int-array-8",
+      "category": "collections",
+      "model": "IntArrayValue",
+      "kind": "array",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 8,
+      "width": 3
+    },
+    {
+      "id": "C02",
+      "name": "int-array-1024",
+      "category": "collections",
+      "model": "IntArrayValue",
+      "kind": "array",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 1024,
+      "width": 3
+    },
+    {
+      "id": "C03",
+      "name": "long-map-8",
+      "category": "collections",
+      "model": "LongMapValue",
+      "kind": "map",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 8,
+      "width": 5,
+      "keyBytes": 8
+    },
+    {
+      "id": "C04",
+      "name": "long-map-128",
+      "category": "collections",
+      "model": "LongMapValue",
+      "kind": "map",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "size": 128,
+      "width": 5,
+      "keyBytes": 8
+    },
+    {
+      "id": "R01",
+      "name": "flat-4",
+      "category": "structure",
+      "model": "Flat4",
+      "kind": "flat",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "depth": 4,
+      "width": 5
+    },
+    {
+      "id": "R02",
+      "name": "chain-4",
+      "category": "structure",
+      "model": "Chain4",
+      "kind": "chain",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "depth": 4,
+      "width": 5
+    },
+    {
+      "id": "R03",
+      "name": "flat-16",
+      "category": "structure",
+      "model": "Flat16",
+      "kind": "flat",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "depth": 16,
+      "width": 5
+    },
+    {
+      "id": "R04",
+      "name": "chain-16",
+      "category": "structure",
+      "model": "Chain16",
+      "kind": "chain",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "depth": 16,
+      "width": 5
+    },
+    {
+      "id": "U01",
+      "name": "optional-null",
+      "category": "unions",
+      "model": "OptionalIntValue",
+      "kind": "optional",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "branch": "null",
+      "width": 3
+    },
+    {
+      "id": "U02",
+      "name": "optional-int",
+      "category": "unions",
+      "model": "OptionalIntValue",
+      "kind": "optional",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "branch": "int",
+      "width": 3
+    },
+    {
+      "id": "U03",
+      "name": "union-int",
+      "category": "unions",
+      "model": "UnionValue",
+      "kind": "union",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "branch": "int",
+      "width": 3,
+      "utf8Bytes": 0
+    },
+    {
+      "id": "U04",
+      "name": "union-string",
+      "category": "unions",
+      "model": "UnionValue",
+      "kind": "union",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "branch": "string",
+      "width": 5,
+      "utf8Bytes": 48
+    },
+    {
+      "id": "U05",
+      "name": "union-record",
+      "category": "unions",
+      "model": "UnionValue",
+      "kind": "union",
+      "avro2s": true,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "branch": "record",
+      "width": 5,
+      "utf8Bytes": 0
+    },
+    {
+      "id": "L01",
+      "name": "Date",
+      "category": "logical",
+      "model": "DateValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "date"
+    },
+    {
+      "id": "L02",
+      "name": "TimeMillis",
+      "category": "logical",
+      "model": "TimeMillisValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "time-millis"
+    },
+    {
+      "id": "L03",
+      "name": "TimeMicros",
+      "category": "logical",
+      "model": "TimeMicrosValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "time-micros"
+    },
+    {
+      "id": "L04",
+      "name": "TimestampMillis",
+      "category": "logical",
+      "model": "TimestampMillisValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "timestamp-millis"
+    },
+    {
+      "id": "L05",
+      "name": "TimestampMicros",
+      "category": "logical",
+      "model": "TimestampMicrosValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "timestamp-micros"
+    },
+    {
+      "id": "L06",
+      "name": "TimestampNanos",
+      "category": "logical",
+      "model": "TimestampNanosValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "timestamp-nanos"
+    },
+    {
+      "id": "L07",
+      "name": "LocalTimestampMillis",
+      "category": "logical",
+      "model": "LocalTimestampMillisValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "local-timestamp-millis"
+    },
+    {
+      "id": "L08",
+      "name": "LocalTimestampMicros",
+      "category": "logical",
+      "model": "LocalTimestampMicrosValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "local-timestamp-micros"
+    },
+    {
+      "id": "L09",
+      "name": "LocalTimestampNanos",
+      "category": "logical",
+      "model": "LocalTimestampNanosValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "local-timestamp-nanos"
+    },
+    {
+      "id": "L10",
+      "name": "Uuid",
+      "category": "logical",
+      "model": "UuidValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "uuid"
+    },
+    {
+      "id": "L11",
+      "name": "Duration",
+      "category": "logical",
+      "model": "DurationValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "duration",
+      "fixedSize": 12
+    },
+    {
+      "id": "L12",
+      "name": "Decimal18Bytes",
+      "category": "logical",
+      "model": "Decimal18BytesValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "decimal",
+      "precision": 18,
+      "scale": 4
+    },
+    {
+      "id": "L13",
+      "name": "Decimal18Fixed",
+      "category": "logical",
+      "model": "Decimal18FixedValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "decimal",
+      "precision": 18,
+      "scale": 4,
+      "fixedSize": 8
+    },
+    {
+      "id": "L14",
+      "name": "Decimal50Bytes",
+      "category": "logical",
+      "model": "Decimal50BytesValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "decimal",
+      "precision": 50,
+      "scale": 10
+    },
+    {
+      "id": "L15",
+      "name": "Decimal50Fixed",
+      "category": "logical",
+      "model": "Decimal50FixedValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "decimal",
+      "precision": 50,
+      "scale": 10,
+      "fixedSize": 32
+    },
+    {
+      "id": "L16",
+      "name": "BigDecimal",
+      "category": "logical",
+      "model": "BigDecimalValue",
+      "kind": "logical",
+      "avro2s": false,
+      "operations": [
+        "encode",
+        "decode"
+      ],
+      "logicalType": "big-decimal",
+      "precision": 50,
+      "scale": 6
+    },
+    {
+      "id": "E01",
+      "name": "projection",
+      "category": "evolution",
+      "model": "ProjectionValue",
+      "kind": "evolution",
+      "avro2s": false,
+      "operations": [
+        "decode"
+      ],
+      "resolution": "projection",
+      "width": 5,
+      "size": 4096
+    },
+    {
+      "id": "E02",
+      "name": "default",
+      "category": "evolution",
+      "model": "DefaultValue",
+      "kind": "evolution",
+      "avro2s": false,
+      "operations": [
+        "decode"
+      ],
+      "resolution": "default",
+      "width": 5
+    },
+    {
+      "id": "E03",
+      "name": "promotion",
+      "category": "evolution",
+      "model": "PromotionValue",
+      "kind": "evolution",
+      "avro2s": false,
+      "operations": [
+        "decode"
+      ],
+      "resolution": "promotion",
+      "width": 3
+    }
+  ]
+}

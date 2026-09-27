@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "DefaultValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long"
+    }
+  ]
+}

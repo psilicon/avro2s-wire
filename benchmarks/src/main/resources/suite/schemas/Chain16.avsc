@@ -1,0 +1,206 @@
+{
+  "type": "record",
+  "name": "Chain16",
+  "fields": [
+    {
+      "name": "value",
+      "type": "long"
+    },
+    {
+      "name": "next",
+      "type": {
+        "type": "record",
+        "name": "Chain16Level2",
+        "fields": [
+          {
+            "name": "value",
+            "type": "long"
+          },
+          {
+            "name": "next",
+            "type": {
+              "type": "record",
+              "name": "Chain16Level3",
+              "fields": [
+                {
+                  "name": "value",
+                  "type": "long"
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "type": "record",
+                    "name": "Chain16Level4",
+                    "fields": [
+                      {
+                        "name": "value",
+                        "type": "long"
+                      },
+                      {
+                        "name": "next",
+                        "type": {
+                          "type": "record",
+                          "name": "Chain16Level5",
+                          "fields": [
+                            {
+                              "name": "value",
+                              "type": "long"
+                            },
+                            {
+                              "name": "next",
+                              "type": {
+                                "type": "record",
+                                "name": "Chain16Level6",
+                                "fields": [
+                                  {
+                                    "name": "value",
+                                    "type": "long"
+                                  },
+                                  {
+                                    "name": "next",
+                                    "type": {
+                                      "type": "record",
+                                      "name": "Chain16Level7",
+                                      "fields": [
+                                        {
+                                          "name": "value",
+                                          "type": "long"
+                                        },
+                                        {
+                                          "name": "next",
+                                          "type": {
+                                            "type": "record",
+                                            "name": "Chain16Level8",
+                                            "fields": [
+                                              {
+                                                "name": "value",
+                                                "type": "long"
+                                              },
+                                              {
+                                                "name": "next",
+                                                "type": {
+                                                  "type": "record",
+                                                  "name": "Chain16Level9",
+                                                  "fields": [
+                                                    {
+                                                      "name": "value",
+                                                      "type": "long"
+                                                    },
+                                                    {
+                                                      "name": "next",
+                                                      "type": {
+                                                        "type": "record",
+                                                        "name": "Chain16Level10",
+                                                        "fields": [
+                                                          {
+                                                            "name": "value",
+                                                            "type": "long"
+                                                          },
+                                                          {
+                                                            "name": "next",
+                                                            "type": {
+                                                              "type": "record",
+                                                              "name": "Chain16Level11",
+                                                              "fields": [
+                                                                {
+                                                                  "name": "value",
+                                                                  "type": "long"
+                                                                },
+                                                                {
+                                                                  "name": "next",
+                                                                  "type": {
+                                                                    "type": "record",
+                                                                    "name": "Chain16Level12",
+                                                                    "fields": [
+                                                                      {
+                                                                        "name": "value",
+                                                                        "type": "long"
+                                                                      },
+                                                                      {
+                                                                        "name": "next",
+                                                                        "type": {
+                                                                          "type": "record",
+                                                                          "name": "Chain16Level13",
+                                                                          "fields": [
+                                                                            {
+                                                                              "name": "value",
+                                                                              "type": "long"
+                                                                            },
+                                                                            {
+                                                                              "name": "next",
+                                                                              "type": {
+                                                                                "type": "record",
+                                                                                "name": "Chain16Level14",
+                                                                                "fields": [
+                                                                                  {
+                                                                                    "name": "value",
+                                                                                    "type": "long"
+                                                                                  },
+                                                                                  {
+                                                                                    "name": "next",
+                                                                                    "type": {
+                                                                                      "type": "record",
+                                                                                      "name": "Chain16Level15",
+                                                                                      "fields": [
+                                                                                        {
+                                                                                          "name": "value",
+                                                                                          "type": "long"
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "next",
+                                                                                          "type": {
+                                                                                            "type": "record",
+                                                                                            "name": "Chain16Level16",
+                                                                                            "fields": [
+                                                                                              {
+                                                                                                "name": "value",
+                                                                                                "type": "long"
+                                                                                              }
+                                                                                            ]
+                                                                                          }
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  }
+                                                                                ]
+                                                                              }
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      }
+                                                                    ]
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "namespace": "avro2s.wire.benchmarks.suite.wire"
+}

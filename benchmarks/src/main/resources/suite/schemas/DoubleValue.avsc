@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "DoubleValue",
+  "namespace": "avro2s.wire.benchmarks.suite.wire",
+  "fields": [
+    {
+      "name": "value",
+      "type": "double"
+    }
+  ]
+}
