@@ -115,6 +115,78 @@ final class StrictUtf8Suite extends FunSuite:
       in.requireEnd()
   }
 
+  test("large replacement fallback accepts dense question marks and surrogate pairs without losing strictness") {
+    val printableAscii = (32 to 126).map(_.toChar).mkString
+    val values = Vector(
+      printableAscii.repeat(2070),
+      "?".repeat(192 * 1024),
+      "?😀λ漢".repeat(32 * 1024),
+      "?" + "a".repeat(192 * 1024) + "😀"
+    )
+    val encoder = utf8.newEncoder()
+      .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+    values.foreach { value =>
+      val encoded = encoder.encode(CharBuffer.wrap(value))
+      val expected = new Array[Byte](encoded.remaining())
+      encoded.get(expected)
+      assertEquals(StrictUtf8.encode(value).toSeq, expected.toSeq)
+    }
+
+    val prefix = "?" + "a".repeat(192 * 1024) + "😀"
+    for broken <- Vector("\ud800", "\udfff", "\ud800x", "\ud800\ud800") do
+      val out = new BinaryOutput(0)
+      out.writeString("preserved")
+      val before = out.toByteArray
+      val error = intercept[IllegalArgumentException](out.writeString(prefix + broken))
+      assertEquals(error.getMessage, s"requirement failed: Unpaired UTF-16 surrogate at index ${prefix.length}")
+      assertEquals(out.toByteArray.toSeq, before.toSeq)
+  }
+
+  test("ASCII-prefix validation agrees with strict encoding across non-ASCII transitions and seeded UTF-16 inputs") {
+    val encoder = utf8.newEncoder()
+      .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+    def check(value: String): Unit =
+      val expected = try
+        val encoded = encoder.encode(CharBuffer.wrap(value))
+        val bytes = new Array[Byte](encoded.remaining())
+        encoded.get(bytes)
+        Some(bytes)
+      catch case _: CharacterCodingException => None
+      expected match
+        case Some(bytes) => assertEquals(StrictUtf8.encode(value).toSeq, bytes.toSeq)
+        case None =>
+          intercept[IllegalArgumentException](StrictUtf8.encode(value))
+          val out = new BinaryOutput(0)
+          out.writeString("preserved")
+          val before = out.toByteArray
+          intercept[IllegalArgumentException](out.writeString(value))
+          assertEquals(out.toByteArray.toSeq, before.toSeq)
+
+    for
+      padding <- 0 until 24
+      nonAscii <- Vector("é", "漢", "😀", "\ufffd")
+      marker <- Vector("?", "?\ud800", "\udfff?", "?\ud800\udfff?")
+    do
+      val prefix = "a".repeat(padding)
+      check(prefix + marker + nonAscii + "?tail")
+      check(prefix + nonAscii + marker + "?tail")
+      check(prefix + "?" + nonAscii + "?tail" + marker)
+
+    val random = new java.util.Random(238819L)
+    val chunks = Vector("a", "?", "é", "漢", "😀", "\u0000", "\ud7ff", "\ue000", "\uffff")
+    for iteration <- 0 until 3000 do
+      val builder = new java.lang.StringBuilder("?")
+      for _ <- 0 until 17 + random.nextInt(256) do
+        builder.append(chunks(random.nextInt(chunks.size)))
+      if iteration % 3 != 0 then
+        val index = random.nextInt(builder.length())
+        builder.setCharAt(index, random.nextInt(65536).toChar)
+      if iteration % 3 == 2 then
+        val index = random.nextInt(builder.length())
+        builder.setCharAt(index, (0xd800 + random.nextInt(2048)).toChar)
+      check(builder.toString)
+  }
+
   test("replacement fallback respects length and sized collection boundaries") {
     val out = new BinaryOutput(0)
     val body = frame("\ufffd😀".getBytes(utf8))

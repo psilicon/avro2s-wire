@@ -96,6 +96,84 @@ final class NumericBoundarySuite extends FunSuite:
     }
   }
 
+  test("long reads preserve every width at nonzero offsets and near every tail boundary") {
+    longValues.foreach { value =>
+      Vector(1, 7, 15).foreach { offset =>
+        (0 to 10).foreach { padding =>
+          val prefix = Array.fill[Byte](offset)(0x55)
+          val suffix = Array.fill[Byte](padding)(0x66)
+          val in = new BinaryInput(prefix ++ wire(BigInt(value)) ++ suffix)
+          in.skipFixed(offset)
+          assertEquals(in.readLong(), value)
+          assertEquals(in.remaining, padding)
+          assertEquals(in.readFixed(padding).toArray.toVector, suffix.toVector)
+          in.requireEnd()
+        }
+      }
+    }
+  }
+
+  test("nonminimal signed long encodings preserve values and sized-block boundaries") {
+    Vector(-1L, 0L, 1L, -64L, 63L, -65L, 64L).foreach { value =>
+      val minimal = wire(BigInt(value))
+      (minimal.length to 10).foreach { size =>
+        val encoded =
+          if size == minimal.length then minimal
+          else minimal.dropRight(1) ++ Array((minimal.last | 0x80).toByte) ++
+            Array.fill[Byte](size - minimal.length - 1)(0x80.toByte) ++ Array[Byte](0)
+        checkBoundaries(encoded)(in => assertEquals(in.readLong(), value))
+        (0 to 10).foreach { padding =>
+          val in = new BinaryInput(Array[Byte](0x55) ++ encoded ++ Array.fill[Byte](padding)(0x66))
+          in.skipFixed(1)
+          assertEquals(in.readLong(), value)
+          assertEquals(in.remaining, padding)
+        }
+      }
+    }
+  }
+
+  test("truncated long errors report the consumed boundary at nonzero offsets") {
+    longValues.foreach { value =>
+      val encoded = wire(BigInt(value))
+      encoded.indices.foreach { cut =>
+        Vector(0, 1, 7, 15).foreach { offset =>
+          val prefix = Array.fill[Byte](offset)(0x55)
+          val physical = new BinaryInput(prefix ++ encoded.take(cut))
+          physical.skipFixed(offset)
+          val physicalError = intercept[AvroDecodingException](physical.readLong())
+          assertEquals(physicalError.getMessage, s"Truncated binary data or collection block at byte ${offset + cut}")
+          assertEquals(physical.remaining, 0)
+
+          val header = wire(BigInt(-1)) ++ wire(BigInt(offset + cut))
+          val bytes = header ++ prefix ++ encoded ++ Array.fill[Byte](16)(0)
+          val blocked = new BinaryInput(bytes)
+          assertEquals(blocked.readArrayStart(), 1L)
+          blocked.skipFixed(offset)
+          val blockError = intercept[AvroDecodingException](blocked.readLong())
+          val boundary = header.length + offset + cut
+          assertEquals(blockError.getMessage, s"Truncated binary data or collection block at byte $boundary")
+          assertEquals(blocked.remaining, bytes.length - boundary)
+        }
+      }
+    }
+  }
+
+  test("invalid tenth long byte consumes exactly ten bytes before reporting its position") {
+    (2 to 0xff).foreach { last =>
+      Vector(0, 7).foreach { offset =>
+        Vector(0, 16).foreach { padding =>
+          val prefix = Array.fill[Byte](offset)(0x55)
+          val invalid = Array.fill[Byte](9)(0x80.toByte) ++ Array(last.toByte)
+          val in = new BinaryInput(prefix ++ invalid ++ Array.fill[Byte](padding)(0))
+          in.skipFixed(offset)
+          val error = intercept[AvroDecodingException](in.readLong())
+          assertEquals(error.getMessage, s"Invalid long varint at byte ${offset + 10}")
+          assertEquals(in.remaining, padding)
+        }
+      }
+    }
+  }
+
   private def sizedBlock(contents: Array[Byte], declaredSize: Int): BinaryInput =
     // Following bytes deliberately exist outside the block: a fast reader must
     // honor the declared boundary, not merely the backing array's length.

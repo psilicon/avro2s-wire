@@ -106,9 +106,7 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
       position = offset + 1
       ((first >>> 1) ^ -(first & 1)).toLong
     else if boundary - offset >= 10 then readLongMultiple(first, offset)
-    else
-      position = offset + 1
-      readLongTail(first)
+    else readLongTail(first, offset)
 
   private def readLongMultiple(first: Int, offset: Int): Long =
     var bits = (first & 0x7f).toLong
@@ -153,16 +151,59 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     position = offset + size
     (bits >>> 1) ^ -(bits & 1L)
 
-  private def readLongTail(first: Int): Long =
+  /** Fewer than ten bytes remain within the input or sized collection block.
+    * Fixed shifts avoid a variable-shift loop for short standalone values.
+    * Check before each access and commit position only when complete.
+    */
+  private def readLongTail(first: Int, offset: Int): Long =
+    val available = boundary - offset
     var bits = (first & 0x7f).toLong
-    var shift = 7
-    while shift < 70 do
-      val current = byte()
-      if shift == 63 && (current & 0xfe) != 0 then fail("Invalid long varint")
-      bits |= (current & 0x7f).toLong << shift
-      if (current & 0x80) == 0 then return (bits >>> 1) ^ -(bits & 1L)
-      shift += 7
-    fail("Invalid long varint")
+    if available < 2 then truncatedLongTail()
+    var current = bytes(offset + 1).toInt
+    bits |= (current & 0x7f).toLong << 7
+    var size = 2
+    if current < 0 then
+      if available < 3 then truncatedLongTail()
+      current = bytes(offset + 2).toInt
+      bits |= (current & 0x7f).toLong << 14
+      size = 3
+      if current < 0 then
+        if available < 4 then truncatedLongTail()
+        current = bytes(offset + 3).toInt
+        bits |= (current & 0x7f).toLong << 21
+        size = 4
+        if current < 0 then
+          if available < 5 then truncatedLongTail()
+          current = bytes(offset + 4).toInt
+          bits |= (current & 0x7f).toLong << 28
+          size = 5
+          if current < 0 then
+            if available < 6 then truncatedLongTail()
+            current = bytes(offset + 5).toInt
+            bits |= (current & 0x7f).toLong << 35
+            size = 6
+            if current < 0 then
+              if available < 7 then truncatedLongTail()
+              current = bytes(offset + 6).toInt
+              bits |= (current & 0x7f).toLong << 42
+              size = 7
+              if current < 0 then
+                if available < 8 then truncatedLongTail()
+                current = bytes(offset + 7).toInt
+                bits |= (current & 0x7f).toLong << 49
+                size = 8
+                if current < 0 then
+                  if available < 9 then truncatedLongTail()
+                  current = bytes(offset + 8).toInt
+                  bits |= (current & 0x7f).toLong << 56
+                  size = 9
+                  if current < 0 then truncatedLongTail()
+    position = offset + size
+    (bits >>> 1) ^ -(bits & 1L)
+
+  private def truncatedLongTail(): Nothing =
+    position = boundary
+    fail("Truncated binary data or collection block")
 
   override def readFloat(): Float =
     requireAvailable(4)
