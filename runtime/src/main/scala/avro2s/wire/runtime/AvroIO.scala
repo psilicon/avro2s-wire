@@ -101,8 +101,10 @@ trait AvroCodec[A]:
   def namedCodec(fullName: String): AvroCodec[?] =
     throw new IllegalArgumentException(s"No generated codec for named schema: $fullName")
 
-  final def encode(value: A): Array[Byte] =
-    val out = new BinaryOutput()
+  final def encode(value: A): Array[Byte] = encode(value, WriterSettings.default)
+
+  final def encode(value: A, settings: WriterSettings): Array[Byte] =
+    val out = new BinaryOutput(settings = settings)
     write(value, out)
     out.toByteArray
 

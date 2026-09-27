@@ -27,7 +27,7 @@ def finite_number(value, label, positive=False):
     return float(value)
 
 
-def validate_fork(records, expected, timing, java=None, log_text="", usage=None):
+def validate_fork(records, expected, timing, java=None, log_text="", usage=None, wire_string_policy=None):
     """Each launcher selects exactly one case/operation/engine and one JVM fork."""
     try:
         if not isinstance(records, list) or len(records) != 1:
@@ -38,10 +38,16 @@ def validate_fork(records, expected, timing, java=None, log_text="", usage=None)
         # Archived campaigns predate the lifecycle parameter. Only metadata
         # without an explicit usage permits that old two-parameter shape.
         expected_params = {"caseId", "engine"} if usage is None else {"caseId", "engine", "usage"}
+        if wire_string_policy is not None:
+            if usage is None or wire_string_policy not in ("reject", "replace"):
+                raise ValueError("Invalid frozen Wire string policy")
+            expected_params.add("wireStringPolicy")
         if set(record["params"]) != expected_params:
             raise ValueError("Unexpected JMH parameters")
         if usage is not None and (usage not in ("fresh", "reuse") or record["params"]["usage"] != usage):
             raise ValueError("Unexpected API usage mode")
+        if wire_string_policy is not None and record["params"]["wireStringPolicy"] != wire_string_policy:
+            raise ValueError("Unexpected Wire string policy")
         if "<failure>" in log_text or record["mode"] != "avgt" or record["forks"] != 1 or record["threads"] != 1:
             raise ValueError("JMH failure or unexpected mode/forks/threads")
         for field in ("warmupIterations", "measurementIterations"):
@@ -131,8 +137,15 @@ def fmt_interval(result):
     return fmt(mean) if low is None else f"{fmt(mean)} [{fmt(low)}, {fmt(high)}]"
 
 
-def api_contract(usage):
-    """Freeze the public result and lifecycle contracts alongside each run."""
+def api_contract(usage, wire_string_policy=None):
+    """Keep historical contracts exact; new runs explicitly freeze the string policy."""
+    if wire_string_policy is not None:
+        if wire_string_policy not in ("reject", "replace"):
+            raise ValueError("Unknown Wire string policy")
+        return {**api_contract(usage),
+                "wireMalformedStrings": "Reject unpaired UTF-16 surrogates" if wire_string_policy == "reject"
+                                        else "Replace unpaired UTF-16 surrogates with ASCII ? using JDK UTF-8 encoding",
+                "javaMalformedStrings": "Replace unpaired UTF-16 surrogates with ASCII ? using JDK UTF-8 encoding"}
     if usage == "reuse":
         return {
             "wireEncode": "Retained BinaryOutput: reset, codec.write, toByteArray; fresh independently owned Array[Byte]",
@@ -160,11 +173,14 @@ def api_contract(usage):
 def render(records, metadata):
     plan = metadata["plan"]
     usage = plan.get("usage", "fresh")
-    contract = api_contract(usage)
+    policy = plan.get("wireStringPolicy")
+    contract = api_contract(usage, policy)
     if "apiContract" in plan and plan["apiContract"] != contract:
-        raise ValueError("Frozen API contract does not match usage mode")
+        raise ValueError("Frozen API contract does not match usage mode or Wire string policy")
     if any(record["params"].get("usage", "fresh") != usage for record in records):
         raise ValueError("Result API usage does not match the report")
+    if any(record["params"].get("wireStringPolicy") != policy for record in records):
+        raise ValueError("Result Wire string policy does not match the report")
     values = aggregate(records, plan["cells"], plan["rounds"])
     cases = {case["id"]: case for case in metadata["catalog"]["cases"]}
     diagnostic = plan["diagnostic"]
@@ -181,12 +197,19 @@ def render(records, metadata):
         "Working outputs and encoders/decoders are created per call. "
         "Input construction and reusable schema/reader setup are outside measurement."
     )
+    policy_summary = (
+        "" if policy is None else
+        f"Wire string policy: `{policy}`. " +
+        ("Wire rejects unpaired UTF-16 surrogates; Java replaces them with ASCII `?`. " if policy == "reject" else
+         "Wire and Java replace unpaired UTF-16 surrogates with ASCII `?` using JDK UTF-8 encoding. ") +
+        "The selected policy is prepared outside measurement and affects Wire encoding only; decoding is unchanged."
+    )
     lines = ["# Consolidated Avro benchmark results", "",
              "**Diagnostic run: unsuitable for publication claims.**" if diagnostic else f"{plan['rounds']} independent JVM rounds; individual comparisons only.", "",
              f"Source revision: `{metadata['gitRevision']}`. Profile: `{plan['profile']}`. "
              f"API usage: `{usage}`. Order seed: `{plan['seed']}`. {len(values)} implementation/operation cells; "
              f"{plan['rounds']} independent JVM rounds.", "",
-             contract_summary, "",
+             contract_summary, "", *([policy_summary, ""] if policy is not None else []),
              "Time is ns/op; allocation is allocated heap B/op, including temporary objects, not retained or peak memory. "
              "Bracketed intervals are pointwise 95% Student t intervals over the independent JVM-round means. "
              f"They assume approximately normal independent round means; {plan['rounds']} rounds cannot establish that assumption. "
@@ -241,7 +264,8 @@ def main():
     for record in records:
         raw = json.loads((args.run / record["_sourceFile"]).read_text())
         validated = validate_fork(raw, cell_key(record), metadata["plan"]["timing"], metadata["java"],
-                                  usage=metadata["plan"].get("usage"))
+                                  usage=metadata["plan"].get("usage"),
+                                  wire_string_policy=metadata["plan"].get("wireStringPolicy"))
         if validated != {key: value for key, value in record.items() if not key.startswith("_")}:
             raise ValueError("Raw file and aggregate records disagree")
     (args.output or args.run / "report.md").write_text(render(records, metadata))

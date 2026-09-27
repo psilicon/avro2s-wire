@@ -54,7 +54,7 @@ application, generate the models into your application sources and add the
 
 ## One complete program
 
-All fields of `SerializerSettings`, `DeserializerSettings`, `DecodeLimits` and
+All fields of `SerializerSettings`, `WriterSettings`, `DeserializerSettings`, `DecodeLimits` and
 `RegistryConnection` are explicit. The Kafka configuration maps contain the
 settings needed for this example; Kafka's remaining settings use Kafka defaults.
 
@@ -65,7 +65,7 @@ import avro2s.wire.registry.{
   DeserializerSettings, RegistryConnection, RegistryDeserializer,
   RegistrySerializer, SerializerSettings, SubjectNameStrategy
 }
-import avro2s.wire.runtime.DecodeLimits
+import avro2s.wire.runtime.{DecodeLimits, MalformedStringPolicy, WriterSettings}
 import example.trading.{Trade, TradeKey}
 import java.time.Duration
 import java.util.UUID
@@ -87,7 +87,8 @@ object FullConfiguration:
       autoRegisterSchemas = false,
       normalizeSchemas = false,
       subjectNameStrategy = SubjectNameStrategy.TopicName,
-      cacheCapacity = 256
+      cacheCapacity = 256,
+      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject)
     )
 
     // Every DeserializerSettings and DecodeLimits parameter is specified here.
@@ -162,7 +163,8 @@ The settings are defined in these source files:
 
 | Settings type | Source | Purpose |
 | --- | --- | --- |
-| `SerializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Registration, normalization, subject naming and the writer's schema-ID cache |
+| `SerializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Registration, normalization, subject naming, the writer's schema-ID cache and native writer settings |
+| `WriterSettings` | [WriterSettings.scala](../runtime/src/main/scala/avro2s/wire/runtime/WriterSettings.scala) | Immutable malformed-string policy: `Reject` (default) or Java-compatible `Replace` |
 | `DeserializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Reader resolution-plan cache and decoding limits |
 | `DecodeLimits` | [AvroIO.scala](../runtime/src/main/scala/avro2s/wire/runtime/AvroIO.scala) | Optional per-datum byte, collection-item and nesting ceilings; all default to `None` |
 | `RegistryConnection` | [RegistryConnection.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistryConnection.scala) | Registry endpoints, registry-client cache and network/authentication/TLS properties |

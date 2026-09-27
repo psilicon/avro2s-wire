@@ -1,6 +1,6 @@
 package avro2s.wire.registry
 
-import avro2s.wire.runtime.DecodeLimits
+import avro2s.wire.runtime.{DecodeLimits, WriterSettings}
 import org.apache.avro.Schema
 
 /** The three classic Confluent subject names for a named Avro root. */
@@ -23,10 +23,12 @@ final case class SerializerSettings(
     autoRegisterSchemas: Boolean = false,
     normalizeSchemas: Boolean = false,
     subjectNameStrategy: SubjectNameStrategy = SubjectNameStrategy.TopicName,
-    cacheCapacity: Int = 1024
+    cacheCapacity: Int = 1024,
+    writerSettings: WriterSettings = WriterSettings.default
 ):
   require(cacheCapacity > 0, "cacheCapacity must be positive")
   require(subjectNameStrategy != null, "subjectNameStrategy must be non-null")
+  require(writerSettings != null, "writerSettings must be non-null")
 
 /** Immutable settings for reading framed values into a generated model. */
 final case class DeserializerSettings(

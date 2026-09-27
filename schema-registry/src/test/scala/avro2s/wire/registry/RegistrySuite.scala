@@ -2,7 +2,7 @@ package avro2s.wire.registry
 
 import avro2s.wire.fixtures.{Status, Trade}
 import avro2s.wire.fixtures.unions.UnionFixed
-import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, Bytes, DecodeLimits}
+import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, Bytes, DecodeLimits, MalformedStringPolicy, WriterSettings}
 import io.confluent.kafka.schemaregistry.ParsedSchema
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient
@@ -86,6 +86,40 @@ final class RegistrySuite extends munit.FunSuite:
     val fixedBytes = fixedNative.serialize("fixed", fixedValue)
     assertEquals(fixedBytes.toVector, enumConfluent.serialize("fixed", fixedGeneric).toVector)
     assertEquals(RegistryDeserializer.forValue(UnionFixed.codec, client).deserialize("fixed", fixedBytes), fixedValue)
+  }
+
+  test("writer settings reach key and value serializers with direct and stack-safe codecs") {
+    val replacement = WriterSettings(malformedStrings = MalformedStringPolicy.Replace)
+    for
+      codec <- Vector[AvroCodec[Trade]](Trade.codec, Trade.stackSafeCodec)
+      key <- Vector(true, false)
+    do
+      val client = new MockSchemaRegistryClient()
+      val settings = registering.copy(writerSettings = replacement)
+      val writer = if key then RegistrySerializer.forKey(codec, client, settings)
+        else RegistrySerializer.forValue(codec, client, settings)
+      val strict = if key then RegistrySerializer.forKey(codec, client, registering)
+        else RegistrySerializer.forValue(codec, client, registering)
+      val reader = if key then RegistryDeserializer.forKey(codec, client)
+        else RegistryDeserializer.forValue(codec, client)
+      try
+        for prefix <- Vector("A", "a".repeat(32)) do
+          val value = trade.copy(symbol = prefix + 0xd83d.toChar)
+          val expected = trade.copy(symbol = prefix + "?")
+          val encoded = writer.serialize("strings", value)
+          assertEquals(reader.deserialize("strings", encoded), expected)
+          assertEquals(encoded.drop(5).toVector, codec.encode(expected).toVector)
+          assert(failure(strict.serialize("strings", value)).getCause.getMessage.contains("Unpaired UTF-16"))
+        assertEquals(reader.deserialize("strings", writer.serialize("strings", trade)), trade)
+      finally
+        writer.close()
+        strict.close()
+        reader.close()
+        client.close()
+  }
+
+  test("serializer settings reject a null writer policy container") {
+    intercept[IllegalArgumentException](SerializerSettings(writerSettings = null))
   }
 
   test("null tombstones avoid registry and framing") {

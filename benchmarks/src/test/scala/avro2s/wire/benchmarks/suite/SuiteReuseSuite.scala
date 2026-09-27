@@ -108,3 +108,38 @@ class SuiteReuseSuite extends munit.FunSuite:
   test("unknown usage is rejected instead of silently measuring the fresh path") {
     intercept[IllegalArgumentException](SuiteWorkload.prepared("P03", "wire", "encode", "unknown"))
   }
+
+
+  test("Wire string policy reaches the measured encoder in fresh and reuse modes") {
+    for usage <- Vector("fresh", "reuse"); id <- Vector("T01", "T11") do
+      val rejecting = SuiteWorkload.prepared(id, "wire", "encode", usage)
+      val replacing = SuiteWorkload.prepared(id, "wire", "encode", usage, "replace")
+      val valid = rejecting.inputAt(0).asInstanceOf[wire.TextValue]
+      val malformed = valid.copy(value = valid.value + "\ud800")
+      intercept[IllegalArgumentException](rejecting.encodeValue(malformed))
+      val encoded = replacing.encodeValue(malformed)
+      val before = encodedBytes(encoded).clone()
+      assertEquals(replacing.decodeBytes(before), valid.copy(value = valid.value + "?"))
+      val next = replacing.encodeAt(1)
+      assert(!(encoded eq next), s"$usage replacement output must remain independently owned")
+      java.util.Arrays.fill(encodedBytes(next), 0.toByte)
+      assertEquals(encodedBytes(encoded).toVector, before.toVector)
+      // A failed strict write must not poison the retained output or change the policy.
+      assertEquals(rejecting.decodeBytes(encodedBytes(rejecting.encodeAt(0))), valid)
+      intercept[IllegalArgumentException](rejecting.encodeValue(malformed))
+      assertEquals(encodedBytes(replacing.encodeAt(0)).toVector, encodedBytes(rejecting.encodeAt(0)).toVector)
+  }
+
+  test("Wire policy selection does not change Java's existing replacement strategy") {
+    for usage <- Vector("fresh", "reuse"); policy <- Vector("reject", "replace") do
+      val writer = SuiteWorkload.prepared("T01", "java-specific", "encode", usage, policy)
+      val malformed = new javaavro.TextValue("A\ud800B")
+      val encoded = encodedBytes(writer.encodeValue(malformed))
+      val decoded = writer.decodeBytes(encoded).asInstanceOf[javaavro.TextValue]
+      assertEquals(decoded.getValue, "A?B")
+  }
+
+  test("unknown Wire string policy cannot silently use the default") {
+    for engine <- Vector("wire", "java-specific") do
+      intercept[IllegalArgumentException](SuiteWorkload.prepared("T01", engine, "encode", "reuse", "unknown"))
+  }

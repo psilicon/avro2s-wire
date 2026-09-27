@@ -1,10 +1,13 @@
 package avro2s.wire.runtime
 
 import java.util.Arrays
+import java.nio.charset.StandardCharsets
 
 /** Growable binary output. Reuse with reset(); instances are not thread-safe. */
-final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
+final class BinaryOutput(initialCapacity: Int = 256, settings: WriterSettings = WriterSettings.default) extends AvroOutput:
   require(initialCapacity >= 0, "initialCapacity must be non-negative")
+  require(settings != null, "settings must not be null")
+  private val replaceMalformedStrings = settings.malformedStrings == MalformedStringPolicy.Replace
   private var buffer = new Array[Byte](initialCapacity)
   private var position = 0
 
@@ -255,15 +258,15 @@ final class BinaryOutput(initialCapacity: Int = 256) extends AvroOutput:
     LittleEndianNumbers.longs.set(buffer, position, bits)
     position += 8
 
-  /** Rejects unpaired UTF-16 before changing output. Tiny strings avoid a temporary array. */
+  /** Rejects unpaired UTF-16 by default; replacement follows the JDK UTF-8 conversion. */
   override def writeString(value: String): Unit =
     if value.isEmpty then
       writeLong(0L)
+    else if replaceMalformedStrings then writeEncodedString(value.getBytes(StandardCharsets.UTF_8))
     else if value.length <= 16 then writeShortString(value)
-    else writeLongString(value)
+    else writeEncodedString(StrictUtf8.encode(value))
 
-  private def writeLongString(value: String): Unit =
-    val bytes = StrictUtf8.encode(value)
+  private def writeEncodedString(bytes: Array[Byte]): Unit =
     val headerSize = (39 - java.lang.Integer.numberOfLeadingZeros(bytes.length)) / 7
     require(bytes.length <= Int.MaxValue - headerSize, "Encoded datum exceeds maximum array size")
     reserve(bytes.length + headerSize)

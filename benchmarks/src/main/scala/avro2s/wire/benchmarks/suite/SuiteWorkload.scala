@@ -1,6 +1,6 @@
 package avro2s.wire.benchmarks.suite
 
-import _root_.avro2s.wire.runtime.{AvroCodec, BinaryOutput}
+import _root_.avro2s.wire.runtime.{AvroCodec, BinaryOutput, MalformedStringPolicy, WriterSettings}
 import _root_.avro2s.wire.resolution.ResolvingReader
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -22,12 +22,14 @@ final class SuiteWorkload(
     val engine: String,
     private val payloads: Array[Array[Byte]],
     val operation: String = "both",
-    val usage: String = "fresh"
+    val usage: String = "fresh",
+    val wireStringPolicy: String = "reject"
 ):
   import SuiteSupport.*
   require(payloads.nonEmpty, "Corpus must not be empty")
   require(Set("encode", "decode", "both").contains(operation), s"Unknown operation $operation")
   require(Set("fresh", "reuse").contains(usage), s"Unknown usage $usage")
+  require(Set("reject", "replace").contains(wireStringPolicy), s"Unknown Wire string policy $wireStringPolicy")
   private val requestedOperations = if operation == "both" then Vector("encode", "decode") else Vector(operation)
   requestedOperations.foreach { requested =>
     require(caseDef.operations.contains(requested), s"${caseDef.id} does not support $requested")
@@ -71,6 +73,7 @@ final class SuiteWorkload(
   def decode(): Any = implementation.decode(payloads(nextIndex()))
   def encodeAt(index: Int): AnyRef = implementation.encode(inputs(index))
   def decodeBytes(bytes: Array[Byte]): Any = implementation.decode(bytes)
+  private[suite] def encodeValue(value: Any): AnyRef = implementation.encode(value)
   def inputAt(index: Int): Any = inputs(index)
   def payloadAt(index: Int): Array[Byte] = payloads(index)
   def checkModel(value: Any): Unit = implementation.checkModel(value)
@@ -136,7 +139,11 @@ final class SuiteWorkload(
   private final class WireImplementation extends Implementation:
     private val codecClass = Class.forName(s"$namespace.wire.${caseDef.model}$$codec$$")
     private val codec = codecClass.getField("MODULE$").get(null).asInstanceOf[AvroCodec[Any]]
-    private val output = if usage == "reuse" then new BinaryOutput() else null
+    private val settings = WriterSettings(malformedStrings = wireStringPolicy match
+      case "reject" => MalformedStringPolicy.Reject
+      case "replace" => MalformedStringPolicy.Replace
+    )
+    private val output = if usage == "reuse" then new BinaryOutput(settings = settings) else null
     val readerSchema = canonicalReaderSchema
     val writerSchema = canonicalWriterSchema
     private val read: Array[Byte] => Any =
@@ -149,7 +156,7 @@ final class SuiteWorkload(
         output.reset()
         codec.write(value, output)
         output.toByteArray
-      else codec.encode(value)
+      else codec.encode(value, settings)
     def decode(bytes: Array[Byte]): Any = read(bytes)
     def checkModel(value: Any): Unit = () // Generated Wire field types already require String.
 
@@ -202,9 +209,10 @@ final class SuiteWorkload(
       super.checkModel(value)
 
 object SuiteWorkload:
-  def prepared(caseId: String, engine: String, operation: String = "both", usage: String = "fresh"): SuiteWorkload =
+  def prepared(caseId: String, engine: String, operation: String = "both", usage: String = "fresh",
+      wireStringPolicy: String = "reject"): SuiteWorkload =
     val c = SuiteCatalog.byId(caseId)
-    new SuiteWorkload(c, engine, SuiteCorpus.payloads(c), operation, usage)
+    new SuiteWorkload(c, engine, SuiteCorpus.payloads(c), operation, usage, wireStringPolicy)
 
   /** Verification only: JMH consumes each library's natural result without this conversion. */
   def encodedBytes(value: AnyRef): Array[Byte] = value match

@@ -35,7 +35,7 @@ final class RegistrySerializer[A] private[registry] (
           if found <= 0 then throw new IllegalArgumentException("Registry returned an invalid schema ID")
           found
         }
-        val datum = codec.encode(data)
+        val datum = codec.encode(data, settings.writerSettings)
         val framed = new Array[Byte](5 + datum.length)
         framed(0) = 0
         framed(1) = (id >>> 24).toByte

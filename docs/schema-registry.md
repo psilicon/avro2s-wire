@@ -183,6 +183,24 @@ their respective adapter caches and default to 1024. The underlying
 synchronizes cache access, serialization and deserialization. Its role and
 settings are immutable.
 
+String encoding is controlled by `SerializerSettings.writerSettings`. Its default
+is `WriterSettings()`, which rejects unpaired UTF-16 surrogates. To replace them
+with `?`, matching Java's UTF-8 conversion, construct the serializer with:
+
+```scala
+import avro2s.wire.registry.SerializerSettings
+import avro2s.wire.runtime.{MalformedStringPolicy, WriterSettings}
+
+val settings = SerializerSettings(
+  writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Replace)
+)
+```
+
+Pass these settings to either `RegistrySerializer.forKey` or `forValue`. The
+policy covers string fields and map keys in both direct and stack-safe codecs.
+Replacement produces valid UTF-8 but changes malformed values; it does not
+change deserializer validation or schema registration settings.
+
 ## Subjects and registration
 
 The supported subject strategies follow Confluent's standard naming forms:

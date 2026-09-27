@@ -4,7 +4,7 @@ import avro2s.wire.registry.{
   DeserializerSettings, RegistryConnection, RegistryDeserializer,
   RegistrySerializer, SerializerSettings, SubjectNameStrategy
 }
-import avro2s.wire.runtime.DecodeLimits
+import avro2s.wire.runtime.{DecodeLimits, MalformedStringPolicy, WriterSettings}
 import example.trading.{Trade, TradeKey}
 import java.time.Duration
 import java.util.UUID
@@ -26,7 +26,8 @@ object FullConfiguration:
       autoRegisterSchemas = false,
       normalizeSchemas = false,
       subjectNameStrategy = SubjectNameStrategy.TopicName,
-      cacheCapacity = 256
+      cacheCapacity = 256,
+      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject)
     )
 
     // Every DeserializerSettings and DecodeLimits parameter is specified here.

@@ -24,12 +24,15 @@ class SuiteBenchmark:
   @Param(Array("fresh"))
   var usage: String = "fresh"
 
+  @Param(Array("reject"))
+  var wireStringPolicy: String = "reject"
+
   private var workload: SuiteWorkload = null
 
   @Setup(Level.Trial)
   def setup(params: BenchmarkParams): Unit =
     val operation = params.getBenchmark.substring(params.getBenchmark.lastIndexOf('.') + 1)
-    workload = SuiteWorkload.prepared(caseId, engine, operation, usage)
+    workload = SuiteWorkload.prepared(caseId, engine, operation, usage, wireStringPolicy)
 
   @Benchmark def encode(): AnyRef = workload.encode()
   @Benchmark def decode(): Any = workload.decode()

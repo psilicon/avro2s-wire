@@ -131,6 +131,34 @@ provide the lower-level APIs. Codecs are shareable; mutable input/output instanc
 must be confined to their caller. Raw datum bytes contain no schema identifier:
 the caller must already know the exact writer schema.
 
+Native string encoding rejects unpaired UTF-16 surrogates by default. To use
+Java-compatible replacement instead, select an immutable writer policy:
+
+```scala
+import avro2s.wire.fixtures.Trade
+import avro2s.wire.runtime.{BinaryOutput, MalformedStringPolicy, WriterSettings}
+
+val settings = WriterSettings(malformedStrings = MalformedStringPolicy.Replace)
+val truncated = "A😀B".substring(0, 2) // Splits the emoji's UTF-16 pair.
+val trade = Trade(123L, truncated, 42.5, Vector(10, 20))
+val bytes = Trade.codec.encode(trade, settings)
+assert(Trade.codec.decode(bytes).symbol == "A?")
+
+val output = new BinaryOutput(initialCapacity = 1024, settings = settings)
+Trade.codec.write(trade, output)
+val message = output.toByteArray
+output.reset()
+```
+
+`MalformedStringPolicy.Replace` uses the JDK's UTF-8 conversion without Wire's
+additional malformed-string check. The result is valid UTF-8, but malformed
+input loses information. The policy applies to all string fields and map keys,
+including nested values; distinct malformed keys can become the same key.
+Valid Unicode has identical wire bytes under both policies. Settings are fixed
+when constructing an output and survive `reset()`. Direct and stack-safe codecs
+use the same setting without regeneration. Reader validation is unchanged.
+Schema Registry serializers accept it through `SerializerSettings.writerSettings`.
+
 Generation emits the direct `codec` by default. Enable
 `GeneratorConfig(generateStackSafeCodecs = true)` or CLI
 `--generate-stack-safe-codecs` to also generate an explicit `stackSafeCodec`:
@@ -300,9 +328,12 @@ cumulative collection-item and nesting-depth ceilings. Every field defaults to
 `None`, meaning no application-imposed ceiling. Set a field to `Some(n)` to enable
 it; `Some(0)` is a real zero limit. Configured ceilings apply to the input
 instance, so a fresh input resets the budget. Invalid input raises
-`AvroDecodingException`. Native string encoding rejects unpaired UTF-16 surrogates
-to prevent silently replacing malformed text. The Java backend follows Java Avro's
-replacement behavior. Valid Unicode text has the same wire representation.
+`AvroDecodingException`. Native string encoding defaults to rejecting unpaired
+UTF-16 surrogates to prevent silently replacing malformed text. Use
+`WriterSettings(malformedStrings = MalformedStringPolicy.Replace)` to select
+Java-compatible replacement instead. The Java backend follows Java Avro's
+replacement behavior independently of native writer settings. Valid Unicode
+text has the same wire representation.
 
 ## Schema evolution
 

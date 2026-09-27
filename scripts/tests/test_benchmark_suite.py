@@ -1,5 +1,6 @@
 import copy
 import importlib.util
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -84,7 +85,7 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(plan["expectedJVMForks"], 72)
         self.assertEqual(plan["warmupAndMeasurementSeconds"], 720)
         self.assertEqual(plan["usage"], "reuse")
-        self.assertEqual(plan["apiContract"], report.api_contract("reuse"))
+        self.assertEqual(plan["apiContract"], report.api_contract("reuse", "reject"))
         self.assertTrue(plan["diagnostic"])
         self.assertEqual(plan["timing"]["warmupIterations"], 5)
         self.assertEqual(plan["timing"]["measurementIterations"], 5)
@@ -151,12 +152,27 @@ class CatalogueTests(unittest.TestCase):
     def test_usage_defaults_preserve_full_protocol_and_reuse_excludes_avro2s(self):
         full = runner.make_plan(self.catalog, self.capabilities, "full")
         self.assertEqual(full["usage"], "fresh")
-        self.assertEqual(full["apiContract"], report.api_contract("fresh"))
+        self.assertEqual(full["apiContract"], report.api_contract("fresh", "reject"))
         reused = runner.make_plan(self.catalog, self.capabilities, "full", usage="reuse")
         self.assertTrue(reused["diagnostic"])
         self.assertNotIn("avro2s", {cell[2] for cell in reused["cells"]})
         with self.assertRaisesRegex(ValueError, "avro2s is outside"):
             runner.make_plan(self.catalog, self.capabilities, "smoke", usage="reuse", engines=["avro2s"])
+
+    def test_string_policy_is_explicit_in_cli_plan_and_contract(self):
+        args = runner.parse_args(["--java", sys.executable])
+        self.assertEqual(args.wire_string_policy, "reject")
+        args = runner.parse_args(["--java", sys.executable, "--wire-string-policy", "replace"])
+        self.assertEqual(args.wire_string_policy, "replace")
+        for usage in ("fresh", "reuse"):
+            for policy in ("reject", "replace"):
+                plan = runner.make_plan(self.catalog, self.capabilities, "full", usage=usage, wire_string_policy=policy)
+                self.assertEqual(plan["wireStringPolicy"], policy)
+                self.assertEqual(plan["apiContract"], report.api_contract(usage, policy))
+                if policy == "replace":
+                    self.assertTrue(plan["diagnostic"])
+        with self.assertRaisesRegex(ValueError, "string policy"):
+            runner.make_plan(self.catalog, self.capabilities, "quick", wire_string_policy="unknown")
 
     def test_smoke_and_narrowed_full_are_diagnostic(self):
         self.assertTrue(runner.make_plan(self.catalog, self.capabilities, "full", cases=["P03"])["diagnostic"])
@@ -216,6 +232,26 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "parameters"):
             report.validate_fork([sample_record()], ("P03", "encode", "wire"), self.timing, usage="reuse")
 
+    def test_string_policy_parameter_must_match_frozen_protocol(self):
+        for usage in ("fresh", "reuse"):
+            for policy in ("reject", "replace"):
+                record = sample_record()
+                record["params"].update(usage=usage, wireStringPolicy=policy)
+                self.assertEqual(report.validate_fork([record], ("P03", "encode", "wire"), self.timing,
+                                                     usage=usage, wire_string_policy=policy), record)
+                other = "reject" if policy == "replace" else "replace"
+                with self.assertRaisesRegex(ValueError, "Wire string policy"):
+                    report.validate_fork([record], ("P03", "encode", "wire"), self.timing,
+                                         usage=usage, wire_string_policy=other)
+                # New records cannot masquerade as pre-policy records, or vice versa.
+                with self.assertRaisesRegex(ValueError, "parameters"):
+                    report.validate_fork([record], ("P03", "encode", "wire"), self.timing, usage=usage)
+                del record["params"]["wireStringPolicy"]
+                with self.assertRaisesRegex(ValueError, "parameters"):
+                    report.validate_fork([record], ("P03", "encode", "wire"), self.timing,
+                                         usage=usage, wire_string_policy=policy)
+                self.assertEqual(report.validate_fork([record], ("P03", "encode", "wire"), self.timing, usage=usage), record)
+
     def test_missing_allocation_nonfinite_units_and_iteration_loss_fail(self):
         changes = [lambda r: r["secondaryMetrics"].clear(),
                    lambda r: r["primaryMetric"].update(score=math.nan),
@@ -246,6 +282,7 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("caseId=P03", command)
         self.assertIn("engine=wire", command)
         self.assertIn("usage=fresh", command)
+        self.assertIn("wireStringPolicy=reject", command)
         self.assertEqual(result.name, "r02-P03-encode-wire.json")
 
     def test_reuse_command_selects_reuse_without_adding_extra_forks(self):
@@ -255,6 +292,16 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("usage=reuse", command)
         self.assertNotIn("usage=fresh", command)
         self.assertEqual(command[command.index("-f") + 1], "1")
+
+
+    def test_command_freezes_replacement_for_both_wire_and_java_cells(self):
+        for engine in ("wire", "java-specific"):
+            command, _ = runner.jmh_command(Path("/jdk/bin/java"), ["/classes", "/jmh.jar"],
+                                            {"round": 2, "caseId": "T11", "operation": "encode", "engine": engine},
+                                            self.timing, Path("/results"), usage="reuse", wire_string_policy="replace")
+            self.assertIn("wireStringPolicy=replace", command)
+            self.assertNotIn("wireStringPolicy=reject", command)
+            self.assertEqual(command[command.index("-f") + 1], "1")
 
 
 class StatisticsTests(unittest.TestCase):
@@ -318,6 +365,54 @@ class StatisticsTests(unittest.TestCase):
         records[0]["params"]["usage"] = "fresh"
         with self.assertRaisesRegex(ValueError, "Result API usage"):
             report.render(records, metadata)
+
+
+    def test_new_policy_report_labels_semantics_and_rejects_policy_mismatch(self):
+        cells = [["P03", "encode", "wire"], ["P03", "encode", "java-specific"]]
+        for usage in ("fresh", "reuse"):
+            for policy in ("reject", "replace"):
+                metadata = {"plan": {"cells": cells, "rounds": 5, "diagnostic": True, "profile": "full", "seed": 123,
+                                     "usage": usage, "wireStringPolicy": policy,
+                                     "apiContract": report.api_contract(usage, policy), "omitted": {}},
+                            "catalog": {"cases": [{"id": "P03", "name": "int-3-byte"}]}, "gitRevision": "test-revision"}
+                records = self.measurements()
+                for record in records:
+                    record["params"].update(usage=usage, wireStringPolicy=policy)
+                rendered = report.render(records, metadata)
+                self.assertIn(f"Wire string policy: `{policy}`", rendered)
+                self.assertIn("outside measurement", rendered)
+                self.assertIn("unpaired UTF-16 surrogates", rendered)
+                records[0]["params"]["wireStringPolicy"] = "reject" if policy == "replace" else "replace"
+                with self.assertRaisesRegex(ValueError, "Result Wire string policy"):
+                    report.render(records, metadata)
+                records[0]["params"]["wireStringPolicy"] = policy
+                metadata["plan"]["apiContract"] = report.api_contract(usage)
+                with self.assertRaisesRegex(ValueError, "Frozen API contract"):
+                    report.render(records, metadata)
+
+    def test_archived_reports_are_not_silently_relabelled_with_a_new_policy(self):
+        cells = [["P03", "encode", "wire"], ["P03", "encode", "java-specific"]]
+        for usage in (None, "fresh", "reuse"):
+            metadata = {"plan": {"cells": cells, "rounds": 5, "diagnostic": True, "profile": "full", "seed": 123,
+                                 "omitted": {}},
+                        "catalog": {"cases": [{"id": "P03", "name": "int-3-byte"}]}, "gitRevision": "test-revision"}
+            records = self.measurements()
+            if usage is not None:
+                metadata["plan"].update(usage=usage, apiContract=report.api_contract(usage))
+                for record in records:
+                    record["params"]["usage"] = usage
+            rendered = report.render(records, metadata)
+            # Digests captured from the reporter before the policy parameter was added.
+            # Preserve historical report bytes as well as accepting their metadata shape.
+            expected_digest = ("ba9091eeb83d2ba9736c7657618aa9562da18d6bff2fdcb39aab7e91f2a08589" if usage == "reuse"
+                               else "dfbcbb2e9fbebf91082b823f047769a2dc391822ba64b4f9f893207f81e1050a")
+            self.assertEqual(hashlib.sha256(rendered.encode()).hexdigest(), expected_digest)
+            self.assertNotIn("Wire string policy", rendered)
+            self.assertNotIn("Wire string policy: `replace`", rendered)
+            self.assertNotIn("Wire string policy: `reject`", rendered)
+            records[0]["params"]["wireStringPolicy"] = "replace"
+            with self.assertRaisesRegex(ValueError, "Result Wire string policy"):
+                report.render(records, metadata)
 
 
 class ProvenanceTests(unittest.TestCase):

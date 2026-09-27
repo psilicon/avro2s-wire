@@ -71,7 +71,10 @@ def load_inputs(root):
     return catalog, capabilities
 
 
-def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines=None, usage=None, selections=None):
+def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines=None, usage=None, selections=None,
+              wire_string_policy="reject"):
+    if wire_string_policy not in ("reject", "replace"):
+        raise ValueError("Unknown Wire string policy")
     usage = usage or ("reuse" if profile == "reuse-check" else "fresh")
     if usage not in ("fresh", "reuse"):
         raise ValueError("Unknown API usage mode")
@@ -143,8 +146,9 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
     from benchmark_suite_report import duration_seconds
     seconds = rounds * len(cells) * (timing["warmupIterations"] * duration_seconds(timing["warmupTime"])
                                     + timing["measurementIterations"] * duration_seconds(timing["measurementTime"]))
-    return {"profile": profile, "usage": usage, "apiContract": api_contract(usage),
-            "diagnostic": profile != "full" or usage != "fresh" or bool(cases or engines or selections),
+    return {"profile": profile, "usage": usage, "wireStringPolicy": wire_string_policy,
+            "apiContract": api_contract(usage, wire_string_policy),
+            "diagnostic": profile != "full" or usage != "fresh" or wire_string_policy != "reject" or bool(cases or engines or selections),
             "selectedOperations": selected_operations,
             "seed": seed, "rounds": rounds, "timing": timing, "cells": cells, "omitted": omitted,
             "expectedCells": len(cells), "expectedJVMForks": rounds * len(cells),
@@ -266,14 +270,16 @@ def classpath_signature(classpath):
     return {str(path): [path.stat().st_size, path.stat().st_mtime_ns] for path in classpath_files(classpath)}
 
 
-def jmh_command(java, classpath, row, timing, output, usage="fresh"):
+def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string_policy="reject"):
     if usage not in ("fresh", "reuse"):
         raise ValueError("Unknown API usage mode")
+    if wire_string_policy not in ("reject", "replace"):
+        raise ValueError("Unknown Wire string policy")
     result = output / "raw" / f"r{row['round']:02d}-{row['caseId']}-{row['operation']}-{row['engine']}.json"
     command = [str(java), "-cp", os.pathsep.join(classpath), "org.openjdk.jmh.Main",
                "^" + re.escape(BENCHMARK + row["operation"]) + "$",
                "-p", "caseId=" + row["caseId"], "-p", "engine=" + row["engine"],
-               "-p", "usage=" + usage,
+               "-p", "usage=" + usage, "-p", "wireStringPolicy=" + wire_string_policy,
                "-jvm", str(java), "-jvmArgs", " ".join(timing["jvmArgs"]),
                "-f", "1", "-wi", str(timing["warmupIterations"]), "-w", timing["warmupTime"],
                "-i", str(timing["measurementIterations"]), "-r", timing["measurementTime"],
@@ -294,6 +300,8 @@ def parse_args(argv=None):
     parser.add_argument("--profile", choices=("full", "pilot", "smoke", "reuse-check", "quick"), default="full")
     parser.add_argument("--usage", choices=("fresh", "reuse"),
                         help="API lifecycle: defaults to reuse for reuse-check, fresh otherwise; reuse excludes avro2s")
+    parser.add_argument("--wire-string-policy", choices=("reject", "replace"), default="reject",
+                        help="Wire malformed UTF-16 policy; replace matches Java encoding, default reject preserves strict validation")
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--seed", type=int, default=20260926)
@@ -324,7 +332,7 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     catalog, capabilities = load_inputs(args.root)
-    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines, args.usage, args.selections)
+    plan = make_plan(catalog, capabilities, args.profile, args.seed, args.cases, args.engines, args.usage, args.selections, args.wire_string_policy)
     if args.dry_run:
         print(json.dumps({"java": str(args.java), "output": str(args.output), "correctness": "explicitly skipped" if args.skip_tests else "benchmarks/test",
                           "build": "One sbt invocation: tests, Jmh/compile, show Jmh/fullClasspath; every measurement launches JMH directly", "plan": plan}, indent=2))
@@ -380,7 +388,7 @@ def main(argv=None):
             assert_unchanged(args.root, before, args.output)
             if classpath_signature(classpath) != compiled_signature or sha256(args.java) != metadata["javaSha256"]:
                 raise RuntimeError("Compiled classpath or Java executable changed during campaign")
-            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output, plan["usage"])
+            command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output, plan["usage"], plan["wireStringPolicy"])
             log_path = result.with_suffix(".log")
             metadata["commands"].append({**row, "command": command, "log": str(log_path.relative_to(args.output)), "result": str(result.relative_to(args.output))})
             write_json(metadata_path, metadata)
@@ -388,7 +396,8 @@ def main(argv=None):
             with log_path.open("w") as log:
                 subprocess.run(command, cwd=args.root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             record = validate_fork(json.loads(result.read_text()), (row["caseId"], row["operation"], row["engine"]),
-                                   plan["timing"], args.java, log_path.read_text(), usage=plan["usage"])
+                                   plan["timing"], args.java, log_path.read_text(), usage=plan["usage"],
+                                   wire_string_policy=plan["wireStringPolicy"])
             assert_unchanged(args.root, before, args.output)
             records.append({**record, "_round": row["round"], "_sourceFile": str(result.relative_to(args.output))})
             metadata["completedForks"] = index

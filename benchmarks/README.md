@@ -57,6 +57,16 @@ The `reuse-check` diagnostic uses a separate `reuse` usage mode:
   must not be described as isolating buffer reuse alone. No concurrency policy
   or new reuse API is added to the Wire runtime.
 
+Wire encoding rejects unpaired UTF-16 surrogates by default. Use
+`--wire-string-policy replace` to select the runtime's immutable writer setting
+that permits the JDK's replacement with ASCII `?`, matching Java Avro's string
+encoding. The policy is selected outside measurement for both fresh and reused
+outputs; Java code paths and all decoders are unchanged. The valid text corpus is
+unchanged, so this measures the cost of the policy rather than malformed inputs.
+Replacement runs are explicitly marked diagnostic, and the policy is frozen in
+the plan, JMH parameters, raw records and report. Archived runs without this
+parameter retain their original contract and report; they are not relabelled.
+
 Correctness tests check cross-engine values and wire interoperability, fresh
 results, generated custom dispatch, String output, and the agreed input shapes.
 Passing those tests is necessary before measurement. Performance stability is a
@@ -87,6 +97,11 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile reuse-c
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
   --select T11:encode --select T11:decode --select B03:encode \
   --select C02:decode --select C04:decode --select P06:decode
+
+# Java-compatible string replacement: Wire versus Java specific, same reuse APIs.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
+  --wire-string-policy replace --select T11:encode --select P06:decode \
+  --engine wire --engine java-specific
 ```
 
 `--dry-run` does not run sbt, start JMH or create output. It validates the pinned
