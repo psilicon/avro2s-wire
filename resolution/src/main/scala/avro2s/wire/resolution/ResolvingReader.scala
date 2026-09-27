@@ -12,7 +12,7 @@ import scala.jdk.CollectionConverters.*
  * defaults and aliases; parsing-canonical fingerprints are not resolution keys.
  * Reading does not create GenericRecords or re-encode a datum into another buffer.
  * The compiled plan is immutable after construction; each read owns its slots.
- * The supplied codec selects direct or stack-safe execution once at construction,
+ * The supplied codec selects standard or stack-safe execution once at construction,
  * including skipped writer fields and materialization of reader defaults.
  * Reader unions prefer an exact type/name (including reader aliases) before
  * considering promotions, matching Java Avro 1.12.1's branch-selection policy.
@@ -30,7 +30,7 @@ final class ResolvingReader[A](val writerSchemaJson: String, val readerCodec: Av
       val execution = readerCodec.execution
       val compiled = new ResolutionCompiler(reader, readerCodec, execution).compile(writer, reader, "root")
       execution match
-        case CodecExecution.Direct => in => compiled.read(in).asInstanceOf[A]
+        case CodecExecution.Standard => in => compiled.read(in).asInstanceOf[A]
         case CodecExecution.StackSafe => in => Step.run(compiled.readStep(in)).asInstanceOf[A]
 
   /** Uses the supplied input's validation and resource-limit policy. */
@@ -86,9 +86,9 @@ private[resolution] final class ResolutionCompiler(
 
   private def structural(suspends: Boolean, scalar: Boolean)(f: AvroInput => Any)
       (step: AvroInput => Step[Any]): ReadPlan =
-    // Keep direct plan dispatch and retained node shape on the original action
+    // Keep standard plan dispatch and retained node shape on the original action
     // implementation. Execution is selected only while compiling the plan.
-    if execution == CodecExecution.Direct then action(f)
+    if execution == CodecExecution.Standard then action(f)
     else new ReadPlan:
       override val canSuspend: Boolean = suspends
       override val isScalar: Boolean = scalar
@@ -310,7 +310,7 @@ private[resolution] final class ResolutionCompiler(
     val defaultsInline = !defaults.exists(_._2.canSuspend)
     val allInline = !fieldSuspends.contains(true) && defaultsInline
     val target = codec(reader)
-    val direct: AvroInput => Any = in =>
+    val standard: AvroInput => Any = in =>
       in.enterRecord()
       try
         val values = new Array[Any](reader.fields.size)
@@ -327,10 +327,10 @@ private[resolution] final class ResolutionCompiler(
           index += 1
         target.construct(values)
       finally in.leaveRecord()
-    structural(direct) { in =>
+    structural(standard) { in =>
       // This record remains a suspension boundary to its parent. Only its own
       // scalar fields and scalar-element collections run in a single operation.
-      if allInline then Step.delay(direct(in))
+      if allInline then Step.delay(standard(in))
       else new Step.Frame[Any]:
         private val values = new Array[Any](reader.fields.size)
         private var fieldIndex = 0
@@ -443,14 +443,14 @@ private[resolution] final class ResolutionCompiler(
             val fields = schema.fields.map(field => skip(field.schema, s"$path.${field.name}")).toArray
             val suspends = fields.map(_.canSuspend)
             val allInline = !suspends.contains(true)
-            val direct: AvroInput => Any = in =>
+            val standard: AvroInput => Any = in =>
               in.enterRecord()
               try
                 fields.foreach(_.read(in))
                 ()
               finally in.leaveRecord()
-            structural(direct) { in =>
-              if allInline then Step.delay(direct(in))
+            structural(standard) { in =>
+              if allInline then Step.delay(standard(in))
               else new Step.Frame[Unit]:
                 private var index = 0
                 private var entered = false

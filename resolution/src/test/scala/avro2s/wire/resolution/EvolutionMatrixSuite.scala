@@ -8,7 +8,7 @@ import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.io.DecoderFactory
 
 /** Table-driven coverage of writer/reader schema evolution across both directions. */
-final class EvolutionMatrixSuite extends EvolutionMatrixChecks(CodecExecution.Direct)
+final class EvolutionMatrixSuite extends EvolutionMatrixChecks(CodecExecution.Standard)
 final class StackSafeEvolutionMatrixSuite extends EvolutionMatrixChecks(CodecExecution.StackSafe)
 
 abstract class EvolutionMatrixChecks(executionMode: CodecExecution) extends FunSuite:

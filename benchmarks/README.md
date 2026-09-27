@@ -22,9 +22,9 @@ mode); the additional Wire configurations are explicitly selected.
 
 | Engine | Generated model/codec | Binary I/O |
 | --- | --- | --- |
-| `wire` | Wire, direct codec | Native |
+| `wire` | Wire, standard codec | Native |
 | `wire-stack-safe` | Wire, stack-safe codec | Native |
-| `wire-java` | Wire, direct codec | Java Avro through `JavaAvroInput`/`JavaAvroOutput` |
+| `wire-java` | Wire, standard codec | Java Avro through `JavaAvroInput`/`JavaAvroOutput` |
 | `wire-java-stack-safe` | Wire, stack-safe codec | Java Avro through the same adapters |
 | `java-specific` | Official generated Java specific records | Java Avro specific datum readers/writers |
 | `java-generic` | Official generic records | Java Avro generic datum readers/writers |
@@ -87,12 +87,16 @@ The `reuse-check` diagnostic uses a separate `reuse` usage mode:
 
 Here, the `BinaryOutput` path means native `wire`/`wire-stack-safe`, and the raw
 message helpers mean official `java-specific`/`java-generic`/`java-custom`.
-The Wire Java backend (`wire-java`/`wire-java-stack-safe`) instead uses the public
-`JavaAvroOutput`/`JavaAvroInput` adapters. Fresh mode creates a buffered encoder
-and array decoder; reuse mode reconfigures and retains those same kinds of
-encoder/decoder, adapters and output stream. It always copies the output into
-an owned array and checks complete input consumption. Its buffered/array I/O
-therefore differs from the direct stream I/O inside the official raw helpers.
+The Wire Java backend (`wire-java`/`wire-java-stack-safe`) uses the public
+`JavaAvroOutput`/`JavaAvroInput` adapters. Existing engine presets select a
+buffered encoder and array decoder; reuse retains the encoder/decoder, adapters
+and output stream. It always copies the output into an owned array and checks
+complete input consumption.
+
+Those are the preserved **preset defaults**. Named variants below separate the
+Java API, encoder buffering and reuse, allowing factory-based Java to run with
+either encoder in either lifecycle. Native Wire's execution is called
+`Standard` or `StackSafe`; it has no Java encoder selection.
 
 Wire encoding rejects unpaired UTF-16 surrogates by default. Use
 `--wire-string-policy replace` to select the runtime's immutable writer setting
@@ -150,12 +154,12 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick -
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
   --case 'P*' --engine wire --engine wire-java --dry-run
 
-# Every text encoding: compare direct and stack-safe codecs on both backends.
+# Every text encoding: compare standard and stack-safe codecs on both backends.
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
   --select 'T*:encode' --wire-string-policy replace \
   --engine wire --engine wire-stack-safe --engine wire-java --engine wire-java-stack-safe --dry-run
 
-# Compare two variants without the ordinary native direct engine.
+# Compare two variants without the ordinary native standard engine.
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick --usage reuse \
   --case 'R*' --engine wire-java --engine wire-java-stack-safe \
   --reference-engine wire-java --dry-run
@@ -182,8 +186,8 @@ the examples above to execute after checking the estimated duration.
 
 ## Comparing configurations in one campaign
 
-Use repeatable `--variant 'name=LABEL,engine=ENGINE,usage=USAGE,string-policy=POLICY'`
-to vary usage or native string policy within a single campaign. The name identifies the report row and
+Use repeatable `--variant` arguments with named fields to vary usage, native
+string policy or Java I/O within a single campaign. The name identifies the report row and
 raw files. Each configuration gets its own JVM per round; configurations for
 the same case and operation are adjacent, with order rotated between rounds.
 Output ownership remains the same in fresh and reuse mode.
@@ -203,14 +207,40 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
   --variant 'name=replacement,engine=wire,usage=reuse,string-policy=replace' \
   --reference-variant strict --dry-run
 
-# Compare multiple libraries under both lifecycle settings in one campaign.
+# Wire versus Java's unbuffered factory encoder, both fresh.
 python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
   --select P03:encode \
   --variant 'name=wire-fresh,engine=wire,usage=fresh,string-policy=replace' \
-  --variant 'name=wire-reuse,engine=wire,usage=reuse,string-policy=replace' \
-  --variant 'name=java-fresh,engine=java-specific,usage=fresh' \
-  --variant 'name=java-reuse,engine=java-specific,usage=reuse' \
+  --variant 'name=java-fresh,engine=java-specific,java-api=factory,java-encoder=unbuffered,usage=fresh' \
   --reference-variant wire-fresh --dry-run
+
+# Isolate Java factory reuse, holding the encoder kind constant.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --case 'P*' \
+  --variant 'name=fresh,engine=java-specific,java-api=factory,java-encoder=unbuffered,usage=fresh' \
+  --variant 'name=reused,engine=java-specific,java-api=factory,java-encoder=unbuffered,usage=reuse' \
+  --reference-variant fresh --dry-run
+
+# Java buffering, with reuse held constant; encoding is the affected operation.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --select 'T*:encode' \
+  --variant 'name=buffered,engine=java-specific,java-api=factory,java-encoder=buffered,usage=reuse' \
+  --variant 'name=unbuffered,engine=java-specific,java-api=factory,java-encoder=unbuffered,usage=reuse' \
+  --reference-variant buffered --dry-run
+
+# The separate official raw-message API (inherently reused and unbuffered).
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --case P03 \
+  --variant 'name=wire,engine=wire,usage=reuse,string-policy=replace' \
+  --variant 'name=java,engine=java-specific,java-api=raw-message,usage=reuse' \
+  --reference-variant wire --dry-run
+
+# Wire's Java backend: the same generated Scala model with unbuffered Java I/O.
+python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile quick \
+  --select 'T*:encode' \
+  --variant 'name=native,engine=wire,usage=fresh,string-policy=replace' \
+  --variant 'name=java-io,engine=wire-java,java-api=factory,java-encoder=unbuffered,usage=fresh' \
+  --reference-variant native --dry-run
 ```
 
 Each variant requires `name`, `engine` and `usage`. `name` is an arbitrary report
@@ -218,6 +248,38 @@ label; it does not change behavior. `usage=reuse` retains working buffers while
 still returning independently owned output. `string-policy=replace` concerns
 malformed UTF-16, not buffer reuse. Fields can appear in any order. Duplicate,
 unknown or empty fields are rejected.
+
+The Java fields describe the following exact paths:
+
+| Setting | Encoding | Decoding |
+| --- | --- | --- |
+| `java-api=factory,java-encoder=buffered` | `EncoderFactory.binaryEncoder` → datum writer → flush → owned array | `DecoderFactory.binaryDecoder(byte[], reuse)` → datum reader with null model → complete-consumption check |
+| `java-api=factory,java-encoder=unbuffered` | `EncoderFactory.directBinaryEncoder` → datum writer → flush → owned array | The same byte-array decoder and consumption check |
+| `java-api=raw-message` | `RawMessageEncoder` with its default copying policy → owned `ByteBuffer` | `RawMessageDecoder` → fresh model; accepts trailing bytes |
+
+For factory paths, `usage=fresh` creates the output stream, encoder and decoder
+per operation; `usage=reuse` retains and reconfigures them. Datum readers/writers
+are prepared outside timing in both modes. Reusing a decoder never means reusing
+the returned record. `java-encoder` changes **encoding only**, so two decode
+variants differing only in that field measure the same code.
+
+`unbuffered` is our harness name for Java Avro's official `directBinaryEncoder`.
+It writes to the output stream without a separate staging buffer; the stream
+still accumulates the result and returns a fresh copied array. This is independent
+of Wire's `CodecExecution.Standard` versus `StackSafe` selection.
+
+Official `java-specific`, `java-generic` and `java-custom` named variants must
+specify `java-api`. Factory mode defaults to `java-encoder=buffered` when omitted
+and supports all four encoder/lifecycle combinations. Raw-message mode resolves
+to unbuffered and requires `usage=reuse`; requesting fresh or buffered fails.
+These official helpers internally use thread-local working state, even if the
+helper itself is newly constructed.
+
+`wire-java` and `wire-java-stack-safe` default to factory/buffered and support
+both factory encoders and both lifecycles through their public adapters. Their
+codec replaces the datum reader/writer in the table. Raw-message is unsupported
+for these engines. Native `wire` and `wire-stack-safe` reject Java settings.
+`avro2s` remains fresh-only with the factory API and permits either encoder.
 
 For native Wire, fresh versus reuse changes encoding only: both decode modes
 still use `codec.decode` and create a `BinaryInput`. Select encode operations
@@ -232,7 +294,9 @@ took less time. The optional policy defaults to `--wire-string-policy` (itself
 Do not combine `--variant` with `--engine`, `--usage` or `--reference-engine`:
 each variant already specifies those settings. `reuse-check` keeps its fixed
 membership and cannot accept variants. Plans and reports retain each variant's
-effective engine, lifecycle, string policy and API contract.
+effective engine, Java API, encoder, lifecycle, string policy and API contract.
+Ordinary `--engine` campaigns retain the established preset defaults described
+above; historical reports retain the configuration and terminology they recorded.
 
 Use repeatable `--select CASE:OPERATION` to choose exact case/operation pairs
 instead of `--case`. The `quick` profile uses two independent rounds, with

@@ -8,7 +8,7 @@ import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.io.DecoderFactory
 
-final class ResolvingReaderSuite extends ResolvingReaderChecks(CodecExecution.Direct)
+final class ResolvingReaderSuite extends ResolvingReaderChecks(CodecExecution.Standard)
 final class StackSafeResolvingReaderSuite extends ResolvingReaderChecks(CodecExecution.StackSafe)
 
 abstract class ResolvingReaderChecks(executionMode: CodecExecution) extends FunSuite:

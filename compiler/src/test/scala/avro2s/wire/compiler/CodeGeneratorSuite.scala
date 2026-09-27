@@ -372,7 +372,7 @@ class CodeGeneratorSuite extends munit.FunSuite:
       assert(namespaced.find(_.relativePath == "example/Parent.scala").get.content.contains(s"_root_.example.$name.stackSafeCodec.readStep(in)"))
   }
 
-  test("stack-safe names do not restrict direct generation, including mapped default-package types") {
+  test("stack-safe names do not restrict standard generation, including mapped default-package types") {
     val safeNames = Vector("stackSafeCodec", "readStep", "writeStep", "phase", "entered", "answer", "completed",
       "advance", "result", "cleanup", "map", "flatMap", "codecSelf")
     for name <- safeNames do

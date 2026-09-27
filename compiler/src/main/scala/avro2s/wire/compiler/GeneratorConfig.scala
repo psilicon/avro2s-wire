@@ -34,7 +34,7 @@ enum LogicalTypeMode:
   * an empty target removes the matched prefix. Missing logical type modes use
   * Converted. Neither option changes the original Avro schema metadata.
   * Stack-safe codecs are opt-in; enabling them adds a non-given stackSafeCodec
-  * alongside the direct given codec on every generated companion.
+  * alongside the standard given codec on every generated companion.
   */
 final case class GeneratorConfig(
     decimalType: DecimalType = DecimalType.Scala,

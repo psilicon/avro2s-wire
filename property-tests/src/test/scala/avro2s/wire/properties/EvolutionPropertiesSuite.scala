@@ -154,9 +154,9 @@ final class EvolutionPropertiesSuite extends munit.FunSuite:
     }
   }
 
-  test("default direct-only generated readers support evolved schemas and named codec lookup") {
+  test("default standard-only generated readers support evolved schemas and named codec lookup") {
     Files.createDirectories(target)
-    val run = Files.createTempDirectory(target, "direct-only-")
+    val run = Files.createTempDirectory(target, "standard-only-")
     EvolutionCases.mandatory.grouped(24).zipWithIndex.foreach { (batch, index) =>
       val expected = batch.map(EvolutionOracle.expected)
       val compiled = CompiledCases.compile(expected, run.resolve(s"batch-$index"))

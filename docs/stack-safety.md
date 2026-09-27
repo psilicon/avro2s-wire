@@ -1,23 +1,29 @@
-# Direct and stack-safe codecs
+# Standard and stack-safe codecs
 
-Every generated record, enum and fixed companion offers the direct `codec`.
+Every generated record, enum and fixed companion offers the standard `codec`.
 Set `GeneratorConfig(generateStackSafeCodecs = true)` or pass CLI
 `--generate-stack-safe-codecs` to additionally generate `stackSafeCodec`.
 The setting defaults to `false` and applies to all reachable named types:
 
 | API | Execution | Selection |
 | --- | --- | --- |
-| `Node.codec` | Direct calls between generated codecs | Existing default `given AvroCodec[Node]` |
+| `Node.codec` | Standard: ordinary calls between generated codecs | Existing default `given AvroCodec[Node]` |
 | `Node.stackSafeCodec` | Suspended operations executed by one iterative runtime | Explicit, non-given value |
 
 Both expose the same `AvroCodec[A]` read/write and encode/decode methods. They use
 the same models, schema JSON, logical mappings and wire bytes. The default remains
-direct; application code can opt into stack safety where it needs it. Generation
+standard; application code can opt into stack safety where it needs it. Generation
 controls whether the alternative exists; passing a codec selects which execution
-to use. Direct-only generated code works with the same runtime, resolver and
+to use. Standard-only generated code works with the same runtime, resolver and
 registry APIs, without any references to the stack-safe generation support.
 The runtime JAR still contains both implementations. No mutable configuration or
 separate registry execution setting is required.
+
+The execution values are `CodecExecution.Standard` and `CodecExecution.StackSafe`.
+`Standard` replaces the former name `Direct`; source references to that enum case
+must be updated. Generated accessors remain `codec` and `stackSafeCodec`, and
+their encoding and decoding algorithms are unchanged by this rename. Java Avro's
+`directBinaryEncoder` is a separate I/O buffering choice, unrelated to traversal.
 
 ```scala
 import avro2s.wire.compiler.{GeneratorConfig, SchemaCompiler}
@@ -121,7 +127,7 @@ modes. Applications can still set a nesting or size budget. Mandatory bounds,
 UTF-8, union and collection-block validation remains active. The native
 `Array[Byte]` input retains its JVM array representation limits.
 
-For the direct implementation, increasing JVM stack size with an option such as
+For the standard implementation, increasing JVM stack size with an option such as
 `-Xss4m` may be appropriate for bounded application data. There is no universal
 safe depth or fixed bytes-per-record relationship: schema shape, JVM compilation
 and the surrounding call stack affect it. A stack-size setting is not a substitute
@@ -130,9 +136,9 @@ for testing the expected maximum depth on the deployment JVM.
 ## API and implementation locations
 
 - [`CodecExecution` and `AvroCodec.execution`](../runtime/src/main/scala/avro2s/wire/runtime/AvroIO.scala)
-  describe the chosen execution. Existing handwritten codecs inherit `Direct`.
+  describe the chosen execution. Existing handwritten codecs inherit `Standard`.
 - [`CodeGenerator.scala`](../compiler/src/main/scala/avro2s/wire/compiler/CodeGenerator.scala)
-  emits the additional codec, typed record frames and child operations. Direct generated
+  emits the additional codec, typed record frames and child operations. Standard generated
   method bodies retain their previous output, checked against existing golden hashes.
 - [`runtime.codegen`](../runtime/src/main/scala/avro2s/wire/runtime/codegen/)
   contains `Step`, its iterative driver, `Step.Frame`, `StackSafeCodec`, and collection/record
@@ -148,7 +154,7 @@ An Avro enum symbol named `stackSafeCodec` is then renamed in Scala using the ex
 collision policy; its Avro symbol and ordinal remain unchanged. Default-package
 type names that would shadow the new codec members are rejected like other
 ambiguous default-package names; a namespace mapping can move them into a package.
-These additional restrictions do not apply to direct-only generation. Regenerating
+These additional restrictions do not apply to standard-only generation. Regenerating
 with the flag disabled overwrites the generated sources without the alternative;
 application references to `.stackSafeCodec` must then be removed too.
 
@@ -165,12 +171,13 @@ Additional tests combine 10,000 levels with sibling branches and multiple
 structural fields, inject failures at every observed input/output callback of a
 branching sample, and share codecs/resolving readers between concurrent workers.
 Deeper matching-schema, evolution and wire campaigns run with three fixed seeds.
-Direct-only generation is independently compiled and checked against Java Avro;
+Standard-only generation is independently compiled and checked against Java Avro;
 see [test coverage](testing.md) for exact counts, replay instructions and remaining gaps.
 
-The maintained [benchmark suite](../benchmarks/README.md) measures the default
-direct implementation. Earlier direct-versus-stack-safe experiments, their harness
+The maintained [benchmark suite](../benchmarks/README.md) selects standard or
+stack-safe execution on either the native or Java I/O backend. Its default
+campaigns use standard native Wire. Earlier standard-versus-stack-safe experiments, their harness
 and raw measurements are recoverable through [benchmark history](benchmarks/HISTORY.md).
 They describe their recorded revisions and are not current performance claims.
-The direct implementation remains the default; measure representative workloads
+The standard implementation remains the default; measure representative workloads
 before selecting stack-safe execution for performance-sensitive code.

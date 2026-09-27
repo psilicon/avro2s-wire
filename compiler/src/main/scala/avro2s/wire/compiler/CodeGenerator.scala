@@ -91,7 +91,7 @@ object CodeGenerator:
     if !config.generateStackSafeCodecs then
       return GeneratedSource(parts.mkString("/") + ".scala", header + model + companion)
 
-    // Generate the alternative separately so direct codec code, including fresh
+    // Generate the alternative separately so standard codec code, including fresh
     // local names and specialised collection hooks, stays byte-for-byte stable.
     val safeEmitter = Emitter(config, definitions, Some(definition.name))
     val selfReference = definition match

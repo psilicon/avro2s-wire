@@ -76,13 +76,16 @@ trait AvroOutput:
 enum DecimalRepresentation:
   case Scala, Java
 
-/** Value traversal used by a codec and by its schema-resolving readers. */
+/** Value traversal used by a codec and by its schema-resolving readers.
+  * Standard uses ordinary generated calls; StackSafe uses the iterative runtime.
+  * This is independent of the binary I/O backend and encoder buffering.
+  */
 enum CodecExecution:
-  case Direct, StackSafe
+  case Standard, StackSafe
 
 /** A matching-schema codec. Writer/reader schema resolution is a separate concern. */
 trait AvroCodec[A]:
-  def execution: CodecExecution = CodecExecution.Direct
+  def execution: CodecExecution = CodecExecution.Standard
   def schemaJson: String
   def decimalRepresentation: DecimalRepresentation = DecimalRepresentation.Scala
   /** Avro logical names decoded as their underlying storage types by this model. */

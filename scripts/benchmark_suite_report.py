@@ -29,7 +29,8 @@ def finite_number(value, label, positive=False):
     return float(value)
 
 
-def validate_fork(records, expected, timing, java=None, log_text="", usage=None, wire_string_policy=None):
+def validate_fork(records, expected, timing, java=None, log_text="", usage=None, wire_string_policy=None,
+                  java_api=None, java_encoder=None):
     """Each launcher selects exactly one case/operation/engine and one JVM fork."""
     try:
         if not isinstance(records, list) or len(records) != 1:
@@ -44,12 +45,19 @@ def validate_fork(records, expected, timing, java=None, log_text="", usage=None,
             if usage is None or wire_string_policy not in ("reject", "replace"):
                 raise ValueError("Invalid frozen Wire string policy")
             expected_params.add("wireStringPolicy")
+        if java_api is not None or java_encoder is not None:
+            if java_api is None or java_encoder is None or usage is None or wire_string_policy is None:
+                raise ValueError("Incomplete frozen Java IO configuration")
+            resolve_configuration(expected[2], usage, wire_string_policy, java_api, java_encoder)
+            expected_params.update(("javaApi", "javaEncoder"))
         if set(record["params"]) != expected_params:
             raise ValueError("Unexpected JMH parameters")
         if usage is not None and (usage not in ("fresh", "reuse") or record["params"]["usage"] != usage):
             raise ValueError("Unexpected API usage mode")
         if wire_string_policy is not None and record["params"]["wireStringPolicy"] != wire_string_policy:
             raise ValueError("Unexpected Wire string policy")
+        if java_api is not None and (record["params"]["javaApi"] != java_api or record["params"]["javaEncoder"] != java_encoder):
+            raise ValueError("Unexpected Java API or encoder")
         if "<failure>" in log_text or record["mode"] != "avgt" or record["forks"] != 1 or record["threads"] != 1:
             raise ValueError("JMH failure or unexpected mode/forks/threads")
         for field in ("warmupIterations", "measurementIterations"):
@@ -203,7 +211,150 @@ def wire_variant_contracts(usage, wire_string_policy, engines):
     return contracts
 
 
+def resolve_configuration(engine, usage, policy, java_api=None, java_encoder=None, named=False):
+    """Resolve independent IO choices once; old metadata keeps its original contracts."""
+    if engine not in ENGINES or usage not in ("fresh", "reuse") or policy not in ("reject", "replace"):
+        raise ValueError("Invalid engine, usage or policy in configuration")
+    native = engine in ("wire", "wire-stack-safe")
+    wire_java = engine in ("wire-java", "wire-java-stack-safe")
+    official = engine in ("java-specific", "java-generic", "java-custom")
+    if engine == "avro2s" and usage != "fresh":
+        raise ValueError("avro2s is outside reuse comparisons")
+    if native:
+        if (named and (java_api is not None or java_encoder is not None)) or java_api not in (None, "none") or java_encoder not in (None, "none"):
+            raise ValueError("Native Wire does not accept Java API or encoder settings")
+        java_api, java_encoder = "none", "none"
+    else:
+        if named and official and java_api is None:
+            raise ValueError("Official Java named variants require explicit java-api=factory or java-api=raw-message")
+        java_api = java_api or ("factory" if wire_java or usage == "fresh" else "raw-message")
+        if java_api not in ("factory", "raw-message"):
+            raise ValueError("Unknown Java API; expected factory or raw-message")
+        java_encoder = java_encoder or ("unbuffered" if java_api == "raw-message" else "buffered")
+        if java_encoder not in ("buffered", "unbuffered"):
+            raise ValueError("Unknown Java encoder; expected buffered or unbuffered")
+        if java_api == "raw-message" and (not official or usage != "reuse" or java_encoder != "unbuffered"):
+            raise ValueError("raw-message requires an official Java engine, reuse usage and unbuffered encoding")
+    contract = configuration_contract(engine, usage, policy, java_api, java_encoder)
+    return {"engine": engine, "usage": usage, "wireStringPolicy": policy,
+            "javaApi": java_api, "javaEncoder": java_encoder, "contract": contract}
+
+
+def configuration_contract(engine, usage, policy, java_api, java_encoder):
+    native = engine in ("wire", "wire-stack-safe")
+    wire_java = engine in ("wire-java", "wire-java-stack-safe")
+    execution = "stack-safe" if engine.endswith("stack-safe") else "Standard"
+    if native:
+        previous = api_contract(usage, policy)
+        return {"codec": f"Generated {execution} Wire codec with native BinaryInput/BinaryOutput",
+                "encode": previous["wireEncode"], "decode": previous["wireDecode"],
+                "malformedStrings": previous["wireMalformedStrings"],
+                "readerValidation": "Native strict UTF-8 validation and trailing-byte rejection",
+                "setup": previous["setup"]}
+    if java_api == "raw-message":
+        return {"codec": f"Official Avro {engine.removeprefix('java-')} datum reader/writer",
+                "encode": "Retained official RawMessageEncoder with unbuffered encoding and default output copying; independently owned ByteBuffer",
+                "decode": "Retained official RawMessageDecoder with stream decoder and no record reuse; fresh model; no complete-consumption check",
+                "malformedStrings": "Java UTF-8 encoding and decoding behavior; native string policy does not apply",
+                "setup": "Schema, datum reader/writer and message-helper setup outside measurement"}
+    lifetime = "Retained" if usage == "reuse" else "Fresh"
+    factory = "binaryEncoder" if java_encoder == "buffered" else "directBinaryEncoder"
+    return {"codec": (f"Generated {execution} Wire codec with public JavaAvroInput/JavaAvroOutput adapters" if wire_java else
+                      "avro2s generated Scala model with Avro specific datum reader/writer" if engine == "avro2s" else
+                      f"Official Avro {engine.removeprefix('java-')} datum reader/writer"),
+            "encode": f"{lifetime} ByteArrayOutputStream and {java_encoder} BinaryEncoder via EncoderFactory.{factory}"
+                      + (" with JavaAvroOutput" if wire_java else "")
+                      + "; write, flush, toByteArray; fresh independently owned Array[Byte]",
+            "decode": f"{lifetime} byte-array BinaryDecoder via DecoderFactory.binaryDecoder"
+                      + (" with JavaAvroInput" if wire_java else "")
+                      + "; fresh model; explicit complete-consumption check; encoder choice does not change decoding",
+            "malformedStrings": "Java UTF-8 encoding and decoding behavior; native string policy does not apply",
+            "setup": "Schema, model corpus and retained IO/reader/writer setup outside measurement; every decoded model is fresh with String text"}
+
+
+def configuration_map(plan):
+    if plan.get("configurationVersion") != 1:
+        raise ValueError("Unsupported benchmark configuration version")
+    return plan["variants"] if "variants" in plan else plan["configurations"]
+
+
+def validate_configuration_records(records, plan):
+    configurations = configuration_map(plan)
+    for label, config in configurations.items():
+        expected = resolve_configuration(config["engine"], config["usage"], config["wireStringPolicy"],
+                                         config["javaApi"], config["javaEncoder"])
+        if config != expected:
+            raise ValueError(f"Frozen configuration contract does not match settings: {label}")
+    for record in records:
+        label = record.get("_variant") if "variants" in plan else record["params"]["engine"]
+        if label not in configurations:
+            raise ValueError("Result has a missing or unknown configuration label")
+        config = configurations[label]
+        if any(record["params"].get(key) != config[key] for key in ("engine", "usage", "wireStringPolicy", "javaApi", "javaEncoder")):
+            raise ValueError(f"Result parameters do not match frozen configuration: {label}")
+
+
+def render_configurations(records, metadata):
+    plan = metadata["plan"]
+    validate_configuration_records(records, plan)
+    configs = configuration_map(plan)
+    reference = plan["referenceVariant"] if "variants" in plan else plan["referenceEngine"]
+    values = aggregate(records, plan["cells"], plan["rounds"])
+    cases = {case["id"]: case for case in metadata["catalog"]["cases"]}
+    lines = ["# Consolidated Avro benchmark results", "",
+             "**Diagnostic run: unsuitable for publication claims.**" if plan["diagnostic"] else f"{plan['rounds']} independent JVM rounds; individual comparisons only.", "",
+             f"Source revision: `{metadata['gitRevision']}`. Profile: `{plan['profile']}`. Order seed: `{plan['seed']}`. "
+             f"{len(values)} configuration/operation cells; {plan['rounds']} independent JVM rounds.", "",
+             "| Configuration | Engine | Usage | Java API | Java encoder | Native string policy |",
+             "| --- | --- | --- | --- | --- | --- |"]
+    for label, config in configs.items():
+        policy = config["wireStringPolicy"] if config["javaApi"] == "none" else "Not applicable (Java behavior)"
+        lines.append(f"| {label} | {config['engine']} | {config['usage']} | {config['javaApi']} | {config['javaEncoder']} | {policy} |")
+    lines += ["", "Factory output is an independently owned array; raw-message output is an independently owned ByteBuffer. "
+              "The Java encoder setting affects encoding only. All decoders produce fresh models with String text. "
+              "Native Wire and factory decoding reject trailing bytes; raw-message decoding has no complete-consumption check. "
+              "Native Wire string policy affects native encoding only; Java-backed Wire always uses Java string behavior.", ""]
+    for label, config in configs.items():
+        lines += [f"**`{label}`:** " + ". ".join(config["contract"].values()) + ".", ""]
+    lines += ["Time is ns/op; allocation is allocated heap B/op, including temporary objects, not retained or peak memory. "
+              "Bracketed intervals are pointwise 95% Student t intervals over independent JVM-round means; iterations within a JVM are not independent replicates. "
+              "Timing intervals are not tail latency. "
+              + ("Two JVM observations provide only a preliminary diagnostic; inspect both individual means. " if plan["rounds"] == 2 else ""), "",
+              f"Ratios pair the same case/operation within each round. The denominator is `{reference}`; "
+              "the numerator is the configuration named in each row. The centre is the geometric mean of round ratios, "
+              "with a Student t interval on their logarithms. A ratio above one means the row took more time than the denominator. "
+              + ("No ratios are available because the denominator was not selected. " if reference not in configs else "")
+              + "Scheduling adjacency and order rotation reduce drift but do not remove session effects. "
+              "Intervals are not simultaneous guarantees. The practical ratio band is 0.95–1.05; quoted claims need independent-session confirmation. "
+              "No measurements are discarded. GC diagnostics and warmup/measurement traces remain in raw files.", "",
+              "[Environment and frozen protocol](environment.json) · [Raw round records](records.json) · [Source checksums](SHA256SUMS)", ""]
+    for case_id, operation in dict.fromkeys((cell[0], cell[1]) for cell in plan["cells"]):
+        lines += [f"## {case_id}: {cases[case_id]['name']} — {operation}", "",
+                  f"| Configuration | ns/op [95% interval] | B/op [95% interval] | Configuration / {reference} [95% interval] |",
+                  "| --- | ---: | ---: | ---: |"]
+        denominator = values.get((case_id, operation, reference))
+        for label in configs:
+            value = values.get((case_id, operation, label))
+            if value is None:
+                reason = plan["omitted"].get(case_id, {}).get(operation, {}).get(label, "Outside this diagnostic selection")
+                lines.append(f"| {label} | N/A: {reason} | — | — |")
+            else:
+                ratio = "—" if label == reference or denominator is None else fmt_interval(paired_ratio(value["forkTimes"], denominator["forkTimes"]))
+                lines.append(f"| {label} | {fmt_interval(value['time'])} | {fmt_interval(value['allocation'])} | {ratio} |")
+        lines += ["", "Independent JVM means (ns/op; B/op), in round order:", ""]
+        for label in configs:
+            value = values.get((case_id, operation, label))
+            if value:
+                forks = [f"[r{index}: {fmt(time)}; {fmt(allocation)}]({record['_sourceFile']})"
+                         for index, (time, allocation, record) in enumerate(zip(value["forkTimes"], value["forkAllocations"], value["records"]), 1)]
+                lines.append(f"- {label}: " + "; ".join(forks))
+        lines.append("")
+    return "\n".join(lines)
+
+
 def validate_variant_records(records, plan):
+    if "configurationVersion" in plan:
+        return validate_configuration_records(records, plan)
     variants = plan["variants"]
     if not variants or len(variants) != len(set(variants)):
         raise ValueError("Invalid frozen variants")
@@ -215,6 +366,8 @@ def validate_variant_records(records, plan):
                 or variant["wireVariantContracts"] != wire_variant_contracts(usage, policy, [engine])):
             raise ValueError(f"Frozen variant contract does not match configuration: {label}")
     for record in records:
+        if "javaApi" in record["params"] or "javaEncoder" in record["params"]:
+            raise ValueError("New Java IO parameters require versioned configuration metadata")
         label = record.get("_variant")
         if label not in variants:
             raise ValueError("Result has a missing or unknown variant label")
@@ -288,8 +441,12 @@ def render_variants(records, metadata):
 
 def render(records, metadata):
     plan = metadata["plan"]
+    if "configurationVersion" in plan:
+        return render_configurations(records, metadata)
     if "variants" in plan:
         return render_variants(records, metadata)
+    if any("javaApi" in record["params"] or "javaEncoder" in record["params"] for record in records):
+        raise ValueError("New Java IO parameters require versioned configuration metadata")
     usage = plan.get("usage", "fresh")
     policy = plan.get("wireStringPolicy")
     contract = api_contract(usage, policy)
@@ -415,8 +572,12 @@ def main():
             expected = (record["params"]["caseId"], record["benchmark"].removeprefix(BENCHMARK), variant["engine"])
         else:
             variant, expected = plan, cell_key(record)
+            if "configurationVersion" in plan:
+                validate_configuration_records([record], plan)
+                variant = plan["configurations"][record["params"]["engine"]]
         validated = validate_fork(raw, expected, plan["timing"], metadata["java"],
-                                  usage=variant.get("usage"), wire_string_policy=variant.get("wireStringPolicy"))
+                                  usage=variant.get("usage"), wire_string_policy=variant.get("wireStringPolicy"),
+                                  java_api=variant.get("javaApi"), java_encoder=variant.get("javaEncoder"))
         if validated != {key: value for key, value in record.items() if not key.startswith("_")}:
             raise ValueError("Raw file and aggregate records disagree")
     (args.output or args.run / "report.md").write_text(render(records, metadata))

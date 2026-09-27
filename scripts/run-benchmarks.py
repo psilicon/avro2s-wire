@@ -16,7 +16,7 @@ import sys
 import tarfile
 
 from benchmark_suite_report import (BENCHMARK, DEFAULT_ENGINES, ENGINES, WIRE_VARIANTS,
-                                    api_contract, render, validate_fork, wire_variant_contracts)
+                                    render, resolve_configuration, validate_fork)
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = Path("benchmarks/src/main/resources/suite/catalog.json")
@@ -186,8 +186,8 @@ def make_plan(catalog, capabilities, profile, seed=20260926, cases=None, engines
     seconds = rounds * len(cells) * (timing["warmupIterations"] * duration_seconds(timing["warmupTime"])
                                     + timing["measurementIterations"] * duration_seconds(timing["measurementTime"]))
     return {"profile": profile, "usage": usage, "wireStringPolicy": wire_string_policy,
-            "apiContract": api_contract(usage, wire_string_policy),
-            "wireVariantContracts": wire_variant_contracts(usage, wire_string_policy, selected_engines),
+            "configurationVersion": 1,
+            "configurations": {engine: resolve_configuration(engine, usage, wire_string_policy) for engine in selected_engines},
             "referenceEngine": reference_engine,
             "diagnostic": profile != "full" or usage != "fresh" or wire_string_policy != "reject" or bool(cases or engines or selections),
             "selectedOperations": selected_operations,
@@ -206,7 +206,7 @@ def make_variant_plan(catalog, capabilities, profile, seed, cases, selections, d
             if token.count("=") != 1:
                 raise ValueError(f"Invalid --variant field {token!r}; expected name=NAME,engine=ENGINE,usage=USAGE[,string-policy=POLICY]")
             key, value = (part.strip() for part in token.split("="))
-            if key not in ("name", "engine", "usage", "string-policy"):
+            if key not in ("name", "engine", "usage", "string-policy", "java-api", "java-encoder"):
                 raise ValueError(f"Unknown --variant field: {key!r}")
             if key in fields:
                 raise ValueError(f"Duplicate --variant field: {key}")
@@ -226,8 +226,7 @@ def make_variant_plan(catalog, capabilities, profile, seed, cases, selections, d
             raise ValueError(f"Invalid engine, usage or policy in variant: {specification}")
         plan = make_plan(catalog, capabilities, profile, seed, cases, [engine], usage, selections, policy,
                          reference_engine=engine, _allow_unsupported=True)
-        variants[label] = {"engine": engine, "usage": usage, "wireStringPolicy": policy,
-                           "apiContract": plan["apiContract"], "wireVariantContracts": plan["wireVariantContracts"]}
+        variants[label] = resolve_configuration(engine, usage, policy, fields.get("java-api"), fields.get("java-encoder"), named=True)
         plans[label] = plan
     reference = reference or next(iter(variants))
     if reference not in variants:
@@ -254,7 +253,7 @@ def make_variant_plan(catalog, capabilities, profile, seed, cases, selections, d
         description = ", ".join(f"{case_id}:{operation}" for case_id, operation in sorted(missing))
         raise ValueError(f"Selected operations have no supported cells for the chosen variants: {description}")
     result = {key: first[key] for key in ("profile", "seed", "rounds", "timing", "selectedOperations", "estimateExcludes")}
-    result.update(variants=variants, referenceVariant=reference, diagnostic=True, cells=cells, omitted=omitted,
+    result.update(configurationVersion=1, variants=variants, referenceVariant=reference, diagnostic=True, cells=cells, omitted=omitted,
                   expectedCells=len(cells), expectedJVMForks=first["rounds"] * len(cells),
                   warmupAndMeasurementSeconds=sum(plan["warmupAndMeasurementSeconds"] for plan in plans.values()),
                   schedule=schedule(cells, first["rounds"], seed))
@@ -374,16 +373,19 @@ def classpath_signature(classpath):
     return {str(path): [path.stat().st_size, path.stat().st_mtime_ns] for path in classpath_files(classpath)}
 
 
-def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string_policy="reject", actual_engine=None):
+def jmh_command(java, classpath, row, timing, output, usage="fresh", wire_string_policy="reject", actual_engine=None,
+                java_api=None, java_encoder=None):
     if usage not in ("fresh", "reuse"):
         raise ValueError("Unknown API usage mode")
     if wire_string_policy not in ("reject", "replace"):
         raise ValueError("Unknown Wire string policy")
+    config = resolve_configuration(actual_engine or row["engine"], usage, wire_string_policy, java_api, java_encoder)
     result = output / "raw" / f"r{row['round']:02d}-{row['caseId']}-{row['operation']}-{row['engine']}.json"
     command = [str(java), "-cp", os.pathsep.join(classpath), "org.openjdk.jmh.Main",
                "^" + re.escape(BENCHMARK + row["operation"]) + "$",
                "-p", "caseId=" + row["caseId"], "-p", "engine=" + (actual_engine or row["engine"]),
                "-p", "usage=" + usage, "-p", "wireStringPolicy=" + wire_string_policy,
+               "-p", "javaApi=" + config["javaApi"], "-p", "javaEncoder=" + config["javaEncoder"],
                "-jvm", str(java), "-jvmArgs", " ".join(timing["jvmArgs"]),
                "-f", "1", "-wi", str(timing["warmupIterations"]), "-w", timing["warmupTime"],
                "-i", str(timing["measurementIterations"]), "-r", timing["measurementTime"],
@@ -416,8 +418,8 @@ def parse_args(argv=None):
     parser.add_argument("--engine", action="append", choices=ENGINES, dest="engines", help="Narrow engines; repeatable, marks results diagnostic")
     parser.add_argument("--reference-engine", choices=ENGINES,
                         help="Ratio denominator; defaults to wire (no ratios if wire is absent); explicit choice must be selected")
-    parser.add_argument("--variant", action="append", dest="variants", metavar="name=NAME,engine=ENGINE,usage=USAGE[,string-policy=POLICY]",
-                        help="Compare named configurations in one paired run; repeatable; optional string-policy defaults to --wire-string-policy; cannot combine with --engine or --usage")
+    parser.add_argument("--variant", action="append", dest="variants", metavar="name=NAME,engine=ENGINE,usage=USAGE[,string-policy=POLICY,java-api=API,java-encoder=ENCODER]",
+                        help="Compare named configurations; official Java requires java-api=factory|raw-message; java-encoder=buffered|unbuffered; optional string-policy inherits --wire-string-policy; cannot combine with --engine or --usage")
     parser.add_argument("--reference-variant", help="Ratio denominator for named configurations; defaults to the first --variant")
     parser.add_argument("--skip-tests", action="store_true", help="Explicitly skip correctness tests after validating these exact sources separately")
     parser.add_argument("--dry-run", action="store_true", help="Print exact membership, order, settings and timed-stage estimate; do not write or run anything")
@@ -498,9 +500,10 @@ def main(argv=None):
             assert_unchanged(args.root, before, args.output)
             if classpath_signature(classpath) != compiled_signature or sha256(args.java) != metadata["javaSha256"]:
                 raise RuntimeError("Compiled classpath or Java executable changed during campaign")
-            variant = plan["variants"][row["engine"]] if "variants" in plan else {"engine": row["engine"], **plan}
+            variant = plan["variants"][row["engine"]] if "variants" in plan else plan["configurations"][row["engine"]]
             command, result = jmh_command(args.java, classpath, row, plan["timing"], args.output,
-                                         variant["usage"], variant["wireStringPolicy"], actual_engine=variant["engine"])
+                                         variant["usage"], variant["wireStringPolicy"], actual_engine=variant["engine"],
+                                         java_api=variant["javaApi"], java_encoder=variant["javaEncoder"])
             log_path = result.with_suffix(".log")
             metadata["commands"].append({**row, "command": command, "log": str(log_path.relative_to(args.output)), "result": str(result.relative_to(args.output))})
             write_json(metadata_path, metadata)
@@ -509,7 +512,8 @@ def main(argv=None):
                 subprocess.run(command, cwd=args.root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             record = validate_fork(json.loads(result.read_text()), (row["caseId"], row["operation"], variant["engine"]),
                                    plan["timing"], args.java, log_path.read_text(), usage=variant["usage"],
-                                   wire_string_policy=variant["wireStringPolicy"])
+                                   wire_string_policy=variant["wireStringPolicy"],
+                                   java_api=variant["javaApi"], java_encoder=variant["javaEncoder"])
             assert_unchanged(args.root, before, args.output)
             records.append({**record, "_round": row["round"], "_sourceFile": str(result.relative_to(args.output)),
                             **({"_variant": row["engine"]} if "variants" in plan else {})})

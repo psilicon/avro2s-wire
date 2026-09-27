@@ -27,12 +27,18 @@ class SuiteBenchmark:
   @Param(Array("reject"))
   var wireStringPolicy: String = "reject"
 
+  @Param(Array("none"))
+  var javaApi: String = "none"
+
+  @Param(Array("none"))
+  var javaEncoder: String = "none"
+
   private var workload: SuiteWorkload = null
 
   @Setup(Level.Trial)
   def setup(params: BenchmarkParams): Unit =
     val operation = params.getBenchmark.substring(params.getBenchmark.lastIndexOf('.') + 1)
-    workload = SuiteWorkload.prepared(caseId, engine, operation, usage, wireStringPolicy)
+    workload = SuiteWorkload.prepared(caseId, engine, operation, usage, wireStringPolicy, javaApi, javaEncoder)
 
   @Benchmark def encode(): AnyRef = workload.encode()
   @Benchmark def decode(): Any = workload.decode()

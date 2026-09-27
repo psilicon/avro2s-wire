@@ -85,7 +85,7 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(plan["expectedJVMForks"], 72)
         self.assertEqual(plan["warmupAndMeasurementSeconds"], 720)
         self.assertEqual(plan["usage"], "reuse")
-        self.assertEqual(plan["apiContract"], report.api_contract("reuse", "reject"))
+        self.assertEqual(plan["configurations"]["wire"], report.resolve_configuration("wire", "reuse", "reject"))
         self.assertTrue(plan["diagnostic"])
         self.assertEqual(plan["timing"]["warmupIterations"], 5)
         self.assertEqual(plan["timing"]["measurementIterations"], 5)
@@ -152,7 +152,7 @@ class CatalogueTests(unittest.TestCase):
     def test_usage_defaults_preserve_full_protocol_and_reuse_excludes_avro2s(self):
         full = runner.make_plan(self.catalog, self.capabilities, "full")
         self.assertEqual(full["usage"], "fresh")
-        self.assertEqual(full["apiContract"], report.api_contract("fresh", "reject"))
+        self.assertEqual(full["configurations"]["wire"], report.resolve_configuration("wire", "fresh", "reject"))
         reused = runner.make_plan(self.catalog, self.capabilities, "full", usage="reuse")
         self.assertTrue(reused["diagnostic"])
         self.assertNotIn("avro2s", {cell[2] for cell in reused["cells"]})
@@ -164,7 +164,7 @@ class CatalogueTests(unittest.TestCase):
             for usage in (("reuse",) if profile == "reuse-check" else ("fresh", "reuse")):
                 plan = runner.make_plan(self.catalog, self.capabilities, profile, usage=usage)
                 self.assertFalse({cell[2] for cell in plan["cells"]}.intersection(report.WIRE_VARIANTS))
-                self.assertEqual(plan["wireVariantContracts"], {})
+                self.assertFalse(set(plan["configurations"]).intersection(report.WIRE_VARIANTS))
         for usage in ("fresh", "reuse"):
             base = runner.make_plan(self.catalog, self.capabilities, "quick", engines=["wire"], usage=usage)
             expected = {(case_id, operation) for case_id, operation, _ in base["cells"]}
@@ -173,7 +173,7 @@ class CatalogueTests(unittest.TestCase):
                                         reference_engine=engine)
                 self.assertEqual({(case_id, operation) for case_id, operation, _ in plan["cells"]}, expected)
                 self.assertEqual(plan["expectedCells"], 119)
-                self.assertEqual(set(plan["wireVariantContracts"]), {engine})
+                self.assertEqual(set(plan["configurations"]), {engine})
                 self.assertEqual(plan["referenceEngine"], engine)
 
     def test_wire_variant_capabilities_follow_wire_instead_of_java_specific(self):
@@ -239,7 +239,7 @@ class CatalogueTests(unittest.TestCase):
             for policy in ("reject", "replace"):
                 plan = runner.make_plan(self.catalog, self.capabilities, "full", usage=usage, wire_string_policy=policy)
                 self.assertEqual(plan["wireStringPolicy"], policy)
-                self.assertEqual(plan["apiContract"], report.api_contract(usage, policy))
+                self.assertEqual(plan["configurations"]["wire"], report.resolve_configuration("wire", usage, policy))
                 if policy == "replace":
                     self.assertTrue(plan["diagnostic"])
         with self.assertRaisesRegex(ValueError, "string policy"):
@@ -324,6 +324,29 @@ class ValidationTests(unittest.TestCase):
                                          usage=usage, wire_string_policy=policy)
                 self.assertEqual(report.validate_fork([record], ("P03", "encode", "wire"), self.timing, usage=usage), record)
 
+    def test_java_io_parameters_must_match_and_cannot_masquerade_as_historical_results(self):
+        configurations = [("wire", "fresh", "none", "none"),
+                          ("java-specific", "fresh", "factory", "unbuffered"),
+                          ("java-generic", "reuse", "factory", "buffered"),
+                          ("java-custom", "reuse", "raw-message", "unbuffered"),
+                          ("wire-java-stack-safe", "reuse", "factory", "unbuffered")]
+        for engine, usage, api, encoder in configurations:
+            record = sample_record(engine=engine)
+            record["params"].update(usage=usage, wireStringPolicy="reject", javaApi=api, javaEncoder=encoder)
+            kwargs = {"usage": usage, "wire_string_policy": "reject", "java_api": api, "java_encoder": encoder}
+            self.assertEqual(report.validate_fork([record], ("P03", "encode", engine), self.timing, **kwargs), record)
+            for key in ("javaApi", "javaEncoder"):
+                changed = copy.deepcopy(record)
+                changed["params"][key] = "wrong"
+                with self.subTest(engine=engine, key=key), self.assertRaisesRegex(ValueError, "Unexpected Java API or encoder"):
+                    report.validate_fork([changed], ("P03", "encode", engine), self.timing, **kwargs)
+                del changed["params"][key]
+                with self.assertRaisesRegex(ValueError, "parameters"):
+                    report.validate_fork([changed], ("P03", "encode", engine), self.timing, **kwargs)
+            with self.assertRaisesRegex(ValueError, "parameters"):
+                report.validate_fork([record], ("P03", "encode", engine), self.timing,
+                                     usage=usage, wire_string_policy="reject")
+
     def test_missing_allocation_nonfinite_units_and_iteration_loss_fail(self):
         changes = [lambda r: r["secondaryMetrics"].clear(),
                    lambda r: r["primaryMetric"].update(score=math.nan),
@@ -355,6 +378,8 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("engine=wire", command)
         self.assertIn("usage=fresh", command)
         self.assertIn("wireStringPolicy=reject", command)
+        self.assertIn("javaApi=none", command)
+        self.assertIn("javaEncoder=none", command)
         self.assertEqual(result.name, "r02-P03-encode-wire.json")
 
     def test_reuse_command_selects_reuse_without_adding_extra_forks(self):
@@ -497,16 +522,18 @@ class StatisticsTests(unittest.TestCase):
                 for engine, factor in zip(engines, (1, 2, 4)):
                     record = sample_record(engine=engine, values=[base * factor] * 5)
                     record["params"].update(usage="reuse", wireStringPolicy="reject")
+                    config = plan["configurations"][engine]
+                    record["params"].update(javaApi=config["javaApi"], javaEncoder=config["javaEncoder"])
                     records.append({**record, "_round": index, "_sourceFile": f"raw/{engine}-{index}.json"})
             rendered = report.render(records, {"plan": plan, "catalog": catalog, "gitRevision": "test"})
-            self.assertIn(f"Engine / {denominator}", rendered)
+            self.assertIn(f"Configuration / {denominator}", rendered)
             self.assertIn(f"denominator is `{denominator}`", rendered)
             self.assertIn("Java-backed Wire always uses Java string", rendered)
-            self.assertIn("Retained ByteArrayOutputStream, buffered BinaryEncoder", rendered)
+            self.assertIn("Retained ByteArrayOutputStream and buffered BinaryEncoder", rendered)
             self.assertIn("explicit complete-consumption check", rendered)
-            self.assertIn("Generated stackSafeCodec", rendered)
+            self.assertIn("Generated stack-safe Wire codec", rendered)
             for engine, factor in zip(engines, (1, 2, 4)):
-                row = next(line for line in rendered.splitlines() if line.startswith(f"| {engine} |"))
+                row = next(line for line in rendered.splitlines() if line.startswith(f"| {engine} |") and "[" in line)
                 expected = factor / (1, 2, 4)[engines.index(denominator)]
                 self.assertIn("| — |" if engine == denominator else f"{expected:.3f} [{expected:.3f}, {expected:.3f}]", row)
 
@@ -528,6 +555,7 @@ class ConfigurationTests(unittest.TestCase):
             factor = 2 if row["engine"] == next(iter(plan["variants"])) else 1
             record = sample_record(engine=variant["engine"], values=[(100 + row["round"] * 10) * factor] * 5)
             record["params"].update(usage=variant["usage"], wireStringPolicy=variant["wireStringPolicy"])
+            record["params"].update(javaApi=variant["javaApi"], javaEncoder=variant["javaEncoder"])
             records.append({**record, "_variant": row["engine"], "_round": row["round"],
                             "_sourceFile": f"raw/{row['engine']}-{row['round']}.json"})
         return records
@@ -594,25 +622,116 @@ class ConfigurationTests(unittest.TestCase):
             with self.subTest(specification=specification), self.assertRaisesRegex(ValueError, error):
                 self.plan([specification])
 
+    def test_official_java_named_variants_require_api_and_factory_matrix_is_independent(self):
+        for engine in ("java-specific", "java-generic", "java-custom"):
+            with self.assertRaisesRegex(ValueError, "require explicit java-api"):
+                self.plan([f"name=java,engine={engine},usage=fresh"])
+            for usage in ("fresh", "reuse"):
+                for encoder in ("buffered", "unbuffered"):
+                    plan = self.plan([f"name=java,engine={engine},usage={usage},java-api=factory,java-encoder={encoder}"])
+                    config = plan["variants"]["java"]
+                    self.assertEqual((config["javaApi"], config["javaEncoder"], config["usage"]), ("factory", encoder, usage))
+                    self.assertIn("independently owned Array[Byte]", config["contract"]["encode"])
+                    self.assertIn("explicit complete-consumption", config["contract"]["decode"])
+                    self.assertNotIn("RawMessage", str(config["contract"]))
+            default = self.plan([f"name=java,engine={engine},usage=reuse,java-api=factory"])
+            self.assertEqual(default["variants"]["java"]["javaEncoder"], "buffered")
+
+    def test_raw_message_requires_reuse_and_unbuffered_but_defaults_encoder(self):
+        config = self.plan(["name=java,engine=java-specific,usage=reuse,java-api=raw-message"])["variants"]["java"]
+        self.assertEqual(config["javaEncoder"], "unbuffered")
+        self.assertIn("independently owned ByteBuffer", config["contract"]["encode"])
+        self.assertIn("no complete-consumption check", config["contract"]["decode"])
+        for specification in ("name=java,engine=java-specific,usage=fresh,java-api=raw-message",
+                              "name=java,engine=java-specific,usage=reuse,java-api=raw-message,java-encoder=buffered",
+                              "name=java,engine=wire-java,usage=reuse,java-api=raw-message"):
+            with self.assertRaisesRegex(ValueError, "raw-message requires"):
+                self.plan([specification])
+
+    def test_native_rejects_java_settings_and_wire_java_supports_factory_encoder_matrix(self):
+        for engine in ("wire", "wire-stack-safe"):
+            for setting in ("java-api=factory", "java-encoder=buffered", "java-api=none", "java-encoder=none"):
+                with self.assertRaisesRegex(ValueError, "Native Wire does not accept"):
+                    self.plan([f"name=native,engine={engine},usage=fresh,{setting}"])
+        for engine in ("wire-java", "wire-java-stack-safe"):
+            for usage in ("fresh", "reuse"):
+                for encoder in ("buffered", "unbuffered"):
+                    config = self.plan([f"name=java,engine={engine},usage={usage},java-encoder={encoder}"])["variants"]["java"]
+                    self.assertEqual(config["javaApi"], "factory")
+                    self.assertEqual(config["javaEncoder"], encoder)
+                    self.assertIn("JavaAvroOutput", config["contract"]["encode"])
+        avro2s = self.plan(["name=scala,engine=avro2s,usage=fresh,java-encoder=unbuffered"])["variants"]["scala"]
+        self.assertEqual((avro2s["javaApi"], avro2s["javaEncoder"]), ("factory", "unbuffered"))
+
+    def test_ordinary_presets_resolve_unchanged_paths_and_new_contracts_say_standard(self):
+        for usage in ("fresh", "reuse"):
+            plan = runner.make_plan(self.catalog, self.capabilities, "quick", usage=usage,
+                                    engines=["wire", "wire-stack-safe", "wire-java", "wire-java-stack-safe", "java-specific"])
+            self.assertEqual(plan["configurationVersion"], 1)
+            for engine, config in plan["configurations"].items():
+                expected = (("none", "none") if engine in ("wire", "wire-stack-safe") else
+                            ("raw-message", "unbuffered") if engine == "java-specific" and usage == "reuse" else
+                            ("factory", "buffered"))
+                self.assertEqual((config["javaApi"], config["javaEncoder"]), expected)
+                if engine in ("wire", "wire-java"):
+                    self.assertIn("Standard", config["contract"]["codec"])
+                    self.assertNotIn("direct codec", config["contract"]["codec"])
+
+    def test_named_java_settings_are_frozen_into_commands_and_reports(self):
+        plan = self.plan(["name=new,engine=java-specific,usage=fresh,java-api=factory,java-encoder=unbuffered",
+                          "name=retained,engine=java-specific,usage=reuse,java-api=factory,java-encoder=buffered",
+                          "name=message,engine=java-specific,usage=reuse,java-api=raw-message"])
+        records = self.records(plan)
+        rendered = report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        self.assertIn("| new | java-specific | fresh | factory | unbuffered |", rendered)
+        self.assertIn("| retained | java-specific | reuse | factory | buffered |", rendered)
+        self.assertIn("| message | java-specific | reuse | raw-message | unbuffered |", rendered)
+        self.assertIn("encoder setting affects encoding only", rendered)
+        for row in plan["schedule"]:
+            config = plan["variants"][row["engine"]]
+            command, _ = runner.jmh_command(Path("/jdk/bin/java"), ["/classes"], row, plan["timing"], Path("/results"),
+                                            config["usage"], config["wireStringPolicy"], config["engine"], config["javaApi"], config["javaEncoder"])
+            self.assertIn(f"javaApi={config['javaApi']}", command)
+            self.assertIn(f"javaEncoder={config['javaEncoder']}", command)
+        for field in ("javaApi", "javaEncoder"):
+            broken = copy.deepcopy(records)
+            broken[0]["params"][field] = "none"
+            with self.assertRaisesRegex(ValueError, "parameters do not match frozen configuration"):
+                report.render(broken, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
+        tampered = copy.deepcopy(plan)
+        tampered["variants"]["new"]["javaEncoder"] = "buffered"
+        with self.assertRaisesRegex(ValueError, "Frozen configuration contract"):
+            report.render(records, {"plan": tampered, "catalog": self.catalog, "gitRevision": "test"})
+
+    def test_java_variant_settings_reject_unknown_empty_or_duplicate_fields(self):
+        base = "name=java,engine=java-specific,usage=reuse,java-api=factory"
+        for specification, message in ((base + ",java-api=factory", "Duplicate --variant field"),
+                                       (base + ",java-encoder=", "Empty --variant field"),
+                                       (base.replace("java-api=factory", "java-api="), "Empty --variant field"),
+                                       (base.replace("java-api=factory", "java-api=bogus"), "Unknown Java API"),
+                                       (base + ",java-encoder=direct", "Unknown Java encoder")):
+            with self.subTest(specification=specification), self.assertRaisesRegex(ValueError, message):
+                self.plan([specification])
+
     def test_variant_parameters_and_contracts_cannot_be_mislabelled(self):
         plan = self.plan()
         for key, value in (("engine", "wire-stack-safe"), ("usage", "fresh"), ("wireStringPolicy", "reject")):
             records = self.records(plan)
             record = next(record for record in records if record["_variant"] == "reuse")
             record["params"][key] = value
-            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "parameters do not match frozen variant"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "parameters do not match frozen configuration"):
                 report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
         for label in (None, "unknown"):
             records = self.records(plan)
             records[0]["_variant"] = label
-            with self.assertRaisesRegex(ValueError, "missing or unknown variant"):
+            with self.assertRaisesRegex(ValueError, "missing or unknown configuration"):
                 report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
         records = self.records(plan)
         for broken in (records[:-1], records + [records[0]]):
             with self.assertRaises(ValueError):
                 report.render(broken, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
-        plan["variants"]["reuse"]["apiContract"] = report.api_contract("fresh", "replace")
-        with self.assertRaisesRegex(ValueError, "Frozen variant contract"):
+        plan["variants"]["reuse"]["contract"] = report.resolve_configuration("wire", "fresh", "replace")["contract"]
+        with self.assertRaisesRegex(ValueError, "Frozen configuration contract"):
             report.render(records, {"plan": plan, "catalog": self.catalog, "gitRevision": "test"})
 
     def test_variant_validation_rejects_ambiguous_or_unsupported_configuration(self):
@@ -636,18 +755,18 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_mixed_capability_variants_keep_na_but_fail_globally_unsupported_operations(self):
         plan = runner.make_plan(self.catalog, self.capabilities, "quick", selections=["P03:encode", "L06:encode"],
-                                variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh"])
+                                variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh,java-api=factory"])
         self.assertEqual(plan["cells"], [["P03", "encode", "native"], ["P03", "encode", "specific"], ["L06", "encode", "native"]])
         self.assertIn("999 ms", plan["omitted"]["L06"]["encode"]["specific"])
         only_native = runner.make_plan(self.catalog, self.capabilities, "quick", selections=["L06:encode"],
-                                      variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh"])
+                                      variants=["name=native,engine=wire,usage=fresh", "name=specific,engine=java-specific,usage=fresh,java-api=factory"])
         self.assertEqual(only_native["cells"], [["L06", "encode", "native"]])
         with self.assertRaisesRegex(ValueError, "no supported cells.*L06:encode"):
             runner.make_plan(self.catalog, self.capabilities, "quick", selections=["P03:encode", "L06:encode"],
-                             variants=["name=specific,engine=java-specific,usage=fresh", "name=generic,engine=java-generic,usage=fresh"])
+                             variants=["name=specific,engine=java-specific,usage=fresh,java-api=factory", "name=generic,engine=java-generic,usage=fresh,java-api=factory"])
         with self.assertRaisesRegex(ValueError, "no supported benchmark cells"):
             runner.make_plan(self.catalog, self.capabilities, "quick", selections=["L06:encode"],
-                             variants=["name=specific,engine=java-specific,usage=fresh"])
+                             variants=["name=specific,engine=java-specific,usage=fresh,java-api=factory"])
 
     def test_command_uses_actual_parameters_but_unique_labelled_output_paths(self):
         plan = self.plan()

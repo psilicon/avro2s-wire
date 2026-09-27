@@ -6,7 +6,7 @@ import org.apache.avro.Schema
 
 /** Hashes captured from the generator before namespace/raw options were implemented.
   * Default output must match completely. For opted-in generation, exclude only
-  * the additive stack-safe codec; models and direct codecs still must retain
+  * the additive stack-safe codec; models and standard codecs still must retain
   * the exact historical output, including specialised collection paths.
   */
 class GeneratorCompatibilitySuite extends munit.FunSuite:
@@ -34,15 +34,15 @@ class GeneratorCompatibilitySuite extends munit.FunSuite:
       source.relativePath -> hash
     }.toMap
 
-  test("default models and direct codecs remain byte-for-byte identical across all supported types") {
+  test("default models and standard codecs remain byte-for-byte identical across all supported types") {
     assertEquals(hashes(GeneratorConfig()), expected("scala"))
   }
 
-  test("Java decimal models and direct codecs remain byte-for-byte identical across all supported types") {
+  test("Java decimal models and standard codecs remain byte-for-byte identical across all supported types") {
     assertEquals(hashes(GeneratorConfig(decimalType = DecimalType.Java)), expected("java"))
   }
 
-  test("opting into stack-safe codecs preserves historical models and direct codecs") {
+  test("opting into stack-safe codecs preserves historical models and standard codecs") {
     for decimalType <- DecimalType.values do
       assertEquals(hashes(GeneratorConfig(decimalType = decimalType, generateStackSafeCodecs = true)),
         expected(if decimalType == DecimalType.Java then "java" else "scala"))

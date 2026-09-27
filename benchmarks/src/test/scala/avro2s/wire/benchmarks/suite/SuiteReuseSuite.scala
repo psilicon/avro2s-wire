@@ -145,11 +145,11 @@ class SuiteReuseSuite extends munit.FunSuite:
       intercept[IllegalArgumentException](SuiteWorkload.prepared("T01", engine, "encode", "reuse", "unknown"))
   }
 
-  test("Wire variants select the actual generated direct and stack-safe codecs") {
+  test("Wire variants select the actual generated standard and stack-safe codecs") {
     import _root_.avro2s.wire.runtime.CodecExecution
     for c <- SuiteCatalog.all; engine <- SuiteSupport.wireEngines do
       val codec = SuiteSupport.wireCodec(c, engine)
-      val expected = if engine.endsWith("-stack-safe") then CodecExecution.StackSafe else CodecExecution.Direct
+      val expected = if engine.endsWith("-stack-safe") then CodecExecution.StackSafe else CodecExecution.Standard
       assertEquals(codec.execution, expected, s"${c.id}/$engine")
     val text = SuiteCatalog.byId("T01")
     assert(SuiteSupport.wireCodec(text, "wire") eq wire.TextValue.codec)

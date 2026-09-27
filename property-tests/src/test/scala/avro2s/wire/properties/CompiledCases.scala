@@ -88,9 +88,9 @@ $checks
       val compiled = cases.indices.map { index =>
         val clazz = loader.loadClass(s"Avro2sWirePropertyProbe$index$$")
         val module = clazz.getField("MODULE$").get(null)
-        val direct = clazz.getMethod("codec").invoke(module).asInstanceOf[AvroCodec[Any]]
-        require(clazz.getMethod("contextualCodec").invoke(module) eq direct, "Companion implicit lookup must select the direct codec")
-        require(direct.execution == CodecExecution.Direct, "The implicit generated codec must remain direct")
+        val standard = clazz.getMethod("codec").invoke(module).asInstanceOf[AvroCodec[Any]]
+        require(clazz.getMethod("contextualCodec").invoke(module) eq standard, "Companion implicit lookup must select the standard codec")
+        require(standard.execution == CodecExecution.Standard, "The implicit generated codec must remain standard")
         val alternatives = if config.generateStackSafeCodecs then
           val stackSafe = clazz.getMethod("stackSafeCodec").invoke(module).asInstanceOf[AvroCodec[Any]]
           require(stackSafe.execution == CodecExecution.StackSafe, "The alternative codec must select stack-safe resolution")
@@ -98,7 +98,7 @@ $checks
         else
           require(!clazz.getMethod("hasStackSafeCodec").invoke(module).asInstanceOf[Boolean], "Disabled generation must omit the stack-safe companion member")
           Vector.empty
-        CompiledCase(direct, clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]], alternatives)
+        CompiledCase(standard, clazz.getMethod("values").invoke(module).asInstanceOf[Vector[Any]], alternatives)
       }.toVector
       new CompiledCases(compiled, loader)
     catch

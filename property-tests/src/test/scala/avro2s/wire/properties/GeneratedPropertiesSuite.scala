@@ -163,7 +163,7 @@ final class GeneratedPropertiesSuite extends munit.FunSuite:
 
   test("default generation compiles and interoperates without any stack-safe companion members") {
     Files.createDirectories(target)
-    val run = Files.createTempDirectory(target, "direct-only-")
+    val run = Files.createTempDirectory(target, "standard-only-")
     assert(!GeneratorConfig().generateStackSafeCodecs)
     SchemaCases.mandatoryCases.grouped(32).zipWithIndex.foreach { (batch, index) =>
       // Use the real default configuration, including the harness default. No

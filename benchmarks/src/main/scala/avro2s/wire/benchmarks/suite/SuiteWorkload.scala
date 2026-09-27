@@ -3,20 +3,21 @@ package avro2s.wire.benchmarks.suite
 import _root_.avro2s.wire.runtime.{AvroInput, BinaryOutput, MalformedStringPolicy, WriterSettings}
 import _root_.avro2s.wire.javabackend.{JavaAvroInput, JavaAvroOutput}
 import _root_.avro2s.wire.resolution.ResolvingReader
-import java.io.ByteArrayOutputStream
+import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.ByteBuffer
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericDatumWriter}
-import org.apache.avro.io.{DatumReader, DatumWriter, DecoderFactory, EncoderFactory}
+import org.apache.avro.io.{BinaryEncoder, DatumReader, DatumWriter, DecoderFactory, EncoderFactory}
 import org.apache.avro.message.{RawMessageDecoder, RawMessageEncoder}
 import org.apache.avro.specific.{SpecificData, SpecificDatumReader, SpecificDatumWriter, SpecificRecordBase}
 import scala.jdk.CollectionConverters.*
 
 /** One implementation and one operation per benchmark state. Inputs are prepared outside timing.
   * Both usages return independent encoded storage and fresh models with Strings. The default
-  * fresh usage preserves the original adapter. Reuse uses Wire's caller-owned BinaryOutput and
-  * Avro's official raw-message helpers, returning their natural Array[Byte]/ByteBuffer results.
-  * Avro's raw-message decoder accepts trailing bytes; Wire and the fresh adapter reject them.
+  * fresh usage preserves the original adapter. Java API and encoder choices are explicit and
+  * independent of factory IO lifetime. Raw-message helpers require reuse/unbuffered and return
+  * owned ByteBuffers; factory encoders return owned arrays. Only raw decoding accepts trailing
+  * bytes. The auto defaults exist for existing Scala callers; the runner passes resolved values.
   */
 final class SuiteWorkload(
     val caseDef: SuiteCase,
@@ -24,19 +25,51 @@ final class SuiteWorkload(
     private val payloads: Array[Array[Byte]],
     val operation: String = "both",
     val usage: String = "fresh",
-    val wireStringPolicy: String = "reject"
+    val wireStringPolicy: String = "reject",
+    javaApi: String = "auto",
+    javaEncoder: String = "auto"
 ):
   import SuiteSupport.*
   require(payloads.nonEmpty, "Corpus must not be empty")
   require(Set("encode", "decode", "both").contains(operation), s"Unknown operation $operation")
   require(Set("fresh", "reuse").contains(usage), s"Unknown usage $usage")
   require(Set("reject", "replace").contains(wireStringPolicy), s"Unknown Wire string policy $wireStringPolicy")
+  private val nativeWire = engine == "wire" || engine == "wire-stack-safe"
+  private val javaBackedWire = engine == "wire-java" || engine == "wire-java-stack-safe"
+  val effectiveJavaApi: String =
+    if javaApi != "auto" then javaApi
+    else if nativeWire then "none"
+    else if javaBackedWire || usage == "fresh" then "factory"
+    else "raw-message"
+  val effectiveJavaEncoder: String =
+    if javaEncoder != "auto" then javaEncoder
+    else if nativeWire then "none"
+    else if effectiveJavaApi == "raw-message" then "unbuffered"
+    else "buffered"
+  require(Set("none", "factory", "raw-message").contains(effectiveJavaApi), s"Unknown Java API $javaApi")
+  require(Set("none", "buffered", "unbuffered").contains(effectiveJavaEncoder), s"Unknown Java encoder $javaEncoder")
+  if nativeWire then
+    require(effectiveJavaApi == "none" && effectiveJavaEncoder == "none", "Native Wire does not use Java API or encoder settings")
+  else
+    require(effectiveJavaApi != "none" && effectiveJavaEncoder != "none", "Java engines require a Java API and encoder")
+    require(!javaBackedWire || effectiveJavaApi == "factory", "Wire's Java backend uses the factory API only")
+    require(effectiveJavaApi != "raw-message" || (usage == "reuse" && effectiveJavaEncoder == "unbuffered"),
+      "Raw-message API requires reuse usage and an unbuffered encoder")
+  require(engine != "avro2s" || (usage == "fresh" && effectiveJavaApi == "factory"), "avro2s supports fresh factory usage only")
   private val requestedOperations = if operation == "both" then Vector("encode", "decode") else Vector(operation)
   requestedOperations.foreach { requested =>
     require(caseDef.operations.contains(requested), s"${caseDef.id} does not support $requested")
     require(enginesFor(caseDef, requested).contains(engine),
       s"$engine does not support ${caseDef.id}/$requested: ${unsupportedReason(caseDef, engine).getOrElse("unsupported capability")}")
   }
+
+  private val rawMessageApi = effectiveJavaApi == "raw-message"
+  private val selectedEncoderFactory = EncoderFactory.get()
+  private val createFactoryEncoder: (OutputStream, BinaryEncoder) => BinaryEncoder =
+    effectiveJavaEncoder match
+      case "buffered" => selectedEncoderFactory.binaryEncoder
+      case "unbuffered" => selectedEncoderFactory.directBinaryEncoder
+      case _ => (_, _) => throw new IllegalStateException("Native Wire has no Java encoder")
 
   private val canonicalReaderSchema = SuiteSupport.readerSchema(caseDef)
   private val canonicalWriterSchema = SuiteSupport.writerSchema(caseDef)
@@ -80,6 +113,10 @@ final class SuiteWorkload(
   def payloadAt(index: Int): Array[Byte] = payloads(index)
   def checkModel(value: Any): Unit = implementation.checkModel(value)
 
+  /** The actual factory selection, also exposed to untimed dispatch verification. */
+  private[suite] def factoryEncoder(output: OutputStream, reuse: BinaryEncoder): BinaryEncoder =
+    createFactoryEncoder(output, reuse)
+
   /** Untimed proof that the separately labelled custom engine invokes generated custom methods. */
   def verifyCustomDispatch(): (Int, Int, Int, Int) =
     require(engine == "java-custom" && caseDef.operations.contains("encode"))
@@ -89,16 +126,18 @@ final class SuiteWorkload(
       val writeProbe = GeneratedProbes.create(caseDef.model)
       readerSchema.getFields.asScala.foreach(f => writeProbe.put(f.pos(), source.get(f.pos())))
       val readProbe = GeneratedProbes.create(caseDef.model)
-      val result = if usage == "reuse" then
+      val result = if rawMessageApi then
         val encoder = new RawMessageEncoder[SpecificRecordBase](data, readerSchema)
         val decoder = new RawMessageDecoder[SpecificRecordBase](data, readerSchema)
         decoder.decode(encoder.encode(writeProbe), readProbe)
       else
         val bytes = new ByteArrayOutputStream()
-        val encoder = EncoderFactory.get().binaryEncoder(bytes, null)
+        val previousEncoder = if usage == "reuse" then factoryEncoder(bytes, null) else null
+        val encoder = factoryEncoder(bytes, previousEncoder)
         new SpecificDatumWriter[SpecificRecordBase](readerSchema, data).write(writeProbe, encoder)
         encoder.flush()
-        val decoder = DecoderFactory.get().binaryDecoder(bytes.toByteArray, null)
+        val previousDecoder = if usage == "reuse" then DecoderFactory.get().binaryDecoder(Array.emptyByteArray, null) else null
+        val decoder = DecoderFactory.get().binaryDecoder(bytes.toByteArray, previousDecoder)
         val decoded = new SpecificDatumReader[SpecificRecordBase](readerSchema, readerSchema, data).read(readProbe, decoder)
         require(decoder.isEnd, "Custom dispatch probe left trailing data")
         decoded
@@ -117,10 +156,11 @@ final class SuiteWorkload(
     def exercise(enabled: Boolean): Int =
       val data = specificData(enabled)
       val probe = GeneratedProbes.create(caseDef.model)
-      val result = if usage == "reuse" then
+      val result = if rawMessageApi then
         new RawMessageDecoder[SpecificRecordBase](data, writerSchema, readerSchema).decode(payloadAt(0), probe)
       else
-        val decoder = DecoderFactory.get().binaryDecoder(payloadAt(0), null)
+        val previousDecoder = if usage == "reuse" then DecoderFactory.get().binaryDecoder(Array.emptyByteArray, null) else null
+        val decoder = DecoderFactory.get().binaryDecoder(payloadAt(0), previousDecoder)
         val decoded = new SpecificDatumReader[SpecificRecordBase](writerSchema, readerSchema, data).read(probe, decoder)
         require(decoder.isEnd, "Custom evolution probe left trailing data")
         decoded
@@ -163,7 +203,7 @@ final class SuiteWorkload(
 
   /** The same generated immutable models and codec traversal, using the public Java IO backend.
     * Its string policy is Java's replacement behavior, independent of the native writer setting.
-    * Reuse reconfigures the official buffered encoder/array decoder and retains the adapters.
+    * Reuse reconfigures the selected official encoder/array decoder and retains the adapters.
     */
   private final class WireJavaImplementation extends Implementation:
     private val codec = wireCodec(caseDef, engine)
@@ -172,17 +212,16 @@ final class SuiteWorkload(
     private val read: AvroInput => Any =
       if caseDef.kind == "evolution" then ResolvingReader(writerSchema.toString, codec).read
       else codec.read
-    private val encoderFactory = EncoderFactory.get()
     private val decoderFactory = DecoderFactory.get()
     private val output = if usage == "reuse" then new ByteArrayOutputStream() else null
-    private var encoder = if usage == "reuse" then encoderFactory.binaryEncoder(output, null) else null
+    private var encoder = if usage == "reuse" then factoryEncoder(output, null) else null
     private var avroOutput = if usage == "reuse" then new JavaAvroOutput(encoder) else null
     private var decoder = if usage == "reuse" then decoderFactory.binaryDecoder(Array.emptyByteArray, null) else null
     private var avroInput = if usage == "reuse" then new JavaAvroInput(decoder) else null
 
     def encode(value: Any): Array[Byte] =
       if usage == "reuse" then
-        val configured = encoderFactory.binaryEncoder(output, encoder)
+        val configured = factoryEncoder(output, encoder)
         if !(configured eq encoder) then
           encoder = configured
           avroOutput = new JavaAvroOutput(encoder)
@@ -193,7 +232,7 @@ final class SuiteWorkload(
         output.toByteArray
       else
         val bytes = new ByteArrayOutputStream()
-        val freshEncoder = encoderFactory.binaryEncoder(bytes, null)
+        val freshEncoder = factoryEncoder(bytes, null)
         codec.write(value, new JavaAvroOutput(freshEncoder))
         freshEncoder.flush()
         bytes.toByteArray
@@ -221,16 +260,31 @@ final class SuiteWorkload(
     def reader: DatumReader[Any]
     def messageEncoder: RawMessageEncoder[Any]
     def messageDecoder: RawMessageDecoder[Any]
+    private val output = if effectiveJavaApi == "factory" && usage == "reuse" then new ByteArrayOutputStream() else null
+    private var encoder = if output != null then factoryEncoder(output, null) else null
+    private var decoder = if output != null then DecoderFactory.get().binaryDecoder(Array.emptyByteArray, null) else null
     final def encode(value: Any): AnyRef =
-      if usage == "reuse" then messageEncoder.encode(value)
+      if rawMessageApi then messageEncoder.encode(value)
+      else if usage == "reuse" then
+        // Reconfiguration flushes any pending bytes from a failed write before reset discards them.
+        encoder = factoryEncoder(output, encoder)
+        output.reset()
+        writer.write(value, encoder)
+        encoder.flush()
+        output.toByteArray
       else
         val output = new ByteArrayOutputStream()
-        val encoder = EncoderFactory.get().binaryEncoder(output, null)
+        val encoder = factoryEncoder(output, null)
         writer.write(value, encoder)
         encoder.flush()
         output.toByteArray
     final def decode(bytes: Array[Byte]): Any =
-      if usage == "reuse" then messageDecoder.decode(bytes)
+      if rawMessageApi then messageDecoder.decode(bytes)
+      else if usage == "reuse" then
+        decoder = DecoderFactory.get().binaryDecoder(bytes, decoder)
+        val result = reader.read(null, decoder)
+        require(decoder.isEnd, "Decoder left trailing bytes")
+        result
       else
         val decoder = DecoderFactory.get().binaryDecoder(bytes, null)
         val result = reader.read(null, decoder)
@@ -242,10 +296,10 @@ final class SuiteWorkload(
     val data = genericData()
     val readerSchema = stringSchema(canonicalReaderSchema)
     val writerSchema = if caseDef.kind == "evolution" then canonicalWriterSchema else readerSchema
-    val writer: DatumWriter[Any] = if usage == "fresh" then new GenericDatumWriter[Any](readerSchema, data) else null
-    val reader: DatumReader[Any] = if usage == "fresh" then new GenericDatumReader[Any](writerSchema, readerSchema, data) else null
-    val messageEncoder = if usage == "reuse" then new RawMessageEncoder[Any](data, readerSchema) else null
-    val messageDecoder = if usage == "reuse" then new RawMessageDecoder[Any](data, writerSchema, readerSchema) else null
+    val writer: DatumWriter[Any] = if effectiveJavaApi == "factory" then new GenericDatumWriter[Any](readerSchema, data) else null
+    val reader: DatumReader[Any] = if effectiveJavaApi == "factory" then new GenericDatumReader[Any](writerSchema, readerSchema, data) else null
+    val messageEncoder = if rawMessageApi then new RawMessageEncoder[Any](data, readerSchema) else null
+    val messageDecoder = if rawMessageApi then new RawMessageDecoder[Any](data, writerSchema, readerSchema) else null
 
   private final class SpecificImplementation extends JavaImplementation:
     val data: SpecificData = specificData(engine == "java-custom")
@@ -253,10 +307,10 @@ final class SuiteWorkload(
     val writerSchema =
       if caseDef.kind == "evolution" then relocated(canonicalWriterSchema, "javaavro")
       else readerSchema
-    val writer: DatumWriter[Any] = if usage == "fresh" then new SpecificDatumWriter[Any](readerSchema, data) else null
-    val reader: DatumReader[Any] = if usage == "fresh" then new SpecificDatumReader[Any](writerSchema, readerSchema, data) else null
-    val messageEncoder = if usage == "reuse" then new RawMessageEncoder[Any](data, readerSchema) else null
-    val messageDecoder = if usage == "reuse" then new RawMessageDecoder[Any](data, writerSchema, readerSchema) else null
+    val writer: DatumWriter[Any] = if effectiveJavaApi == "factory" then new SpecificDatumWriter[Any](readerSchema, data) else null
+    val reader: DatumReader[Any] = if effectiveJavaApi == "factory" then new SpecificDatumReader[Any](writerSchema, readerSchema, data) else null
+    val messageEncoder = if rawMessageApi then new RawMessageEncoder[Any](data, readerSchema) else null
+    val messageDecoder = if rawMessageApi then new RawMessageDecoder[Any](data, writerSchema, readerSchema) else null
     override def checkModel(value: Any): Unit =
       val family = if engine == "avro2s" then "avro2s" else "javaavro"
       require(value.getClass.getName == s"$namespace.$family.${caseDef.model}",
@@ -265,9 +319,9 @@ final class SuiteWorkload(
 
 object SuiteWorkload:
   def prepared(caseId: String, engine: String, operation: String = "both", usage: String = "fresh",
-      wireStringPolicy: String = "reject"): SuiteWorkload =
+      wireStringPolicy: String = "reject", javaApi: String = "auto", javaEncoder: String = "auto"): SuiteWorkload =
     val c = SuiteCatalog.byId(caseId)
-    new SuiteWorkload(c, engine, SuiteCorpus.payloads(c), operation, usage, wireStringPolicy)
+    new SuiteWorkload(c, engine, SuiteCorpus.payloads(c), operation, usage, wireStringPolicy, javaApi, javaEncoder)
 
   /** Verification only: JMH consumes each library's natural result without this conversion. */
   def encodedBytes(value: AnyRef): Array[Byte] = value match

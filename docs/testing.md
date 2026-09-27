@@ -9,24 +9,24 @@ registry regressions. The separate real-service registry project is opt-in local
 A named test often exercises many inputs; declaration counts do not measure
 schema variety or conformance.
 
-Both direct and stack-safe codecs run through the generated matching-schema,
+Both standard and stack-safe codecs run through the generated matching-schema,
 evolution, logical-configuration and wire-property campaigns using identical
 input values. They must produce identical bytes and agree with independent Java
 Avro readers/writers. The optimised stack-safe traversal passed the full suite on
 JDK 21 on 26 September 2026, including the default-off generator setting,
-direct-only compatibility, nested collections, branching, concurrent reuse and
+standard-only compatibility, nested collections, branching, concurrent reuse and
 failure cleanup. The runnable [usage example](stack-safety.md) also passed.
 All eight real Kafka/Schema Registry integration tests passed during the initial
 stack-safe implementation (on the host's JDK 25); they were not rerun after the
 subsequent traversal optimisation or generator opt-in change.
 
-Production generation defaults to direct-only. Fixture generation and the dual-codec
+Production generation defaults to standard-only. Fixture generation and the dual-codec
 property campaigns explicitly set `generateStackSafeCodecs = true`; the dynamic
 compiler harness respects its supplied configuration. Separate default-configuration
 campaigns compile the mandatory schema and evolution corpora, check that no
-stack-safe codec accessor is emitted, and exercise direct-only codecs against the
+stack-safe codec accessor is emitted, and exercise standard-only codecs against the
 same Java oracle and runtime/resolver APIs. Every compiled probe also verifies that
-contextual `AvroCodec[A]` lookup still selects the direct codec.
+contextual `AvroCodec[A]` lookup still selects the standard codec.
 
 Additional campaigns run in ordinary `sbt test` with fixed seeds **0, 42 and
 20260926**. They add **48 matching schemas / 384 values**, **36 evolution pairs /
@@ -309,7 +309,7 @@ classes, rather than claiming exhaustive wire fuzzing.
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
 | `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2), `StepSuite` (9) | 83 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges; iterative execution and failure cleanup. |
-| `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (6), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16) | 59 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change direct-output compatibility and cross-file schemas. |
+| `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (6), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16) | 59 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change standard-codec output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
 | `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (8), `StackSafeConcurrencySuite` (1) | 85 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
 | `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7), `BranchingStackSafetySuite` (5) | 47 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
@@ -342,7 +342,7 @@ See [stack safety](stack-safety.md) for the exact scope and benchmark command.
 record, array, map and general-union fields, with distinct siblings and scalar
 sentinels between structural fields. An independent iterative writer using Java
 Avro primitives provides the deep wire oracle; shallow values cross-check it
-against Java's generic writer and the direct codec. Fault adapters throw at every
+against Java's generic writer and the standard codec. Fault adapters throw at every
 observed input/output callback of a branching sample, checking exception identity,
 record cleanup, no writes after failure and healthy subsequent codec reuse.
 

@@ -4,7 +4,7 @@ import avro2s.wire.runtime.*
 import java.time.{LocalDate, LocalTime}
 import munit.FunSuite
 
-final class RawLogicalResolutionSuite extends RawLogicalResolutionChecks(CodecExecution.Direct)
+final class RawLogicalResolutionSuite extends RawLogicalResolutionChecks(CodecExecution.Standard)
 final class StackSafeRawLogicalResolutionSuite extends RawLogicalResolutionChecks(CodecExecution.StackSafe)
 
 abstract class RawLogicalResolutionChecks(executionMode: CodecExecution) extends FunSuite:

@@ -197,7 +197,7 @@ val settings = SerializerSettings(
 ```
 
 Pass these settings to either `RegistrySerializer.forKey` or `forValue`. The
-policy covers string fields and map keys in both direct and stack-safe codecs.
+policy covers string fields and map keys in both standard and stack-safe codecs.
 Replacement produces valid UTF-8 but changes malformed values; it does not
 change deserializer validation or schema registration settings.
 

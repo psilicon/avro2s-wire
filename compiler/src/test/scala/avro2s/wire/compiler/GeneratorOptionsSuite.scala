@@ -12,7 +12,7 @@ class GeneratorOptionsSuite extends munit.FunSuite:
   private val allRaw = GeneratorConfig(logicalTypes = LogicalType.values.map(_ -> LogicalTypeMode.Raw).toMap)
   private val allConverted = GeneratorConfig(logicalTypes = LogicalType.values.map(_ -> LogicalTypeMode.Converted).toMap)
 
-  test("stack-safe generation is an immutable opt-in and defaults to direct output only") {
+  test("stack-safe generation is an immutable opt-in and defaults to standard output only") {
     val baseline = GeneratorConfig()
     val enabled = baseline.copy(generateStackSafeCodecs = true)
     assertEquals(baseline.generateStackSafeCodecs, false)

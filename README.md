@@ -7,7 +7,7 @@ standard library and the JDK. Apache Avro is used by the schema compiler and the
 optional `avro2s-wire-java-backend` module. Native output is standard Avro binary
 and can be read by Java Avro without that backend.
 
-This is an early implementation with direct codecs, native Scala 3 unions, logical
+This is an early implementation with standard codecs, native Scala 3 unions, logical
 types, an optional native schema-evolution reader, and an optional Confluent Schema
 Registry adapter. Matching-schema codecs need only the runtime; schema resolution
 and registry access are separate optional dependencies.
@@ -155,11 +155,11 @@ additional malformed-string check. The result is valid UTF-8, but malformed
 input loses information. The policy applies to all string fields and map keys,
 including nested values; distinct malformed keys can become the same key.
 Valid Unicode has identical wire bytes under both policies. Settings are fixed
-when constructing an output and survive `reset()`. Direct and stack-safe codecs
+when constructing an output and survive `reset()`. Standard and stack-safe codecs
 use the same setting without regeneration. Reader validation is unchanged.
 Schema Registry serializers accept it through `SerializerSettings.writerSettings`.
 
-Generation emits the direct `codec` by default. Enable
+Generation emits the standard `codec` by default. Enable
 `GeneratorConfig(generateStackSafeCodecs = true)` or CLI
 `--generate-stack-safe-codecs` to also generate an explicit `stackSafeCodec`:
 
@@ -168,7 +168,7 @@ val safeBytes = Trade.stackSafeCodec.encode(trade)
 val safeTrade = Trade.stackSafeCodec.decode(safeBytes)
 ```
 
-`Trade.codec` remains the default given and keeps its direct implementation.
+`Trade.codec` remains the default given and keeps its standard implementation.
 `stackSafeCodec` uses an iterative runtime to handle deeply nested values, with
 the same immutable models and wire bytes. A `ResolvingReader` or registry adapter
 uses the execution mode of the supplied codec. See [stack safety](docs/stack-safety.md)
@@ -207,8 +207,8 @@ For example, `com.acme.orders.Order` becomes `myapp.model.orders.Order`, while
 aliases and schema JSON keep their original identities.
 
 `generateStackSafeCodecs` applies to every reachable named type. It adds the
-alternative codec while preserving the direct `given codec`. Leaving it `false`
-requires no runtime or resolver configuration: the generated direct codec works
+alternative codec while preserving the standard `given codec`. Leaving it `false`
+requires no runtime or resolver configuration: the generated standard codec works
 with the same runtime, resolution and registry APIs.
 
 `Raw` selects the physical value: for example, `date` becomes `Int` and
@@ -383,7 +383,7 @@ python3 scripts/run-benchmarks.py --java "$JAVA_HOME/bin/java" --profile full
 ```
 
 Every encode returns fresh bytes; every decode produces a fresh model with String
-text. Comparisons cover direct Wire, official Java specific/generic and supported
+text. Comparisons cover standard Wire, official Java specific/generic and supported
 custom coders, plus the agreed smaller current-avro2s subset using Scala enums.
 The runner checks correctness first, measures time and allocation, rotates
 implementation order across independent JVM rounds, and records complete source

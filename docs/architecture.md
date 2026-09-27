@@ -5,7 +5,7 @@
 Schema generation:
 
 ```text
-.avsc -> Apache Avro parser -> typed schema graph -> Scala models + direct codecs
+.avsc -> Apache Avro parser -> typed schema graph -> Scala models + standard codecs
 ```
 
 Application execution:
@@ -59,7 +59,7 @@ indices. Unicode fallback behaviour is unchanged. See the
 
 ## Compatibility boundary
 
-Direct codecs require matching schemas. The optional resolution module now compiles
+Standard codecs require matching schemas. The optional resolution module now compiles
 reader plans with writer-order traversal, field skipping, defaults, aliases,
 promotions, enum remapping, and union selection. Each reader instance retains its
 plan; exact matching schema JSON bypasses resolution and uses the generated codec.

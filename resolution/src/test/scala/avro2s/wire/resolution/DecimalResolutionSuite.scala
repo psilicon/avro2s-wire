@@ -3,7 +3,7 @@ package avro2s.wire.resolution
 import avro2s.wire.runtime.*
 import munit.FunSuite
 
-final class DecimalResolutionSuite extends DecimalResolutionChecks(CodecExecution.Direct)
+final class DecimalResolutionSuite extends DecimalResolutionChecks(CodecExecution.Standard)
 final class StackSafeDecimalResolutionSuite extends DecimalResolutionChecks(CodecExecution.StackSafe)
 
 abstract class DecimalResolutionChecks(executionMode: CodecExecution) extends FunSuite:

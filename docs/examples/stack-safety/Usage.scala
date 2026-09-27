@@ -6,16 +6,16 @@ import avro2s.wire.runtime.{AvroCodec, BinaryInput, BinaryOutput, CodecExecution
 object Usage:
   def main(args: Array[String]): Unit =
     // Node and NodeV2 are generated from the schemas alongside this file.
-    val direct: AvroCodec[Node] = Node.codec
+    val standard: AvroCodec[Node] = Node.codec
     val safe: AvroCodec[Node] = Node.stackSafeCodec
-    assert(direct.execution == CodecExecution.Direct)
+    assert(standard.execution == CodecExecution.Standard)
     assert(safe.execution == CodecExecution.StackSafe)
-    assert(summon[AvroCodec[Node]] eq direct) // The existing given stays direct.
+    assert(summon[AvroCodec[Node]] eq standard) // The existing given stays standard.
 
     val small = Node(Some(Node(None, 1)), 2)
-    assert(java.util.Arrays.equals(direct.encode(small), safe.encode(small)))
-    assert(direct.decode(safe.encode(small)) == small)
-    assert(safe.decode(direct.encode(small)) == small)
+    assert(java.util.Arrays.equals(standard.encode(small), safe.encode(small)))
+    assert(standard.decode(safe.encode(small)) == small)
+    assert(safe.decode(standard.encode(small)) == small)
 
     val depth = 100000
     val deep = (1 until depth).foldLeft(Node(None, 0)) { (tail, value) =>

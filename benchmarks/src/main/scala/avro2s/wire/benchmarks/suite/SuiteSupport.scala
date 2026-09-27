@@ -49,7 +49,7 @@ object SuiteSupport:
 
   def isWire(engine: String): Boolean = wireEngines.contains(engine)
 
-  /** Codec selection occurs outside measurement; a variant must never fall back to direct. */
+  /** Codec selection occurs outside measurement; stack-safe variants must never fall back to standard execution. */
   private[suite] def wireCodec(c: SuiteCase, engine: String): AvroCodec[Any] =
     require(isWire(engine), s"Not a Wire engine: $engine")
     val stackSafe = engine.endsWith("-stack-safe")
@@ -60,7 +60,7 @@ object SuiteSupport:
     else
       val codecClass = Class.forName(s"$namespace.wire.${c.model}$$codec$$")
       codecClass.getField("MODULE$").get(null).asInstanceOf[AvroCodec[Any]]
-    val expected = if stackSafe then CodecExecution.StackSafe else CodecExecution.Direct
+    val expected = if stackSafe then CodecExecution.StackSafe else CodecExecution.Standard
     require(codec.execution == expected, s"$engine selected ${codec.execution}, expected $expected")
     codec
 

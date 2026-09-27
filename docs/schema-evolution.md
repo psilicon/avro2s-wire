@@ -24,7 +24,7 @@ global cache retaining an unbounded set of schemas. Defaults and aliases are par
 of the plan; a parsing-canonical fingerprint alone is not sufficient to identify
 resolution behavior.
 
-Execution follows the supplied codec: `Account.codec` keeps direct traversal;
+Execution follows the supplied codec: `Account.codec` keeps standard traversal;
 `Account.stackSafeCodec` opts into an iterative runtime when generated with
 `generateStackSafeCodecs = true` (CLI `--generate-stack-safe-codecs`). The choice is made once
 when constructing the reader and covers retained fields, skipped writer fields
@@ -36,7 +36,7 @@ supplied generated codec directly. Otherwise, the plan walks writer fields in wi
 order, stores retained values in reader-ordered slots, and calls generated
 construction methods. Nested records are constructed as Scala models immediately.
 This path uses per-record slot arrays and boxed primitive values; it does not claim
-the allocation profile of a direct matching-schema codec. It creates no Java
+the allocation profile of a standard matching-schema codec. It creates no Java
 GenericRecords and does not serialize an intermediate datum.
 
 The plan can be shared between callers after construction. Each read needs its own
