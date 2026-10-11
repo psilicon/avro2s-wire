@@ -2,7 +2,8 @@ package avro2s.wire.registry
 
 /** Connection settings for an adapter-owned registry client.
   *
-  * Properties configure networking, authentication and TLS. Put serializer
+  * Properties configure networking, authentication and TLS. `request.header.*`
+  * properties supply HTTP request headers to the registry. Put serializer
   * behavior in [[SerializerSettings]]. Reusing these settings creates independent
   * clients; inject a shared SchemaRegistryClient when sharing client ownership.
   */
@@ -16,3 +17,4 @@ final case class RegistryConnection(
   require(cacheCapacity > 0, "Registry client cacheCapacity must be positive")
   require(properties != null, "Registry client properties must be non-null")
   private[registry] val clientProperties = RegistrySupport.clientProperties(properties)
+  private[registry] val clientHeaders = RegistrySupport.clientHeaders(properties)

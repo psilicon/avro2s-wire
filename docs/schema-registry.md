@@ -141,6 +141,13 @@ The supplied client is caller-owned. Closing either adapter does not close that
 client; close the shared client yourself after all Kafka clients and adapters
 have closed.
 
+An injected client must support concurrent use. Writers use Confluent's
+`registerWithResponse` and `getIdWithResponse` methods so they can inspect rules
+attached by the server. Custom client implementations must implement these
+methods and retain the response's rule information; returning only an ID cannot
+communicate unsupported registry rules. Confluent's cached and mock clients
+provide these methods.
+
 The same `forKey` and `forValue` factories also accept a `RegistryConnection`.
 Each such call creates and owns a cached registry client. Closing the adapter
 closes that client. The connection describes registry endpoints, client cache
@@ -174,14 +181,49 @@ properties only; serializer behavior belongs to `SerializerSettings`. Supplying
 fails at connection construction. There is no duplicated configuration to keep in
 sync, and Kafka's producer/consumer property maps do not configure Wire adapters.
 
-Each adapter has a bounded access-order cache. The serializer caches schema IDs
-by subject; the deserializer caches compiled writer-to-reader plans by schema ID.
+Custom HTTP headers can be supplied as properties, for example
+`"request.header.X-Tenant" -> "trading"`. Wire extracts these properties and passes
+them to the HTTP client separately. The `schema.registry.request.header.` prefix
+is also accepted; duplicate names, including case-insensitive aliases, are
+rejected. Recognized unsupported Confluent serializer/deserializer options fail
+at construction instead of being silently forwarded as client settings.
+
+Each adapter has a bounded concurrent cache. The serializer caches validated
+schema-ID prefixes by subject; the deserializer caches compiled writer-to-reader
+plans by schema ID. Cached calls can encode or decode concurrently. Calls for the
+same missing key share a load, and an unrelated load does not block cached calls.
+Failed loads are not retained by the adapter; an underlying client's own
+configured negative caches can still affect retries.
 `SerializerSettings.cacheCapacity` and `DeserializerSettings.cacheCapacity` control
-their respective adapter caches and default to 1024. The underlying
-`CachedSchemaRegistryClient` has its own separately bounded cache, controlled by
-`RegistryConnection.cacheCapacity` when the adapter creates it. Each adapter
-synchronizes cache access, serialization and deserialization. Its role and
-settings are immutable.
+their respective adapter entry limits and default to 1024. Eviction does not
+promise exact least-recently-used ordering. The underlying
+`CachedSchemaRegistryClient` has several separately bounded caches, controlled by
+`RegistryConnection.cacheCapacity` when the adapter creates it. These capacities
+are not total retained-byte budgets. Its own cache-miss synchronization can
+still serialize registry requests; Wire does not bypass it.
+
+All URLs for one connection must identify the same registry namespace/context.
+An injected client must not switch registry identity under a live adapter.
+Independent registries can assign the same numeric ID to different schemas;
+adapter caches are not shared across connections.
+
+The role and settings are immutable. Generated codecs and completed reader plans
+are shared, while every call owns its mutable input/output state. Handwritten
+codecs must support concurrent use too. Wire does not keep buffers in thread-local
+or fiber-local storage. `close()` drains admitted calls, clears the caches, and attempts to close an
+owned client once. It stays closed even if that cleanup fails. Concurrent close
+callers wait for cleanup; close does not cancel an HTTP request or impose a new
+timeout. Closing an adapter from inside one of its own operations is rejected.
+Custom client/codec callbacks must not create a cross-thread cycle by waiting
+for another thread to close the same adapter.
+
+Serialization writes the prefix and datum into one working buffer and returns
+one independently owned frame. Array deserialization reads the payload as a
+bounded range without copying it. Kafka's `ByteBuffer` entry point uses the
+backing array when accessible; direct/read-only buffers initially copy only the
+validated payload. The caller's position, limit and mark are preserved. Do not
+mutate input bytes during decoding. Decoded binary fields own their storage and
+remain valid after the input buffer is reused.
 
 String encoding is controlled by `SerializerSettings.writerSettings`. Its default
 is `WriterSettings()`, which rejects unpaired UTF-16 surrogates. To replace them
@@ -263,15 +305,21 @@ The codec root must be a named Avro record, enum or fixed schema. Primitive root
 and unnamed unions are rejected. This also excludes Avro's special raw-bytes
 payload case. Standard Avro logical types supported by the generated model work
 through native codec handling and Wire's resolver.
+RecordName and TopicRecordName subject strategies require a record root, matching
+Confluent. Enum and fixed roots use TopicName. Schema ID zero is accepted for
+imported schemas; negative IDs are rejected.
 
 `RegistryConnection` rejects properties for unsupported Confluent modes, including
 schema GUIDs in Kafka headers, latest-schema selection, fixed schema IDs or GUIDs,
 custom subject/context naming and rule executors. Inactive selector defaults
 (`use.latest.version = false`, `use.schema.id = -1`, `use.schema.guid = null`) are
 accepted for migration and omitted from the underlying client properties.
-Use plain Avro subjects without
-registry-attached rules: the serializer does not execute those rules, and the
-deserializer rejects writer schemas carrying registry metadata or rules.
+Descriptive registry metadata and empty rule sets are accepted. Nonempty
+migration, domain and encoding rule sets are unsupported: writers inspect the
+registration/lookup response before caching its ID or emitting bytes, and readers
+check fetched writer schemas before compiling a plan. Neither adapter executes
+rules. These checks happen on cache loads; adapters do not poll for administrative
+changes to an already-cached schema.
 Only TopicName, RecordName and TopicRecordName subject naming is supported.
 Context is determined by the registry URL/client; the module does
 not implement per-topic context-name strategies or cross-context lookup. It does
@@ -281,7 +329,12 @@ other vendors' registry implementations.
 Malformed/truncated frames, unsupported magic bytes, unknown IDs, incompatible
 writer data, unsupported logical types and decode-limit violations fail with a
 Kafka `SerializationException` whose cause describes the underlying failure.
-Interrupted registry work restores the thread's interrupt flag before failing.
+When a registry operation propagates `InterruptedException` to Wire, Wire restores
+the interrupted thread's flag before failing. A shared load failure does not
+interrupt its other callers. Waiting for a shared load is not promptly
+cancellable; a waiter's own interruption is preserved. Cancellation and retries
+inside the supplied client remain that client's responsibility; Wire cannot
+restore an interruption swallowed by that client.
 Configured native decode limits apply to the framed Avro datum; the five framing
 bytes are outside `maxInputBytes`. All five ceilings are disabled by default.
 Byte sizes and collection counts are independent of nesting depth. Mandatory

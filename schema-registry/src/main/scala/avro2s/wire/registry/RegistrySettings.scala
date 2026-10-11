@@ -3,7 +3,9 @@ package avro2s.wire.registry
 import avro2s.wire.runtime.{DecodeLimits, WriterSettings}
 import org.apache.avro.Schema
 
-/** The three classic Confluent subject names for a named Avro root. */
+/** The three classic Confluent subject names. Record-name strategies require a
+  * record root; TopicName also supports enum and fixed roots.
+  */
 enum SubjectNameStrategy:
   case TopicName, RecordName, TopicRecordName
 

@@ -6,7 +6,7 @@ import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, Bytes, DecodeLimit
 import io.confluent.kafka.schemaregistry.ParsedSchema
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient
-import io.confluent.kafka.schemaregistry.client.rest.entities.{Metadata, RuleSet}
+import io.confluent.kafka.schemaregistry.client.rest.entities.requests.RegisterSchemaResponse
 import io.confluent.kafka.serializers.{KafkaAvroDeserializer, KafkaAvroSerializer}
 import java.io.IOException
 import java.util.{HashMap, Map as JMap}
@@ -250,7 +250,7 @@ final class RegistrySuite extends munit.FunSuite:
     assertEquals(client.lookupNormalize.toVector, Vector(true))
   }
 
-  test("bounded subject and reader caches evict the least recently used entry") {
+  test("bounded subject and reader caches evict entries at capacity") {
     val client = new CountingClient
     val serializer = RegistrySerializer.forValue(Trade.codec, client, registering.copy(cacheCapacity = 1))
     val a = serializer.serialize("a", trade)
@@ -278,7 +278,7 @@ final class RegistrySuite extends munit.FunSuite:
     failure(deserializer.deserialize("trades", Array.emptyByteArray))
     failure(deserializer.deserialize("trades", bytes.take(4)))
     failure(deserializer.deserialize("trades", bytes.updated(0, 1.toByte)))
-    failure(deserializer.deserialize("trades", frame(0, bytes.drop(5))))
+    failure(deserializer.deserialize("trades", frame(-1, bytes.drop(5))))
     failure(deserializer.deserialize("trades", frame(999999, bytes.drop(5))))
     failure(deserializer.deserialize("trades", bytes.dropRight(1)))
     failure(deserializer.deserialize("trades", bytes ++ Array[Byte](0)))
@@ -288,7 +288,7 @@ final class RegistrySuite extends munit.FunSuite:
     val headers = new RecordHeaders().add("__value_schema_id", Array[Byte](1))
     failure(deserializer.deserialize("trades", headers, bytes))
     failure(RegistrySerializer.forValue(Trade.codec, client).serialize("trades", headers, trade))
-    assertEquals(deserializer.deserialize("trades", headers, null), null)
+    assertEquals(deserializer.deserialize("trades", headers, null: Array[Byte]), null)
     assertEquals(deserializer.deserialize("trades", new RecordHeaders(), bytes), trade)
   }
 
@@ -341,24 +341,16 @@ final class RegistrySuite extends munit.FunSuite:
     assertEquals(client.registerCalls, 2)
   }
 
-  test("non-Avro schemas and metadata or rules are rejected") {
+  test("non-Avro schemas are rejected") {
     val nonAvro = java.lang.reflect.Proxy.newProxyInstance(
       classOf[ParsedSchema].getClassLoader,
       Array(classOf[ParsedSchema]),
       (_, _, _) => null
     ).asInstanceOf[ParsedSchema]
-    val metadata = new Metadata(java.util.Collections.emptyMap(),
-      java.util.Collections.emptyMap(), java.util.Collections.emptySet())
-    val ruleSet = new RuleSet(java.util.Collections.emptyList(), java.util.Collections.emptyList())
-    val withMetadata = new AvroSchema(Trade.schemaJson, java.util.Collections.emptyList(),
-      java.util.Collections.emptyMap(), metadata, null, null, false)
-    val withRules = new AvroSchema(Trade.schemaJson, java.util.Collections.emptyList(),
-      java.util.Collections.emptyMap(), null, ruleSet, null, false)
-    for parsed <- Seq(nonAvro, withMetadata, withRules) do
-      val client = new MockSchemaRegistryClient:
-        override def getSchemaById(id: Int): ParsedSchema = parsed
-      val deserializer = RegistryDeserializer.forValue(Trade.codec, client)
-      failure(deserializer.deserialize("trades", frame(7, Trade.codec.encode(trade))))
+    val client = new MockSchemaRegistryClient:
+      override def getSchemaById(id: Int): ParsedSchema = nonAvro
+    val deserializer = RegistryDeserializer.forValue(Trade.codec, client)
+    failure(deserializer.deserialize("trades", frame(7, Trade.codec.encode(trade))))
   }
 
   test("interrupted registry calls restore the interrupt flag and wrap the cause") {
@@ -503,23 +495,30 @@ final class RegistrySuite extends munit.FunSuite:
     val registerNormalize = scala.collection.mutable.ArrayBuffer.empty[Boolean]
     val lookupNormalize = scala.collection.mutable.ArrayBuffer.empty[Boolean]
 
-    override def register(subject: String, schema: ParsedSchema, normalize: Boolean): Int = synchronized {
+    override def register(subject: String, schema: ParsedSchema, normalize: Boolean): Int =
+      registerWithResponse(subject, schema, normalize, false).getId
+
+    override def registerWithResponse(subject: String, schema: ParsedSchema, normalize: Boolean,
+        propagateSchemaTags: Boolean): RegisterSchemaResponse = synchronized {
       registerCalls += 1
       subjects += subject
       registerNormalize += normalize
       if invalidIdOnce then
         invalidIdOnce = false
-        0
-      else super.register(subject, schema, normalize)
+        val response = new RegisterSchemaResponse()
+        response.setId(-1)
+        response
+      else super.registerWithResponse(subject, schema, normalize, propagateSchemaTags)
     }
 
-    override def getId(subject: String, schema: ParsedSchema, normalize: Boolean): Int = synchronized {
+    override def getIdWithResponse(subject: String, schema: ParsedSchema,
+        normalize: Boolean): RegisterSchemaResponse = synchronized {
       lookupCalls += 1
       lookupNormalize += normalize
       if failLookupOnce then
         failLookupOnce = false
         throw new IOException("temporary failure")
-      super.getId(subject, schema, normalize)
+      super.getIdWithResponse(subject, schema, normalize)
     }
 
     override def getSchemaById(id: Int): ParsedSchema = synchronized {

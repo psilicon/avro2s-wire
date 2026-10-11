@@ -83,7 +83,11 @@ enum DecimalRepresentation:
 enum CodecExecution:
   case Standard, StackSafe
 
-/** A matching-schema codec. Writer/reader schema resolution is a separate concern. */
+/** A matching-schema codec. Writer/reader schema resolution is a separate concern.
+  * Generated codecs can be shared across calls with independent input/output
+  * instances. Handwritten implementations used by concurrent adapters must also
+  * support concurrent read, write and construction calls.
+  */
 trait AvroCodec[A]:
   def execution: CodecExecution = CodecExecution.Standard
   def schemaJson: String

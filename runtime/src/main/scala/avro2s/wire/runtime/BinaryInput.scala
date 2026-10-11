@@ -13,9 +13,14 @@ private[runtime] object LittleEndianNumbers:
 /** Reads a caller-owned array without copying it. Do not mutate it during decoding.
   * Returned Bytes values own separate arrays. Instances are not thread-safe.
   */
-final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.default) extends AvroInput:
-  private var position = 0
-  private var boundary = bytes.length
+final class BinaryInput private (
+    bytes: Array[Byte], limits: DecodeLimits, start: Int, end: Int
+) extends AvroInput:
+  def this(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.default) =
+    this(bytes, limits, 0, bytes.length)
+
+  private var position = start
+  private var boundary = end
   private var nesting = 0L
   private var totalItems = 0L
   private final class Block(val isMap: Boolean, val parentBoundary: Int, var end: Int, val previous: Block)
@@ -24,9 +29,9 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
   private val promotedBytesLimit = (limits.maxStringBytes, limits.maxBytesLength) match
     case (Some(string), Some(bytes)) => Some(math.min(string, bytes))
     case (string, bytes) => string.orElse(bytes)
-  if limits.maxInputBytes.exists(bytes.length > _) then fail("Input exceeds maxInputBytes")
+  if limits.maxInputBytes.exists(end - start > _) then fail("Input exceeds maxInputBytes")
 
-  def remaining: Int = bytes.length - position
+  def remaining: Int = end - position
 
   def requireEnd(): Unit =
     if blocks != null then fail("Unfinished collection")
@@ -34,7 +39,7 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
     if remaining != 0 then fail(s"Trailing data: $remaining bytes")
 
   private def fail(message: String): Nothing =
-    throw new AvroDecodingException(s"$message at byte $position")
+    throw new AvroDecodingException(s"$message at byte ${position - start}")
 
   private def requireAvailable(count: Int): Unit =
     if count < 0 || count > boundary - position then fail("Truncated binary data or collection block")
@@ -372,3 +377,15 @@ final class BinaryInput(bytes: Array[Byte], limits: DecodeLimits = DecodeLimits.
         at += 4
       else fail("Invalid UTF-8 sequence")
     ascii
+
+object BinaryInput:
+  /** Reads only the selected caller-owned range without copying it. Limits and
+    * diagnostic byte positions are relative to this range. Do not mutate the
+    * array during decoding; returned Bytes values still own separate arrays.
+    */
+  def slice(
+      bytes: Array[Byte], offset: Int, length: Int, limits: DecodeLimits = DecodeLimits.default
+  ): BinaryInput =
+    require(offset >= 0 && offset <= bytes.length, "offset is outside the input array")
+    require(length >= 0 && length <= bytes.length - offset, "length is outside the input array")
+    new BinaryInput(bytes, limits, offset, offset + length)

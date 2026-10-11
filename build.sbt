@@ -96,6 +96,7 @@ lazy val schemaRegistry = (project in file("schema-registry"))
     name := "avro2s-wire-schema-registry",
     libraryDependencies ++= Seq(
       "io.confluent" % "kafka-schema-registry-client" % confluentVersion,
+      "com.google.guava" % "guava" % "32.0.1-jre",
       "org.apache.avro" % "avro" % avroVersion,
       "io.confluent" % "kafka-avro-serializer" % confluentVersion % Test
     )

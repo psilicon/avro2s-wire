@@ -235,12 +235,20 @@ rejects the pair; Wire continues to require matching names or reader aliases.
 
 ## Schema Registry and Kafka
 
-`schemaRegistry/test` uses Confluent's serializers and mock client to check exact
+`schemaRegistry/test` uses Confluent's serializers, mock clients and isolated
+loopback HTTP servers to check exact
 framing and interoperability, named roots, subject strategies, normalization,
 registration versus lookup, immutable key/value factories, typed settings,
 connection-property validation, bounded cache eviction, concurrent use, retries,
 tombstones, limits, malformed data, unsupported options and client ownership.
-The mock client is not used to establish real-server registration policy.
+The HTTP tests exercise the actual cached client's request headers and enriched
+registration/lookup responses. They do not establish real-server registration
+policy. Barrier-controlled concurrency tests prove overlapping codec execution,
+cached progress during unrelated blocked loads, shared lookups, failure recovery,
+interruption ownership and close draining. Buffer tests cover heap, sliced,
+read-only and direct buffers, cursor preservation, bounded payload validation and
+independent decoded storage. `runtime/test` separately checks array-range bounds,
+collection blocks, resource limits and datum-relative errors.
 
 Run real service checks with Docker, sbt and curl installed:
 
@@ -308,14 +316,14 @@ classes, rather than claiming exhaustive wire fuzzing.
 
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
-| `runtime` | `BinaryRuntimeSuite` (22), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (5), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (7), `SupplementaryStringSuite` (2), `StepSuite` (9) | 83 | Binary wire bytes, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, logical-type precision and ranges; iterative execution and failure cleanup. |
+| `runtime` | `BinaryRuntimeSuite` (22), `BinaryInputSliceSuite` (9), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (9), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (9), `SupplementaryStringSuite` (2), `WriterSettingsSuite` (5), `StepSuite` (9) | 103 | Binary wire bytes and bounded array ranges, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, string policies, logical-type precision and ranges; iterative execution and failure cleanup. |
 | `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (6), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16) | 59 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change standard-codec output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
 | `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (8), `StackSafeConcurrencySuite` (1) | 85 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
 | `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7), `BranchingStackSafetySuite` (5) | 47 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
 | `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5), `StackSafetyBenchmarkSuite` (4) | 23 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and comparative/evolution/stack-safety workloads. |
 | `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (6), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (9), `GeneratorOptionsPropertiesSuite` (7), `WirePropertiesSuite` (5) | 32 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
-| `schema-registry` | `RegistrySuite` (25), `RegistryStackSafetySuite` (1) | 26 | Confluent interoperability, framing, immutable key/value factories, default exact-schema lookup, typed settings, connection validation, caches, failures, resource limits, lifecycle and deep framed values. |
+| `schema-registry` | `RegistrySuite` (27), `RegistryStackSafetySuite` (1), `RegistryBufferSuite` (8), `RegistrySemanticsSuite` (12), `RegistryHttpSuite` (4), `RegistryConcurrencySuite` (14) | 66 | Confluent interoperability, framing and bounded buffers, typed settings, HTTP headers, metadata/rules, schema selection, concurrent cache loads, ownership, lifecycle and deep framed values. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests
