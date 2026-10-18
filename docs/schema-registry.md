@@ -194,8 +194,9 @@ at construction instead of being silently forwarded as client settings.
 
 Each adapter has a bounded concurrent cache. The serializer caches validated
 schema-ID prefixes by subject; the deserializer caches compiled writer-to-reader
-plans by schema ID. Cached calls can encode or decode concurrently. Calls for the
-same missing key share a load, and an unrelated load does not block cached calls.
+plans by schema ID and the selected subject/context lookup hint. Cached calls can
+encode or decode concurrently. Calls for the same missing key share a load, and
+an unrelated load does not block cached calls.
 Failed loads are not retained by the adapter; an underlying client's own
 configured negative caches can still affect retries.
 `SerializerSettings.cacheCapacity` and `DeserializerSettings.cacheCapacity` control
@@ -227,10 +228,12 @@ warm adapter caches intact, and omitting an adapter from `RegistryCaches.refresh
 leaves that adapter's entries intact. Coordinate direct client users separately.
 Alternatively, drain and replace all adapters together with their client.
 
-All URLs for one connection must identify the same registry namespace/context.
-An injected client must not switch registry identity under a live adapter.
-Independent registries can assign the same numeric ID to different schemas;
-adapter caches are not shared across connections.
+All URLs for one connection must identify the same registry and use consistent
+context routing. An injected client must not switch registry identity under a
+live adapter.
+Independent registries and contexts can assign the same numeric ID to different
+schemas. Reader cache keys include the selected lookup hint, and adapter caches
+are not shared across connections.
 
 The role and settings are immutable. Generated codecs and completed reader plans
 are shared, while every call owns its mutable input/output state. Handwritten
@@ -319,12 +322,50 @@ Readers use `DeserializerSettings` for cache capacity and optional native
 `decodeLimits`. Every `DecodeLimits` field defaults to `None`; `Some(n)` opts into
 that ceiling, and `Some(0)` is a zero ceiling rather than an off switch.
 They fetch the writer schema by the ID in the message and resolve it into the
-generated reader model. They do not select subjects or register schemas, so they
-have no registration, normalization or subject-strategy settings.
+generated reader model. Readers do not register or normalize schemas.
 
-Registry IDs are the identity used by the classic frame and deserializer cache.
+### Reader lookup policies
+
+`DeserializerSettings.schemaLookup` controls the subject/context hint supplied
+when looking up a numeric schema ID. The default, `SchemaLookup.ById`, preserves
+lookup through `client.getSchemaById(id)`. The other policies use
+`client.getSchemaBySubjectAndId(hint, id)`:
+
+| Policy | Hint for a value on the `orders` topic |
+| --- | --- |
+| `SchemaLookup.ById` (default) | No hint; use the client's namespace |
+| `SchemaLookup.TopicName()` | `orders-value`; a key reader uses `orders-key` |
+| `SchemaLookup.TopicName(Some("sales"))` | `:.sales:orders-value`; a key reader uses `:.sales:orders-key` |
+| `SchemaLookup.Subject(":.sales:chosen-subject")` | The explicit subject, unchanged |
+| `SchemaLookup.Context("sales")` | `:.sales:` without a subject name |
+
+For example, a value reader for a named context can use:
+
+```scala
+import avro2s.wire.registry.{DeserializerSettings, SchemaLookup}
+
+val readerSettings = DeserializerSettings(
+  schemaLookup = SchemaLookup.TopicName(Some("sales"))
+)
+val deserializer = RegistryDeserializer.forValue(Trade.codec, registry, readerSettings)
+```
+
+Context names `sales`, `.sales` and `:.sales:` normalize to the same hint;
+`.` selects the default context. TopicName lookup requires a nonempty topic for
+non-null data. Fixed Subject and Context lookups do not need a topic. Invalid or
+empty configured hints fail when constructing `DeserializerSettings`.
+
+Confluent treats the subject as a lookup hint for finding the schema's context,
+not as proof that the ID is registered under that subject. These policies do not
+enforce subject membership; lookup and authorization remain the registry's
+responsibility. See Confluent's
+[schema-by-ID API explanation](https://docs.confluent.io/cloud/current/sr/sr-rest-apis.html#get-schema-by-id).
+Reader lookup settings do not change writer registration subjects. Confluent
+strategy classes such as `context.name.strategy` remain unsupported.
+
+Within a selected lookup scope, registry IDs identify the cached reader plans.
 Avro parsing-canonical fingerprints omit data such as defaults and aliases that
-affects Wire resolution, so they are not substitutes for schema JSON or registry
+affect Wire resolution, so they are not substitutes for schema JSON or registry
 IDs. When a writer schema is fetched, `AvroSchema.rawSchema().toString` preserves
 resolved references, defaults and aliases for Wire's resolver. Schema evolution
 continues to follow Wire's stricter supported logical-type and decoding policies;
@@ -348,7 +389,8 @@ imported schemas; negative IDs are rejected.
 
 `RegistryConnection` rejects properties for unsupported Confluent modes, including
 schema GUIDs in Kafka headers, latest-schema selection, fixed schema IDs or GUIDs,
-custom subject/context naming and rule executors. Inactive selector defaults
+Confluent subject/context strategy classes and rule executors. Configure numeric
+reader lookup through `DeserializerSettings.schemaLookup`. Inactive selector defaults
 (`use.latest.version = false`, `use.schema.id = -1`, `use.schema.guid = null`) are
 accepted for migration and omitted from the underlying client properties.
 Descriptive registry metadata and empty rule sets are accepted. Nonempty
@@ -357,13 +399,13 @@ registration/lookup response before caching its ID or emitting bytes, and reader
 check fetched writer schemas before compiling a plan. Neither adapter executes
 rules. These checks happen on cache loads; adapters do not poll for administrative
 changes to an already-cached schema.
-Only TopicName, RecordName and TopicRecordName subject naming is supported.
+Only TopicName, RecordName and TopicRecordName writer subject naming is supported.
 Confluent's associated-subject options (`subject.name.strategy.*`) are rejected
 rather than silently ignored; Wire does not perform topic-association lookups.
-Context is determined by the registry URL/client; the module does
-not implement per-topic context-name strategies or cross-context lookup. It does
-not claim the full behavior of Confluent's Avro SerDes or compatibility across
-other vendors' registry implementations.
+Readers can select a subject or fixed context through `SchemaLookup`; arbitrary
+per-topic context strategy classes are unsupported. The module does not claim the
+full behavior of Confluent's Avro SerDes or compatibility across other vendors'
+registry implementations.
 
 Malformed/truncated frames, unsupported magic bytes, unknown IDs, incompatible
 writer data, unsupported logical types and decode-limit violations fail with a

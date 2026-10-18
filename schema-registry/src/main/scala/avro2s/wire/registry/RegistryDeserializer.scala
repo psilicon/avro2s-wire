@@ -20,7 +20,8 @@ final class RegistryDeserializer[A] private[registry] (
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
   RegistrySupport.namedSchema(codec)
-  private val readers = new BoundedCache[Int, ResolvingReader[A]](settings.cacheCapacity)
+  private case class ReaderKey(subject: Option[String], id: Int)
+  private val readers = new BoundedCache[ReaderKey, ResolvingReader[A]](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Deserializer")
 
   private[registry] def registryClient: SchemaRegistryClient = client
@@ -39,7 +40,7 @@ final class RegistryDeserializer[A] private[registry] (
           checkMagic(data(0))
           val id = ((data(1) & 0xff) << 24) | ((data(2) & 0xff) << 16) |
             ((data(3) & 0xff) << 8) | (data(4) & 0xff)
-          val reader = readerFor(id)
+          val reader = readerFor(topic, id)
           read(reader, BinaryInput.slice(data, 5, length, settings.decodeLimits))
       }
     }
@@ -57,7 +58,7 @@ final class RegistryDeserializer[A] private[registry] (
           // The frame is always big-endian, regardless of the buffer's byte order.
           val id = ((data.get(start + 1) & 0xff) << 24) | ((data.get(start + 2) & 0xff) << 16) |
             ((data.get(start + 3) & 0xff) << 8) | (data.get(start + 4) & 0xff)
-          val reader = readerFor(id)
+          val reader = readerFor(topic, id)
           val in =
             if data.hasArray then
               BinaryInput.slice(data.array(), data.arrayOffset() + start + 5, length, settings.decodeLimits)
@@ -85,10 +86,14 @@ final class RegistryDeserializer[A] private[registry] (
   private def checkMagic(magic: Byte): Unit =
     if magic != 0 then throw new IllegalArgumentException("Unsupported Confluent magic byte")
 
-  private def readerFor(id: Int): ResolvingReader[A] =
+  private def readerFor(topic: String, id: Int): ResolvingReader[A] =
     if id < 0 then throw new IllegalArgumentException("Invalid Confluent schema ID")
-    readers.getOrLoad(id) {
-      val writer = RegistrySupport.writerSchema(client.getSchemaById(id))
+    val subject = settings.schemaLookup.subject(topic, role)
+    readers.getOrLoad(ReaderKey(subject, id)) {
+      val schema = subject match
+        case Some(name) => client.getSchemaBySubjectAndId(name, id)
+        case None => client.getSchemaById(id)
+      val writer = RegistrySupport.writerSchema(schema)
       new ResolvingReader(writer, codec)
     }
 

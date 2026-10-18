@@ -35,10 +35,13 @@ final case class SerializerSettings(
 /** Immutable settings for reading framed values into a generated model. */
 final case class DeserializerSettings(
     cacheCapacity: Int = 1024,
-    decodeLimits: DecodeLimits = DecodeLimits.default
+    decodeLimits: DecodeLimits = DecodeLimits.default,
+    schemaLookup: SchemaLookup = SchemaLookup.ById
 ):
   require(cacheCapacity > 0, "cacheCapacity must be positive")
   require(decodeLimits != null, "decodeLimits must be non-null")
+  require(schemaLookup != null, "schemaLookup must be non-null")
+  schemaLookup.validate()
 
 private[registry] enum RegistryRole(val subjectSuffix: String):
   case Key extends RegistryRole("key")

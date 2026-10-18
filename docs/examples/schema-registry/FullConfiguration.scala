@@ -2,7 +2,7 @@ package example.registry
 
 import avro2s.wire.registry.{
   DeserializerSettings, RegistryConnection, RegistryDeserializer,
-  RegistrySerializer, SerializerSettings, SubjectNameStrategy
+  RegistrySerializer, SchemaLookup, SerializerSettings, SubjectNameStrategy
 }
 import avro2s.wire.runtime.{DecodeLimits, MalformedStringPolicy, WriterSettings}
 import example.trading.{Trade, TradeKey}
@@ -40,7 +40,8 @@ object FullConfiguration:
         maxBytesLength = None,
         maxCollectionItems = None,
         maxNestingDepth = None
-      )
+      ),
+      schemaLookup = SchemaLookup.ById
     )
 
     // Every RegistryConnection parameter is specified here.
