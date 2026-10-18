@@ -118,6 +118,8 @@ class GeneratorCliSuite extends munit.FunSuite:
       Files.writeString(input, """{"type":"record","name":"Input","fields":[]}""")
       val output = directory.resolve("output")
       val invalid = Vector(
+        Vector("--root-type-name", "bad..Name"),
+        Vector("--root-type-name", "one.Name", "--root-type-name", "two.Name"),
         Vector("--namespace-map", "old"), Vector("--namespace-map", "old=new=extra"),
         Vector("--namespace-map", "../old=new"), Vector("--namespace-map", "old=new..model"),
         Vector("--namespace-map", "old=new", "--namespace-map", "old=other"),
@@ -131,9 +133,75 @@ class GeneratorCliSuite extends munit.FunSuite:
       for options <- invalid do
         intercept[GenerationException] { Main.main((options ++ Vector(input.toString, output.toString)).toArray) }
         assert(!Files.exists(output), clues(options))
-      for flag <- Vector("--namespace-map", "--logical-type", "--decimal-type") do
+      for flag <- Vector("--namespace-map", "--logical-type", "--decimal-type", "--root-type-name") do
         val error = intercept[GenerationException] { Main.main(Array(input.toString, output.toString, flag)) }
         assert(error.getMessage.contains("Missing"), clues(flag))
+    }
+  }
+
+  test("CLI generates a primitive-only root union with an explicit Scala name") {
+    withDirectory { directory =>
+      val input = directory.resolve("events-v1.avsc")
+      Files.writeString(input, "[\"null\",\"int\",\"string\"]")
+      val output = directory.resolve("output")
+      Main.main(Array("--root-type-name", "events.Value", "--generate-stack-safe-codecs", input.toString, output.toString))
+      val source = Files.readString(output.resolve("events/Value.scala"))
+      assert(source.contains("type Value = _root_.scala.Option[_root_.scala.Int | _root_.java.lang.String]"))
+      assert(source.contains("lazy val stackSafeCodec:"))
+      val paths = SchemaCompiler.generate(input, output, GeneratorConfig(rootTypeName = Some("events.Value"), generateStackSafeCodecs = true))
+      val timestamps = paths.map(Files.getLastModifiedTime(_))
+      assertEquals(SchemaCompiler.generate(input, output, GeneratorConfig(rootTypeName = Some("events.Value"), generateStackSafeCodecs = true)), paths)
+      assertEquals(paths.map(Files.getLastModifiedTime(_)), timestamps)
+    }
+  }
+
+  test("directory roots infer distinct names from filenames and branch namespaces") {
+    withDirectory { directory =>
+      val input = Files.createDirectory(directory.resolve("schemas"))
+      Files.writeString(input.resolve("Events.avsc"), """[
+        {"type":"record","name":"source.deep.Created","fields":[]},
+        {"type":"record","name":"source.other.Cancelled","fields":[]}
+      ]""")
+      Files.writeString(input.resolve("Numbers.avsc"), "[\"int\",\"long\"]")
+      val output = directory.resolve("output")
+      Main.main(Array("--namespace-map", "source=models", "--namespace-map", "=primitives", input.toString, output.toString))
+      assert(Files.exists(output.resolve("models/Events.scala")))
+      assert(Files.exists(output.resolve("models/deep/Created.scala")))
+      assert(Files.exists(output.resolve("models/other/Cancelled.scala")))
+      assert(Files.exists(output.resolve("primitives/Numbers.scala")))
+    }
+  }
+
+  test("an explicit root name can select the only union among named cross-file schemas") {
+    withDirectory { directory =>
+      val input = Files.createDirectory(directory.resolve("schemas"))
+      Files.writeString(input.resolve("a-events.avsc"), "[\"source.Created\",\"string\"]")
+      Files.writeString(input.resolve("z-created.avsc"), """{"type":"record","name":"source.Created","fields":[]}""")
+      val output = directory.resolve("output")
+      val paths = SchemaCompiler.generate(input, output, GeneratorConfig(rootTypeName = Some("events.Event")))
+      assertEquals(paths.map(output.relativize(_)).map(_.toString).toSet, Set("events/Event.scala", "source/Created.scala"))
+      assert(Files.readString(output.resolve("events/Event.scala")).contains("_root_.source.Created | _root_.java.lang.String"))
+    }
+  }
+
+  test("ambiguous explicit names invalid filenames and inferred collisions fail before writing") {
+    withDirectory { directory =>
+      val input = Files.createDirectory(directory.resolve("schemas"))
+      val first = input.resolve("first-events.avsc")
+      Files.writeString(first, "[\"int\",\"string\"]")
+      val output = directory.resolve("output")
+      val inferred = intercept[GenerationException](SchemaCompiler.generate(input, output))
+      assert(inferred.getMessage.contains("Cannot infer"))
+      assert(!Files.exists(output))
+      Files.writeString(input.resolve("Second.avsc"), "[\"long\",\"boolean\"]")
+      val explicit = intercept[GenerationException](SchemaCompiler.generate(input, output, GeneratorConfig(rootTypeName = Some("events.Event"))))
+      assert(explicit.getMessage.contains("exactly one root union"))
+      assert(!Files.exists(output))
+      Files.delete(first)
+      Files.writeString(input.resolve("Record.avsc"), """{"type":"record","name":"Second","fields":[]}""")
+      val collision = intercept[GenerationException](SchemaCompiler.generate(input, output))
+      assert(collision.getMessage.contains("same Scala source"))
+      assert(!Files.exists(output))
     }
   }
 

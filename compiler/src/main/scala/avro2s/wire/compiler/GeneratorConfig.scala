@@ -35,15 +35,19 @@ enum LogicalTypeMode:
   * Converted. Neither option changes the original Avro schema metadata.
   * Stack-safe codecs are opt-in; enabling them adds a non-given stackSafeCodec
   * alongside the standard given codec on every generated companion.
+  * rootTypeName names the Scala facade for an unnamed root union. It is already
+  * a Scala name, so namespace mappings do not rewrite it or the Avro schema.
   */
 final case class GeneratorConfig(
     decimalType: DecimalType = DecimalType.Scala,
     namespaceMappings: Map[String, String] = Map.empty,
     logicalTypes: Map[LogicalType, LogicalTypeMode] = Map.empty,
-    generateStackSafeCodecs: Boolean = false
+    generateStackSafeCodecs: Boolean = false,
+    rootTypeName: Option[String] = None
 ):
   /** Validate options even when no schemas use the configured namespaces or logical types. */
   def validate(): Unit =
+    rootTypeName.foreach(ScalaNames.validateFullName(_, generateStackSafeCodecs))
     namespaceMappings.toVector.sortBy(_._1).foreach { (source, target) =>
       if source.nonEmpty && !source.split("\\.", -1).forall(_.matches("[A-Za-z_][A-Za-z0-9_]*")) then
         throw GenerationException(s"Invalid source namespace '$source' in namespace mapping")

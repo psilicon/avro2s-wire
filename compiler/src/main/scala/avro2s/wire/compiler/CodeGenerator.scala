@@ -9,12 +9,14 @@ final case class GeneratedSource(relativePath: String, content: String)
 object CodeGenerator:
   def generate(schema: Schema, config: GeneratorConfig = GeneratorConfig()): Vector[GeneratedSource] =
     val definitions = SchemaModel.definitions(schema, config)
-    val byName = definitions.map(definition => definition.name -> definition).toMap
+    val byName = definitions.collect {
+      case definition if !definition.isInstanceOf[Definition.RootUnion] => definition.name -> definition
+    }.toMap
     definitions.map(generateDefinition(_, byName, config))
 
   private def generateDefinition(definition: Definition, definitions: Map[String, Definition], config: GeneratorConfig): GeneratedSource =
     val emitter = Emitter(config, definitions)
-    val fullName = config.mappedFullName(definition.name)
+    val fullName = definition.scalaName(config)
     val parts = fullName.split("\\.").toVector
     val localName = ScalaNames.escaped(parts.last)
     val qualifiedName = ScalaNames.qualified(fullName)
@@ -61,6 +63,9 @@ object CodeGenerator:
         (model, json, s"new $qualifiedName($read)", write,
           s"new $qualifiedName(values(0).asInstanceOf[$valueType])")
 
+      case Definition.RootUnion(_, value, json) =>
+        (s"type $localName = ${emitter.scalaType(value)}\n", json, emitter.read(value), emitter.write(value, "value"), "")
+
     val references = reachableDefinitions(definition, definitions).map { name =>
       s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(config.mappedFullName(name))}.codec"
     }.mkString("\n")
@@ -84,7 +89,8 @@ object CodeGenerator:
       s"    override def read(in: _root_.avro2s.wire.runtime.AvroInput): $qualifiedName =\n" + indent(read, 6) + "\n\n" +
       s"    override def write(value: $qualifiedName, out: _root_.avro2s.wire.runtime.AvroOutput): _root_.scala.Unit =\n" +
       indent(write, 6) + "\n\n" +
-      s"    override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" + indent(construct, 6) + "\n\n" +
+      (if construct.isEmpty then "" else
+        s"    override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" + indent(construct, 6) + "\n\n") +
       "    override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
       "      fullName match {\n" + indent(references, 8) + "\n        case _ => super.namedCodec(fullName)\n      }\n"
 
@@ -93,11 +99,18 @@ object CodeGenerator:
 
     // Generate the alternative separately so standard codec code, including fresh
     // local names and specialised collection hooks, stays byte-for-byte stable.
-    val safeEmitter = Emitter(config, definitions, Some(definition.name))
+    // The union facade's name belongs to Scala, not Avro. A branch may have
+    // that original Avro name and map elsewhere; it must still call its own codec.
+    val selfName = definition match
+      case Definition.RootUnion(_, _, _) => None
+      case _ => Some(definition.name)
+    val safeEmitter = Emitter(config, definitions, selfName)
     val selfReference = definition match
       case Definition.Record(_, fields, _) => fields.exists(field => safeEmitter.refersToSelf(field.value))
       case _ => false
     val (safeRead, safeWrite) = definition match
+      case Definition.RootUnion(_, value, _) =>
+        (safeEmitter.readStep(value), safeEmitter.writeStep(value, "value"))
       case Definition.Record(_, fields, _) if fields.exists(field => !safeEmitter.isDirectLeaf(field.value)) =>
         (safeEmitter.readFrame(qualifiedName, fields), safeEmitter.writeFrame(qualifiedName, fields))
       case _ =>
@@ -120,8 +133,9 @@ object CodeGenerator:
       indent(safeRead, 8) + "\n\n" +
       s"      override def writeStep(value: $qualifiedName, out: _root_.avro2s.wire.runtime.AvroOutput): ${safeEmitter.step}[_root_.scala.Unit] =\n" +
       indent(safeWrite, 8) + "\n\n" +
-      s"      override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" +
-      indent(construct, 8) + "\n\n" +
+      (if construct.isEmpty then "" else
+        s"      override def construct(values: _root_.scala.Array[_root_.scala.Any]): $qualifiedName =\n" +
+        indent(construct, 8) + "\n\n") +
       "      override def namedCodec(fullName: _root_.java.lang.String): _root_.avro2s.wire.runtime.AvroCodec[?] =\n" +
       "        fullName match {\n" + indent(safeReferences, 10) + "\n          case _ => super.namedCodec(fullName)\n        }\n" +
       (if selfReference then "    }\n" else "")
@@ -140,7 +154,9 @@ object CodeGenerator:
       if seen.add(definition.name) then definition match
         case Definition.Record(_, fields, _) => fields.foreach(field => visitValue(field.value))
         case _ => ()
-    visitDefinition(root)
+    root match
+      case Definition.RootUnion(_, value, _) => visitValue(value)
+      case _ => visitDefinition(root)
     seen.toVector.sorted
 
   private def indent(text: String, spaces: Int): String =

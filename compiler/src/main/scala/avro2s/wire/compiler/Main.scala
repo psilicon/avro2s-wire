@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 object Main:
-  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] [--namespace-map from=to] [--logical-type name=raw|converted] [--generate-stack-safe-codecs] <schema.avsc | schema-directory> <output-directory>"
+  private val usage = "Usage: avro2s-wire [--decimal-type scala|java] [--namespace-map from=to] [--logical-type name=raw|converted] [--generate-stack-safe-codecs] [--root-type-name package.Name] <schema.avsc | schema-directory> <output-directory>"
 
   def main(args: Array[String]): Unit =
     val (input, output, config) = parseArguments(args.toList)
@@ -19,10 +19,17 @@ object Main:
     val positional = Vector.newBuilder[String]
     var decimalType: Option[DecimalType] = None
     var generateStackSafeCodecs = false
+    var rootTypeName: Option[String] = None
     val namespaceMappings = mutable.LinkedHashMap.empty[String, String]
     val logicalTypes = mutable.LinkedHashMap.empty[LogicalType, LogicalTypeMode]
     var remaining = args
     while remaining.nonEmpty do remaining match
+      case "--root-type-name" :: value :: tail =>
+        if rootTypeName.nonEmpty then throw GenerationException(s"--root-type-name may only be specified once. $usage")
+        rootTypeName = Some(value)
+        remaining = tail
+      case "--root-type-name" :: Nil =>
+        throw GenerationException(s"Missing --root-type-name value; expected package.Name. $usage")
       case "--generate-stack-safe-codecs" :: tail =>
         if generateStackSafeCodecs then
           throw GenerationException(s"--generate-stack-safe-codecs may only be specified once. $usage")
@@ -67,7 +74,7 @@ object Main:
     positional.result() match
       case Vector(input, output) =>
         val config = GeneratorConfig(decimalType.getOrElse(DecimalType.Scala), namespaceMappings.toMap,
-          logicalTypes.toMap, generateStackSafeCodecs)
+          logicalTypes.toMap, generateStackSafeCodecs, rootTypeName)
         config.validate()
         (Path.of(input), Path.of(output), config)
       case _ => throw GenerationException(usage)
@@ -79,7 +86,11 @@ object Main:
     (value.substring(0, separator), value.substring(separator + 1))
 
 object SchemaCompiler:
-  /** Validate every input before writing. Existing identical outputs keep their timestamps. */
+  /** Validate every input before writing. Existing identical outputs keep their timestamps.
+    * Unnamed unions default to the file basename in the common namespace of
+    * their named branches (or the default package), with namespace mappings
+    * applied. An explicit rootTypeName overrides exactly one union input.
+    */
   def generate(input: Path, outputDirectory: Path, config: GeneratorConfig = GeneratorConfig()): Vector[Path] =
     config.validate()
     val inputs =
@@ -92,7 +103,15 @@ object SchemaCompiler:
       else throw GenerationException(s"Input is not an .avsc file or schema directory: $input")
 
     if inputs.isEmpty then throw GenerationException(s"No .avsc schemas found in $input")
-    val generated = parse(inputs).flatMap(CodeGenerator.generate(_, config))
+    val parsed = parse(inputs)
+    if config.rootTypeName.nonEmpty && parsed.count(_._2.getType == Schema.Type.UNION) != 1 then
+      throw GenerationException("--root-type-name / rootTypeName requires exactly one root union in the input; generate multiple unions separately to name each explicitly")
+    val generated = parsed.flatMap { (path, schema) =>
+      val rootName = if schema.getType == Schema.Type.UNION then
+        config.rootTypeName.orElse(Some(inferredRootName(path, schema, config)))
+      else None
+      CodeGenerator.generate(schema, config.copy(rootTypeName = rootName))
+    }
       .groupBy(_.relativePath).toVector.sortBy(_._1).map { (path, sources) =>
         if sources.map(_.content).distinct.size != 1 then
           throw GenerationException(s"Conflicting schema definitions generate the same Scala source: $path")
@@ -109,9 +128,23 @@ object SchemaCompiler:
       target
     }
 
-  private def parse(inputs: Vector[Path]): Vector[Schema] =
+  private def inferredRootName(path: Path, schema: Schema, config: GeneratorConfig): String =
+    val namespaces = schema.getTypes.asScala.toVector
+      .filter(branch => Set(Schema.Type.RECORD, Schema.Type.ENUM, Schema.Type.FIXED)(branch.getType))
+      .map(branch => Option(branch.getNamespace).getOrElse("").split("\\.").toVector.filter(_.nonEmpty))
+    val common = namespaces.reduceOption { (left, right) =>
+      left.zip(right).takeWhile((a, b) => a == b).map(_._1)
+    }.getOrElse(Vector.empty)
+    val name = (common :+ path.getFileName.toString.stripSuffix(".avsc")).mkString(".")
+    val mapped = config.mappedFullName(name)
+    try ScalaNames.validateFullName(mapped, config.generateStackSafeCodecs)
+    catch case error: GenerationException =>
+      throw GenerationException(s"Cannot infer a Scala root-union name from $path: ${error.getMessage}; specify --root-type-name / rootTypeName")
+    mapped
+
+  private def parse(inputs: Vector[Path]): Vector[(Path, Schema)] =
     val known = mutable.LinkedHashMap.empty[String, Schema]
-    val roots = mutable.ArrayBuffer.empty[Schema]
+    val roots = mutable.ArrayBuffer.empty[(Path, Schema)]
     var remaining = inputs
     // A fresh parser per attempt avoids leaking a partially parsed named type on failure.
     // Retrying unresolved files supports named references across separately stored schemas.
@@ -124,7 +157,7 @@ object SchemaCompiler:
           parser.addTypes(known.values.toVector.asJava)
           val root = parser.parse(Files.readString(path, UTF_8))
           parser.getTypes.asScala.foreach { (name, schema) => known(name) = schema }
-          roots += root
+          roots += ((path, root))
           progressed = true
         catch
           case NonFatal(error) => failures += ((path, Option(error.getMessage).getOrElse(error.getClass.getName)))

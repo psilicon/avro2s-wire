@@ -55,11 +55,17 @@ private[compiler] object SchemaModel:
     case Record(fullName: String, fields: Vector[Field], json: String)
     case Enumeration(fullName: String, symbols: Vector[String], json: String)
     case Fixed(fullName: String, size: Int, logical: Option[Logical], json: String)
+    case RootUnion(scalaName: String, value: Value, json: String)
 
     def name: String = this match
       case Record(name, _, _)      => name
       case Enumeration(name, _, _) => name
       case Fixed(name, _, _, _)    => name
+      case RootUnion(name, _, _)   => name
+
+    def scalaName(config: GeneratorConfig): String = this match
+      case RootUnion(name, _, _) => name
+      case _ => config.mappedFullName(name)
 
   private def logicalType(schema: Schema, location: String): Option[Logical] =
     Option(schema.getObjectProp("logicalType")).map { property =>
@@ -103,8 +109,12 @@ private[compiler] object SchemaModel:
   /** Named references terminate traversal, including mutually recursive records. */
   def definitions(schema: Schema, config: GeneratorConfig): Vector[Definition] =
     config.validate()
-    if !Set(Schema.Type.RECORD, Schema.Type.ENUM, Schema.Type.FIXED)(schema.getType) then
-      throw GenerationException(s"The root schema must be a named record, enum, or fixed type; found ${schema.getType}")
+    if !Set(Schema.Type.RECORD, Schema.Type.ENUM, Schema.Type.FIXED, Schema.Type.UNION)(schema.getType) then
+      throw GenerationException(s"The root schema must be a named record, enum, fixed type, or union; found ${schema.getType}")
+    if schema.getType == Schema.Type.UNION && config.rootTypeName.isEmpty then
+      throw GenerationException("An unnamed root union requires GeneratorConfig.rootTypeName (or --root-type-name when using the CLI)")
+    if schema.getType != Schema.Type.UNION && config.rootTypeName.nonEmpty then
+      throw GenerationException("rootTypeName applies only to an unnamed root union; named schemas already have a name")
     val seen = mutable.Set.empty[String]
     val result = mutable.ArrayBuffer.empty[Definition]
 
@@ -155,20 +165,20 @@ private[compiler] object SchemaModel:
           case Some(kind) => Value.LogicalValue(kind)
           case None => Value.Primitive(primitive)
 
-    visit(schema, "root")
+    val root = visit(schema, "root")
+    if schema.getType == Schema.Type.UNION then
+      result += Definition.RootUnion(config.rootTypeName.get, root, schema.toString)
     val definitions = result.toVector.sortBy(_.name)
-    if definitions.isEmpty then throw GenerationException("The schema must contain at least one named record, enum, or fixed type")
-    val collisions = definitions.groupBy(definition => config.mappedFullName(definition.name)).toVector
+    val collisions = definitions.groupBy(_.scalaName(config)).toVector
       .collect { case (target, members) if members.size > 1 =>
         s"'$target' from ${members.map(_.name).sorted.map(name => s"'$name'").mkString(", ")}"
       }.sorted
     if collisions.nonEmpty then
       throw GenerationException(s"Namespace mappings generate duplicate Scala types: ${collisions.mkString("; ")}")
-    ScalaNames.validateTypePaths(definitions.map(definition => config.mappedFullName(definition.name)))
+    ScalaNames.validateTypePaths(definitions.map(_.scalaName(config)))
     def validateReference(value: Value, owner: String, location: String): Unit = value match
-      case Value.Named(name) if config.mappedFullName(owner).contains('.') && !config.mappedFullName(name).contains('.') =>
-        val mappedOwner = config.mappedFullName(owner)
-        throw GenerationException(s"$location: Scala cannot reference default-package type '${config.mappedFullName(name)}' from named package '${mappedOwner.substring(0, mappedOwner.lastIndexOf('.'))}'")
+      case Value.Named(name) if owner.contains('.') && !config.mappedFullName(name).contains('.') =>
+        throw GenerationException(s"$location: Scala cannot reference default-package type '${config.mappedFullName(name)}' from named package '${owner.substring(0, owner.lastIndexOf('.'))}'")
       case Value.ArrayOf(element) => validateReference(element, owner, location)
       case Value.MapOf(element) => validateReference(element, owner, location)
       case Value.Optional(element, _, _) => validateReference(element, owner, location)
@@ -176,7 +186,8 @@ private[compiler] object SchemaModel:
       case _ => ()
     definitions.foreach {
       case Definition.Record(name, fields, _) =>
-        fields.foreach(field => validateReference(field.value, name, s"$name.${field.avroName}"))
+        fields.foreach(field => validateReference(field.value, config.mappedFullName(name), s"$name.${field.avroName}"))
+      case Definition.RootUnion(name, value, _) => validateReference(value, name, name)
       case _ => ()
     }
     definitions

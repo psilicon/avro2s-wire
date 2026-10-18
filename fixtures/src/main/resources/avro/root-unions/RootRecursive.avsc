@@ -1,0 +1,12 @@
+[
+  "string",
+  {
+    "type": "record",
+    "name": "RootNode",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "fields": [
+      {"name": "next", "type": ["null", "RootNode"]},
+      {"name": "value", "type": "int"}
+    ]
+  }
+]

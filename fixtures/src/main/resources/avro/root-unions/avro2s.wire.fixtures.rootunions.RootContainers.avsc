@@ -1,0 +1,4 @@
+[
+  {"type": "array", "items": ["null", "long", "string"]},
+  {"type": "map", "values": {"type": "array", "items": "int"}}
+]

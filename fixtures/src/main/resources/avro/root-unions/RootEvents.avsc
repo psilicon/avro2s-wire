@@ -1,0 +1,14 @@
+[
+  {
+    "type": "record",
+    "name": "RootCreated",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "fields": [{"name": "id", "type": "long"}]
+  },
+  {
+    "type": "record",
+    "name": "RootCancelled",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "fields": [{"name": "reason", "type": "string"}]
+  }
+]

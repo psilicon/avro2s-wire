@@ -194,7 +194,8 @@ val config = GeneratorConfig(
     LogicalType.Date -> LogicalTypeMode.Raw,
     LogicalType.TimestampMicros -> LogicalTypeMode.Converted
   ),
-  generateStackSafeCodecs = true // Defaults to false.
+  generateStackSafeCodecs = true, // Defaults to false.
+  rootTypeName = None // Set a Scala name when generating an unnamed union directly.
 )
 
 SchemaCompiler.generate(Path.of("schemas"), Path.of("generated"), config)
@@ -232,6 +233,46 @@ Scala decimal equality ignores trailing-zero scale; Java decimal `equals` includ
 scale. Avro `decimal` always decodes at its schema's scale, while `big-decimal`
 preserves each value's scale. See [logical types and generator options](docs/logical-types.md)
 for raw mappings, namespace edge cases, decimal semantics and extension design.
+
+### Top-level unions
+
+An `.avsc` file can contain a union directly, for example:
+
+```json
+[
+  {"type":"record","name":"example.Created","fields":[{"name":"id","type":"long"}]},
+  {"type":"record","name":"example.Cancelled","fields":[{"name":"reason","type":"string"}]}
+]
+```
+
+For `Event.avsc`, file-based generation infers the Scala name `example.Event`
+from the filename and the common namespace of its named branches. The generated
+API is a type alias `type Event = Created | Cancelled` with an `Event` object
+exposing `schemaJson` and `codec`, plus `stackSafeCodec` when enabled. It adds no
+Avro record or Scala value wrapper. The codec writes the union branch index and
+then that branch's value.
+
+Choose a name explicitly with:
+
+```sh
+sbt 'compiler/run --root-type-name example.OrderEvent --generate-stack-safe-codecs Event.avsc generated'
+```
+
+Direct `CodeGenerator.generate` calls require
+`GeneratorConfig(rootTypeName = Some("example.OrderEvent"))` for a union root.
+An explicit name is already a Scala name and is not namespace-remapped; the
+original Avro branch names and union schema remain unchanged. Directory
+generation infers a separate name for each union file. An explicit override is
+accepted only when the input contains exactly one union root. Invalid inferred
+names and collisions fail before writing any generated files.
+
+Use `Event.codec` explicitly, or `import Event.given` before implicit codec
+lookup: a transparent Scala type alias does not add its object's givens to
+implicit scope. Ordinary named record companions keep their existing behavior.
+Nullable unions use `Option`, primitive-only unions are supported, and collection
+branches use the same representations and dispatch checks as union fields.
+The degenerate `["null"]` union has Scala type `Null`; its core codec writes the
+null branch index, while Kafka adapters still interpret JVM `null` as a tombstone.
 
 ### Generated-code compatibility
 
@@ -275,7 +316,7 @@ published guarantee for this early implementation.
 | duration fixed | named wrapper around AvroDuration |
 | recursive named records | direct references to named codecs |
 
-Top-level schemas must be named records, enums, or fixed types. Unsupported
+Top-level schemas can be named records, enums, fixed types, or unions. Unsupported
 schemas fail generation explicitly. Unknown/unsupported or invalid logical types,
 empty enums, and the identifiers `_` and `_root_` are currently rejected. Keywords are escaped;
 model and enum member collisions are renamed deterministically. Wire names and
@@ -287,8 +328,9 @@ that collide with generated members, are rejected with guidance to add a namespa
 
 Defaults and aliases drive the optional schema resolver. They do not add Scala
 constructor defaults, and a field is always written even when it equals its Avro
-default. Avro IDL, JSON datum encoding, object container files, compression, schema
-registries, Kafka serializers, and Scala `derives` support are not yet implemented.
+default. Avro IDL, JSON datum encoding, object container files, compression, and
+Scala `derives` support are not yet implemented. Schema Registry and Kafka adapters
+are provided by the optional [registry module](docs/schema-registry.md).
 
 Generated records, enums, and fixed types retain distinct runtime classes. For
 example, UUID string/fixed unions become `UUID | NamedFixedUuid`. When a union

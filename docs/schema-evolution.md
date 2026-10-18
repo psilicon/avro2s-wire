@@ -85,9 +85,11 @@ schema changes and separately test native validation and branch selection.
 
 ## Current boundaries
 
-The compiler supports named record, enum and fixed roots. Generated models have
-the `construct` and `namedCodec` hooks used by resolution; a hand-written codec
-needs corresponding hooks when using the evolving-schema path.
+The compiler supports named record, enum, fixed and union roots. Generated named
+models have the `construct` hook used by resolution, and union companions expose
+`namedCodec` for their reachable branches. A hand-written codec needs the
+corresponding hooks when using the evolving-schema path. Root unions use the
+same branch-selection, nullable-value and promotion rules as union fields.
 
 Unknown logical types and invalid logical annotations are rejected explicitly,
 including in writer schemas. Avro permits ignoring unknown logical annotations;
