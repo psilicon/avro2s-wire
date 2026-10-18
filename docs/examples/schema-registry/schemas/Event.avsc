@@ -1,0 +1,21 @@
+[
+  {
+    "type": "record",
+    "name": "OrderPlaced",
+    "namespace": "example.trading",
+    "fields": [
+      {"name": "orderId", "type": "long"},
+      {"name": "symbol", "type": "string"},
+      {"name": "quantity", "type": "int"}
+    ]
+  },
+  {
+    "type": "record",
+    "name": "OrderCancelled",
+    "namespace": "example.trading",
+    "fields": [
+      {"name": "orderId", "type": "long"},
+      {"name": "reason", "type": "string"}
+    ]
+  }
+]

@@ -22,7 +22,7 @@ final class RegistryDeserializer[A] private[registry] (
 ) extends Deserializer[A] with RegistryAdapter:
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
-  RegistrySupport.namedSchema(codec)
+  RegistrySupport.codecSchema(codec)
   private enum ReaderKey:
     case Id(subject: Option[String], id: Int)
     case Guid(value: UUID)

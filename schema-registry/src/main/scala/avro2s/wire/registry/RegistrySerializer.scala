@@ -20,7 +20,7 @@ final class RegistrySerializer[A] private[registry] (
 ) extends Serializer[A] with RegistryAdapter:
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
-  private val schema = RegistrySupport.namedSchema(codec)
+  private val schema = RegistrySupport.codecSchema(codec)
   RegistrySupport.requireSubjectStrategy(schema, settings.subjectNameStrategy)
   private val identities = new BoundedCache[String, Bytes](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Serializer")

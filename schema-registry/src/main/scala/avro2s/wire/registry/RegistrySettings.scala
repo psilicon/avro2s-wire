@@ -4,21 +4,20 @@ import avro2s.wire.runtime.{DecodeLimits, WriterSettings}
 import org.apache.avro.Schema
 
 /** The three classic Confluent subject names. Record-name strategies require a
-  * record root; TopicName also supports enum and fixed roots.
+  * record root; TopicName also supports enum, fixed and union roots.
   */
 enum SubjectNameStrategy:
   case TopicName, RecordName, TopicRecordName
 
   private[registry] def subject(topic: String, schema: Schema, role: RegistryRole): String =
-    val fullName = schema.getFullName
     this match
       case TopicName =>
         require(topic != null && topic.nonEmpty, "TopicName requires a nonempty topic")
         s"$topic-${role.subjectSuffix}"
-      case RecordName => fullName
+      case RecordName => schema.getFullName
       case TopicRecordName =>
         require(topic != null && topic.nonEmpty, "TopicRecordName requires a nonempty topic")
-        s"$topic-$fullName"
+        s"$topic-${schema.getFullName}"
 
 /** Immutable settings for writing generated values to Schema Registry subjects. */
 final case class SerializerSettings(

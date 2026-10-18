@@ -438,12 +438,14 @@ destination registry's GUID endpoint. See Confluent's
 
 ### Supported schemas and errors
 
-The codec root must be a named Avro record, enum or fixed schema. Primitive roots
-and unnamed unions are rejected. This also excludes Avro's special raw-bytes
-payload case. Standard Avro logical types supported by the generated model work
+The codec root can be a named Avro record, enum, fixed schema or a generated
+top-level union. See the [complete union example](schema-registry-unions.md).
+Primitive, array and map roots remain unsupported; primitive and collection
+branches inside a union use ordinary Avro branch encoding. The special raw-bytes
+root payload case is unsupported. Standard Avro logical types supported by the generated model work
 through native codec handling and Wire's resolver.
 RecordName and TopicRecordName subject strategies require a record root, matching
-Confluent. Enum and fixed roots use TopicName. Schema ID zero is accepted for
+Confluent. Enum, fixed and union roots use TopicName. Schema ID zero is accepted for
 imported schemas; negative IDs are rejected.
 
 `RegistryConnection` rejects properties for unsupported Confluent modes, including

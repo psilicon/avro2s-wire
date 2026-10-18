@@ -1,22 +1,29 @@
 package avro2s.wire.registry
 
 import avro2s.wire.fixtures.Trade
+import avro2s.wire.fixtures.rootunions.{RootCancelled, RootCreated, RootEvents}
 import avro2s.wire.resolution.SchemaResolutionException
+import avro2s.wire.runtime.AvroCodec
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException
 import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaReference
-import io.confluent.kafka.serializers.{KafkaAvroDeserializer, KafkaAvroSerializer}
+import io.confluent.kafka.serializers.{KafkaAvroDeserializer, KafkaAvroSerializer, SerializerWithSchema}
+import io.confluent.kafka.serializers.schema.id.HeaderSchemaIdSerializer
+import io.confluent.kafka.serializers.subject.TopicNameStrategy
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.{ArrayNode, ObjectNode}
 import org.apache.kafka.common.errors.SerializationException
+import org.apache.kafka.common.header.internals.RecordHeaders
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
 
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.{HashMap, UUID}
 import scala.jdk.CollectionConverters.*
+import scala.util.Using
 
 /** These tests intentionally talk to the service configured by AVRO2S_WIRE_REGISTRY_URL. */
 final class RegistryIntegrationSuite extends munit.FunSuite:
@@ -235,6 +242,84 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
     }
   }
 
+  test("real registry preserves whole-union identity across Wire and Confluent in both framing modes") {
+    for
+      placement <- SchemaIdPlacement.values
+      autoRegister <- Vector(false, true)
+      codec <- Vector[AvroCodec[RootEvents]](RootEvents.codec, RootEvents.stackSafeCodec)
+    do
+      withTopic("root-union") { topic =>
+        val subject = s"$topic-value"
+        val unionSchema = new AvroSchema(codec.schemaJson)
+        if !autoRegister then client.register(subject, unionSchema)
+        val config = new HashMap[String, Object]()
+        config.put("schema.registry.url", registryUrl)
+        config.put("auto.register.schemas", Boolean.box(false))
+        config.put("value.subject.name.strategy", classOf[TopicNameStrategy].getName)
+        if placement == SchemaIdPlacement.HeaderGuid then
+          config.put("value.schema.id.serializer", classOf[HeaderSchemaIdSerializer].getName)
+
+        Using.Manager { use =>
+          // Independent clients force both readers to fetch the writer schema
+          // from the service instead of sharing a registration-warmed cache.
+          val writerClient = use(new CachedSchemaRegistryClient(registryUrl, 32))
+          val readerClient = use(new CachedSchemaRegistryClient(registryUrl, 32))
+          val wireWriter = use(RegistrySerializer.forValue(codec, writerClient,
+            SerializerSettings(autoRegisterSchemas = autoRegister, schemaIdPlacement = placement)))
+          val wireReader = use(RegistryDeserializer.forValue(codec, readerClient))
+          val confluentWriter = use(new KafkaAvroSerializer())
+          val confluentReader = use(new KafkaAvroDeserializer())
+          confluentWriter.configure(config, false)
+          confluentReader.configure(config, false)
+          val explicitWriter: SerializerWithSchema[AnyRef] = confluentWriter
+
+          for expected <- Vector[RootEvents](RootCreated(78L), RootCancelled("real registry")) do
+            val wireHeaders = new RecordHeaders()
+            val wireBytes = wireWriter.serialize(topic, wireHeaders, expected)
+            val registered = client.getLatestSchemaMetadata(subject)
+            assertEquals(registered.getVersion, 1)
+            assertEquals(schema(registered.getSchema).getType, Schema.Type.UNION)
+
+            val generic = expected match
+              case RootCreated(id) =>
+                val record = new GenericData.Record(unionSchema.rawSchema().getTypes.get(0))
+                record.put("id", id)
+                record
+              case RootCancelled(reason) =>
+                val record = new GenericData.Record(unionSchema.rawSchema().getTypes.get(1))
+                record.put("reason", reason)
+                record
+            val fromWire = confluentReader.deserialize(topic, wireHeaders, wireBytes).asInstanceOf[GenericRecord]
+            assertEquals(fromWire.getSchema.getFullName, generic.getSchema.getFullName)
+            expected match
+              case RootCreated(id) => assertEquals(fromWire.get("id"), Long.box(id))
+              case RootCancelled(reason) => assertEquals(fromWire.get("reason").toString, reason)
+
+            val javaHeaders = new RecordHeaders()
+            // Schema discovery from the record would select its individual
+            // branch. The explicit overload writes the registered union schema.
+            val javaBytes = explicitWriter.serialize(topic, javaHeaders, generic, unionSchema)
+            assertEquals(wireBytes.toVector, javaBytes.toVector)
+            assertEquals(wireReader.deserialize(topic, javaHeaders, javaBytes), expected)
+            placement match
+              case SchemaIdPlacement.PayloadPrefix =>
+                assertEquals(wireBytes.head, 0.toByte)
+                assertEquals(ByteBuffer.wrap(wireBytes, 1, 4).getInt(), registered.getId)
+                assertEquals(wireBytes.drop(5).toVector, codec.encode(expected).toVector)
+              case SchemaIdPlacement.HeaderGuid =>
+                val wireHeader = wireHeaders.lastHeader("__value_schema_id").value()
+                assertEquals(wireHeader.length, 17)
+                assertEquals(wireHeader.head, 1.toByte)
+                assertEquals(wireHeader.toVector, javaHeaders.lastHeader("__value_schema_id").value().toVector)
+                val guidBytes = ByteBuffer.wrap(wireHeader, 1, 16)
+                val guid = new UUID(guidBytes.getLong(), guidBytes.getLong()).toString
+                assertEquals(guid, client.getGuid(subject, unionSchema))
+                assertEquals(wireBytes.toVector, codec.encode(expected).toVector)
+          assertEquals(client.getAllVersions(subject).asScala.toVector, Vector(Int.box(1)))
+        }.get
+      }
+  }
+
   test("Wire reader ignores a writer-only field registered by Confluent") {
     withTopic("writer-evolution") { subject =>
       val topic = subject
@@ -323,4 +408,43 @@ final class RegistryIntegrationSuite extends munit.FunSuite:
           freshClient.close()
       }
     }
+  }
+
+
+  test("numeric lookup hints select independent real registry contexts") {
+    val token = UUID.randomUUID().toString.replace('-', '_')
+    val contexts = Vector(s"wire_a_$token", s"wire_b_$token")
+    val topic = "context-events"
+    val subjects = contexts.map(context => s":.$context:$topic-value")
+    val schemas = Vector(schema(Trade.schemaJson), tradeSchemaWithWriterOnlyField())
+    try
+      val ids = subjects.zip(schemas).map((subject, writer) => register(subject, writer))
+      // New contexts allocate independently, so these distinct schemas reuse an ID.
+      assertEquals(ids.distinct.size, 1)
+      val freshClient = new CachedSchemaRegistryClient(registryUrl, 32)
+      try
+        for index <- contexts.indices do
+          val writerSchema = schemas(index)
+          val record = new GenericData.Record(writerSchema)
+          record.put("id", Long.box(100L + index))
+          record.put("symbol", "CONTEXT")
+          record.put("price", Double.box(2.5))
+          record.put("quantities", java.util.List.of(Int.box(4)))
+          if index == 1 then record.put("venue", "LON")
+          val output = new ByteArrayOutputStream()
+          val encoder = EncoderFactory.get().binaryEncoder(output, null)
+          new GenericDatumWriter[GenericRecord](writerSchema).write(record, encoder)
+          encoder.flush()
+          val id = ids(index)
+          val frame = Array[Byte](0, (id >>> 24).toByte, (id >>> 16).toByte,
+            (id >>> 8).toByte, id.toByte) ++ output.toByteArray
+          val policies = Vector(SchemaLookup.TopicName(Some(contexts(index))),
+            SchemaLookup.Subject(subjects(index)), SchemaLookup.Context(contexts(index)))
+          for policy <- policies do
+            val reader = RegistryDeserializer.forValue(Trade.codec, freshClient,
+              DeserializerSettings(schemaLookup = policy))
+            try assertEquals(reader.deserialize(topic, frame), Trade(100L + index, "CONTEXT", 2.5, Vector(4)))
+            finally reader.close()
+      finally freshClient.close()
+    finally subjects.foreach(cleanupSubject)
   }

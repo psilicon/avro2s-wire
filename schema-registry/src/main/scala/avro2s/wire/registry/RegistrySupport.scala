@@ -16,23 +16,23 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 private[registry] object RegistrySupport:
-  def namedSchema[A](codec: AvroCodec[A]): AvroSchema =
+  def codecSchema[A](codec: AvroCodec[A]): AvroSchema =
     require(codec != null, "codec must be non-null")
     val parsed = new AvroSchema(codec.schemaJson)
-    requireNamed(parsed.rawSchema())
+    requireSupportedRoot(parsed.rawSchema())
     parsed
 
-  def requireNamed(schema: Schema): Unit =
+  private def requireSupportedRoot(schema: Schema): Unit =
     schema.getType match
-      case Schema.Type.RECORD | Schema.Type.ENUM | Schema.Type.FIXED => ()
+      case Schema.Type.RECORD | Schema.Type.ENUM | Schema.Type.FIXED | Schema.Type.UNION => ()
       case _ => throw new IllegalArgumentException(
-        "Registry adapters require a named Avro record, enum, or fixed root"
+        "Registry adapters require an Avro record, enum, fixed, or union root"
       )
 
   def requireSubjectStrategy(schema: AvroSchema, strategy: SubjectNameStrategy): Unit =
     if strategy != SubjectNameStrategy.TopicName then
       require(schema.rawSchema().getType == Schema.Type.RECORD,
-        s"$strategy requires an Avro record root; use TopicName for enum or fixed roots")
+        s"$strategy requires an Avro record root; use TopicName for enum, fixed, or union roots")
 
   private def requireNoRules(rules: RuleSet): Unit =
     if rules != null && (!rules.getMigrationRules.isEmpty ||
@@ -43,7 +43,7 @@ private[registry] object RegistrySupport:
     case avro: AvroSchema =>
       requireNoRules(avro.ruleSet())
       val raw = avro.rawSchema()
-      requireNamed(raw)
+      requireSupportedRoot(raw)
       // rawSchema includes resolved references; toString retains defaults and aliases.
       // Registry metadata describes the schema; it does not alter Avro decoding.
       raw.toString

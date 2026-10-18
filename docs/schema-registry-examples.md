@@ -35,7 +35,8 @@ The key schema is an ordinary Avro record, defined independently from the value:
 
 There is no key-specific schema-generation flag. `forKey` selects the key's
 registry subject; it does not extract a key from a value. Named record, enum and
-fixed roots are supported. Primitive roots such as `"long"` are currently
+fixed roots and [generated top-level unions](schema-registry-unions.md) are
+supported. Primitive roots such as `"long"` are currently
 unsupported by the registry adapter.
 
 Generate the Scala models, compile them with the example and run it from the

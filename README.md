@@ -271,6 +271,7 @@ lookup: a transparent Scala type alias does not add its object's givens to
 implicit scope. Ordinary named record companions keep their existing behavior.
 Nullable unions use `Option`, primitive-only unions are supported, and collection
 branches use the same representations and dispatch checks as union fields.
+For Kafka, see the [Schema Registry union example](docs/schema-registry-unions.md).
 The degenerate `["null"]` union has Scala type `Null`; its core codec writes the
 null branch index, while Kafka adapters still interpret JVM `null` as a tombstone.
 

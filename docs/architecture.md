@@ -77,7 +77,7 @@ LocalTime. Opaque aliases alone would not preserve runtime branch identity.
 The supported subset has binary interoperability tests in both directions with
 Java Avro. An optional Schema Registry module adds classic Confluent ID-prefix
 framing or opt-in GUID headers and Kafka SerDes adapters for named Avro records,
-enums and fixed roots. Readers accept either framing format. Broader wire
+enums, fixed and generated union roots. Readers accept either framing format. Broader wire
 compatibility, JVM API compatibility and file containers are separate milestones.
 
 See [schema evolution](schema-evolution.md) for plan construction, validation, and
