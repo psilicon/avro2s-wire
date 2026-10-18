@@ -206,6 +206,27 @@ promise exact least-recently-used ordering. The underlying
 are not total retained-byte budgets. Its own cache-miss synchronization can
 still serialize registry requests; Wire does not bypass it.
 
+To refresh after an administrative change, reset both cache layers together:
+
+```scala
+import avro2s.wire.registry.RegistryCaches
+
+RegistryCaches.refresh(serializer, deserializer)
+```
+
+Include every live Wire adapter sharing that client. The operation waits for
+admitted calls, resets the shared client once, clears all participating adapter
+caches, and then lets waiting calls proceed. It never closes the client. Duplicate
+adapters are harmless; different client instances, closed adapters, and refresh
+from inside an active participant are rejected. Concurrent refreshes acquire
+adapters in a stable order. If reset fails, local caches are still cleared and the
+failure is propagated; the client refresh is unverified and can be retried.
+
+Wire does not track adapters globally. Calling `client.reset()` alone leaves
+warm adapter caches intact, and omitting an adapter from `RegistryCaches.refresh`
+leaves that adapter's entries intact. Coordinate direct client users separately.
+Alternatively, drain and replace all adapters together with their client.
+
 All URLs for one connection must identify the same registry namespace/context.
 An injected client must not switch registry identity under a live adapter.
 Independent registries can assign the same numeric ID to different schemas;
@@ -218,8 +239,20 @@ or fiber-local storage. `close()` drains admitted calls, clears the caches, and 
 owned client once. It stays closed even if that cleanup fails. Concurrent close
 callers wait for cleanup; close does not cancel an HTTP request or impose a new
 timeout. Closing an adapter from inside one of its own operations is rejected.
-Custom client/codec callbacks must not create a cross-thread cycle by waiting
-for another thread to close the same adapter.
+Custom client/codec/reset callbacks must not synchronously wait for another
+thread to use, close, or refresh a participating adapter: an exclusive operation
+can create a cycle between that thread and the active callback. Same-thread
+use/close/refresh from a client's reset callback is rejected. Lock acquisition
+and shared-load waiting are not promptly cancellable; use an appropriate blocking
+execution context for this synchronous API when integrating with an effect runtime.
+
+On JDK 21–23, blocking inside Guava's cache loader can pin a virtual thread's
+carrier, including with a concurrent custom registry client. Confluent's cached
+client has its own monitor around several HTTP miss paths. JDK 24+ removes this
+monitor-based pinning; the absence of Wire thread-local buffers alone is not a
+virtual-thread scalability guarantee. JDK 21 also limits concurrent read-lock
+holds to 65,535; JDK 25 raises this to `Integer.MAX_VALUE`. These are in-flight
+operation limits, unrelated to datum sizes or nesting.
 
 Serialization writes the prefix and datum into one working buffer and returns
 one independently owned frame. Array deserialization reads the payload as a

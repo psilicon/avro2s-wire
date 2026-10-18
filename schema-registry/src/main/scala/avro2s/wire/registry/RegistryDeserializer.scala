@@ -16,12 +16,16 @@ final class RegistryDeserializer[A] private[registry] (
     settings: DeserializerSettings,
     role: RegistryRole,
     private val ownsClient: Boolean
-) extends Deserializer[A]:
+) extends Deserializer[A] with RegistryAdapter:
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
   RegistrySupport.namedSchema(codec)
   private val readers = new BoundedCache[Int, ResolvingReader[A]](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Deserializer")
+
+  private[registry] def registryClient: SchemaRegistryClient = client
+  private[registry] def registryLifecycle: RegistryLifecycle = lifecycle
+  private[registry] def clearRegistryCache(): Unit = readers.clear()
 
   override def deserialize(topic: String, data: Array[Byte]): A = deserialize(topic, null, data)
 

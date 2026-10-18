@@ -16,13 +16,17 @@ final class RegistrySerializer[A] private[registry] (
     settings: SerializerSettings,
     role: RegistryRole,
     private val ownsClient: Boolean
-) extends Serializer[A]:
+) extends Serializer[A] with RegistryAdapter:
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
   private val schema = RegistrySupport.namedSchema(codec)
   RegistrySupport.requireSubjectStrategy(schema, settings.subjectNameStrategy)
   private val prefixes = new BoundedCache[String, Bytes](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Serializer")
+
+  private[registry] def registryClient: SchemaRegistryClient = client
+  private[registry] def registryLifecycle: RegistryLifecycle = lifecycle
+  private[registry] def clearRegistryCache(): Unit = prefixes.clear()
 
   override def serialize(topic: String, data: A): Array[Byte] = serialize(topic, null, data)
 
