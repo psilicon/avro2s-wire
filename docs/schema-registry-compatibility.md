@@ -29,7 +29,7 @@ and [generated root-union example](schema-registry-unions.md) for usage.
 | Writer subjects | Configurable strategy classes; the 8.1.5 default is `AssociatedNameStrategy`, with TopicName fallback. | TopicName by default; RecordName and TopicRecordName supported for record roots only. Enum, fixed and union roots require TopicName. No association queries or custom strategy classes; `subject.name.strategy.*` properties are rejected. |
 | Numeric reader scope | Subject/context-aware lookup based on configured strategies. | `SchemaLookup.ById` defaults to the client's namespace. TopicName, explicit Subject and fixed Context policies supply subject/context hints and separate cache entries. Hints do not prove subject membership. |
 | Contexts | Configurable context-name strategy and qualified subjects. | Explicit numeric-reader contexts are supported. No writer context-strategy hook or arbitrary per-topic context routing. GUID lookup bypasses numeric lookup policy. |
-| References | Registry client resolves referenced schema versions; schemas can carry reference descriptors. | Reads use resolved `AvroSchema.rawSchema()` including references, defaults and aliases. Writers submit their codec's self-contained schema; no API authors reference descriptors, metadata, tags or rule sets. Deploy those through registry tooling. |
+| References | Registry client resolves referenced schema versions; schemas can carry reference descriptors. | Numeric reads resolve raw entities with their subject/context, bypassing the context-insensitive parsed cache. GUID root references must explicitly name a non-default context (e.g. `:.sales:child`); relative root references are rejected. Nested references then resolve in their parent's context. Writers submit self-contained schemas; deploy reference descriptors through registry tooling. |
 | Metadata and rules | Descriptive metadata, validation, domain and encoding rules, migrations, executors/actions and associated hooks. | Descriptive metadata and empty rule sets accepted. Nonempty migration, domain or encoding rules are rejected on writer identity loads and reader plan loads. No rule execution, encryption/decryption, migration, rule metrics or validation plugins. Native Avro validation is independent of registry rules. |
 | Additional APIs | Explicit-schema serialization, schema/version result wrappers and rule-result APIs. | Typed values in/out through Kafka interfaces. No per-call schema override, `NonRecordContainer`, schema/version wrapper or rule-result output. |
 
@@ -56,7 +56,8 @@ injected client yourself, or use `RegistryConnection` for an owned
 `CachedSchemaRegistryClient`. Its `request.header.*` properties are passed as
 HTTP headers. Injected clients must support concurrent use and the response APIs
 `registerWithResponse`/`getIdWithResponse`, retaining attached rules and, for
-header mode, GUIDs. `mock://` connections are rejected; inject
+header mode, GUIDs. Readers require `getSchemaEntityBySubjectAndId` and, for
+references, `getByVersion`; GUID reads require `getSchemaByGuid`. `mock://` connections are rejected; inject
 `MockSchemaRegistryClient` for tests.
 
 Wire adds two bounded caches above the client: writer identities by subject and
@@ -75,6 +76,14 @@ registry I/O**. Different cold keys sharing that client can therefore serialize,
 even though Wire's outer cache permits concurrency. Wire does not remove that
 limitation or override client retries/negative caching. Latest-cache TTL settings
 do not give Wire's identity or reader-plan caches a TTL.
+
+Wire bypasses the client's parsed-schema cache when resolving numeric IDs and
+qualified GUID references. In 8.1.5 that cache omits the parent context from its
+key and survives `reset()`, which can otherwise cause silent misdecoding when
+relative references differ across contexts. Raw ID/version caches retain the
+lookup scope and are reset by the client. Separately, GUIDs themselves can be
+ambiguous for context-relative root references; Wire rejects those even with a
+fresh client. These cases are covered by the real-registry reference suite.
 
 Use [`RegistryCaches.refresh`](schema-registry.md#client-creation-and-ownership)
 with every live adapter sharing a client to drain calls, reset the client once,

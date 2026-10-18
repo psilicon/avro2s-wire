@@ -153,6 +153,12 @@ methods and retain the response's rule information; returning only an ID cannot
 communicate unsupported registry rules. Confluent's cached and mock clients
 provide these methods.
 
+Readers require `getSchemaEntityBySubjectAndId` for numeric IDs and `getByVersion`
+for referenced schemas. They parse raw responses independently because Confluent
+8.1.5's parsed-schema cache can confuse relative references in different contexts.
+Custom clients must supply these APIs; Wire does not fall back to the unsafe
+parsed-ID path. GUID reads additionally require `getSchemaByGuid`.
+
 For in-memory tests, inject a `MockSchemaRegistryClient`. `RegistryConnection`
 rejects `mock://` URLs at construction: it creates real HTTP clients and does not
 participate in Confluent's shared mock-scope factory.
@@ -371,8 +377,11 @@ strategy classes such as `context.name.strategy` remain unsupported.
 Within a selected lookup scope, registry IDs identify the cached reader plans.
 Avro parsing-canonical fingerprints omit data such as defaults and aliases that
 affect Wire resolution, so they are not substitutes for schema JSON or registry
-IDs. When a writer schema is fetched, `AvroSchema.rawSchema().toString` preserves
-resolved references, defaults and aliases for Wire's resolver. Schema evolution
+IDs. Numeric reads fetch the raw schema entity, retain its subject/context, and
+resolve referenced versions through a fresh Avro schema provider. This bypasses
+the client's parsed-schema cache, whose key omits the context. The resulting
+`AvroSchema.rawSchema().toString` preserves resolved references, defaults and
+aliases for Wire's resolver. Schema evolution
 continues to follow Wire's stricter supported logical-type and decoding policies;
 the adapter does not change them.
 
@@ -392,6 +401,17 @@ role's header is ignored. GUIDs are fetched through `getSchemaByGuid(guid, null)
 numeric IDs use the configured `SchemaLookup`. Both resolve the writer schema
 against the generated reader codec. Kafka tombstones (`null` values) pass through
 without a frame, header modification or registry call.
+
+GUID reads accept self-contained schemas. For schemas with references, every
+reference directly on the root must specify a **named context**, for example
+`:.sales:child`. Relative references such as `child`, explicit default-context
+references such as `:.:child`, and wildcard contexts are rejected. The registry
+can assign the same GUID to roots whose relative references resolve differently
+by context, and its GUID response omits that context. A `SchemaLookup` hint cannot
+repair this; use qualified references or numeric-ID framing. References below a
+qualified root reference may be relative: their parent schema identifies the
+context. Wire resolves accepted references again from raw version responses,
+including after cache refresh, rather than trusting cached expanded schemas.
 
 Header mode requires Kafka `Headers`; the two-argument `serialize(topic, value)`
 method cannot carry this format and rejects non-null values. KafkaProducer calls

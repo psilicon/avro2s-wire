@@ -269,11 +269,15 @@ names and collisions fail before writing any generated files.
 Use `Event.codec` explicitly, or `import Event.given` before implicit codec
 lookup: a transparent Scala type alias does not add its object's givens to
 implicit scope. Ordinary named record companions keep their existing behavior.
+Singleton unions instead generate an opaque type with `Event(value)` construction
+and `.value` access. They allocate no wrapper, and `AvroCodec[Event]` selects the
+union codec automatically rather than accidentally selecting its branch's codec.
 Nullable unions use `Option`, primitive-only unions are supported, and collection
 branches use the same representations and dispatch checks as union fields.
 For Kafka, see the [Schema Registry union example](docs/schema-registry-unions.md).
-The degenerate `["null"]` union has Scala type `Null`; its core codec writes the
-null branch index, while Kafka adapters still interpret JVM `null` as a tombstone.
+The degenerate `["null"]` union wraps `Null` in the same opaque-type API; its core
+codec writes the null branch index, while Kafka adapters still interpret the
+underlying JVM `null` as a tombstone.
 
 ### Generated-code compatibility
 
