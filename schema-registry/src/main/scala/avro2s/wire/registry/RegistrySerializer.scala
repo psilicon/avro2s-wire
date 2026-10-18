@@ -2,10 +2,11 @@ package avro2s.wire.registry
 
 import avro2s.wire.runtime.{AvroCodec, BinaryOutput, Bytes}
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
+import java.util.Arrays
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.Serializer
 
-/** Classic Confluent framing around the bytes produced by a generated codec.
+/** Confluent schema identity framing around bytes produced by a generated codec.
   * The role and settings are fixed at construction; Kafka configure is unnecessary.
   * Calls may run concurrently; close drains admitted calls before releasing an
   * owned client. An injected client remains caller-owned.
@@ -21,12 +22,12 @@ final class RegistrySerializer[A] private[registry] (
   require(settings != null, "settings must be non-null")
   private val schema = RegistrySupport.namedSchema(codec)
   RegistrySupport.requireSubjectStrategy(schema, settings.subjectNameStrategy)
-  private val prefixes = new BoundedCache[String, Bytes](settings.cacheCapacity)
+  private val identities = new BoundedCache[String, Bytes](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Serializer")
 
   private[registry] def registryClient: SchemaRegistryClient = client
   private[registry] def registryLifecycle: RegistryLifecycle = lifecycle
-  private[registry] def clearRegistryCache(): Unit = prefixes.clear()
+  private[registry] def clearRegistryCache(): Unit = identities.clear()
 
   override def serialize(topic: String, data: A): Array[Byte] = serialize(topic, null, data)
 
@@ -35,26 +36,35 @@ final class RegistrySerializer[A] private[registry] (
       lifecycle.use {
         if data == null then null
         else
-          if headers != null && headers.lastHeader(role.schemaIdHeader) != null then
-            throw new IllegalArgumentException("Schema ID header framing is unsupported")
+          settings.schemaIdPlacement match
+            case SchemaIdPlacement.PayloadPrefix =>
+              if headers != null && headers.lastHeader(role.schemaIdHeader) != null then
+                throw new IllegalArgumentException("Schema ID headers conflict with payload-prefix framing")
+            case SchemaIdPlacement.HeaderGuid =>
+              require(headers != null, "GUID header framing requires Kafka Headers")
           val subject = settings.subjectNameStrategy.subject(topic, schema.rawSchema(), role)
-          val prefix = prefixes.getOrLoad(subject) {
-            val id = RegistrySupport.schemaId(client, subject, schema, settings)
-            Bytes.unsafeWrap(Array[Byte](0, (id >>> 24).toByte, (id >>> 16).toByte,
-              (id >>> 8).toByte, id.toByte))
+          val identity = identities.getOrLoad(subject) {
+            RegistrySupport.schemaIdentity(client, subject, schema, settings)
           }
-          // Keep mutable storage local. Prefix and datum share the working buffer;
-          // only the final, independently owned frame is copied out.
+          // Prefix and datum share one local buffer in classic mode. In header
+          // mode, finish encoding before changing the caller's headers.
           val out = new BinaryOutput(settings = settings.writerSettings)
-          out.writeFixed(prefix)
+          if settings.schemaIdPlacement == SchemaIdPlacement.PayloadPrefix then out.writeFixed(identity)
           codec.write(data, out)
-          out.toByteArray
+          val payload = out.toByteArray
+          if settings.schemaIdPlacement == SchemaIdPlacement.HeaderGuid then
+            val existing = headers.lastHeader(role.schemaIdHeader)
+            if existing == null || !Arrays.equals(existing.value(), identity.unsafeArray) then
+              // Kafka exposes header arrays to callers. Never lend the cached
+              // identity's storage to a header or to another serialization call.
+              headers.add(role.schemaIdHeader, identity.toArray)
+          payload
       }
     }
 
   override def close(): Unit = RegistrySupport.guard("close") {
     lifecycle.close {
-      prefixes.clear()
+      identities.clear()
       if ownsClient then client.close()
     }
   }

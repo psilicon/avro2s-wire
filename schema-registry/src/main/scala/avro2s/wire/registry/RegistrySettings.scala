@@ -26,11 +26,13 @@ final case class SerializerSettings(
     normalizeSchemas: Boolean = false,
     subjectNameStrategy: SubjectNameStrategy = SubjectNameStrategy.TopicName,
     cacheCapacity: Int = 1024,
-    writerSettings: WriterSettings = WriterSettings.default
+    writerSettings: WriterSettings = WriterSettings.default,
+    schemaIdPlacement: SchemaIdPlacement = SchemaIdPlacement.PayloadPrefix
 ):
   require(cacheCapacity > 0, "cacheCapacity must be positive")
   require(subjectNameStrategy != null, "subjectNameStrategy must be non-null")
   require(writerSettings != null, "writerSettings must be non-null")
+  require(schemaIdPlacement != null, "schemaIdPlacement must be non-null")
 
 /** Immutable settings for reading framed values into a generated model. */
 final case class DeserializerSettings(

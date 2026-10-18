@@ -2,7 +2,7 @@ package example.registry
 
 import avro2s.wire.registry.{
   DeserializerSettings, RegistryConnection, RegistryDeserializer,
-  RegistrySerializer, SchemaLookup, SerializerSettings, SubjectNameStrategy
+  RegistrySerializer, SchemaIdPlacement, SchemaLookup, SerializerSettings, SubjectNameStrategy
 }
 import avro2s.wire.runtime.{DecodeLimits, MalformedStringPolicy, WriterSettings}
 import example.trading.{Trade, TradeKey}
@@ -27,7 +27,8 @@ object FullConfiguration:
       normalizeSchemas = false,
       subjectNameStrategy = SubjectNameStrategy.TopicName,
       cacheCapacity = 256,
-      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject)
+      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject),
+      schemaIdPlacement = SchemaIdPlacement.PayloadPrefix
     )
 
     // Every DeserializerSettings and DecodeLimits parameter is specified here.

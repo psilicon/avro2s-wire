@@ -4,10 +4,13 @@ import avro2s.wire.resolution.ResolvingReader
 import avro2s.wire.runtime.{AvroCodec, BinaryInput}
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import java.nio.ByteBuffer
+import java.util.UUID
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.Deserializer
 
-/** Reads one classic Confluent-framed datum into the supplied generated model.
+/** Reads a datum identified by a GUID header or classic numeric-ID prefix into
+  * the supplied generated model. A non-null value in the role's last schema
+  * header takes precedence; a null last header uses the payload prefix.
   * The role and settings are fixed at construction; Kafka configure is unnecessary.
   */
 final class RegistryDeserializer[A] private[registry] (
@@ -20,7 +23,9 @@ final class RegistryDeserializer[A] private[registry] (
   require(client != null, "client must be non-null")
   require(settings != null, "settings must be non-null")
   RegistrySupport.namedSchema(codec)
-  private case class ReaderKey(subject: Option[String], id: Int)
+  private enum ReaderKey:
+    case Id(subject: Option[String], id: Int)
+    case Guid(value: UUID)
   private val readers = new BoundedCache[ReaderKey, ResolvingReader[A]](settings.cacheCapacity)
   private val lifecycle = new RegistryLifecycle("Deserializer")
 
@@ -35,13 +40,17 @@ final class RegistryDeserializer[A] private[registry] (
       lifecycle.use {
         if data == null then null.asInstanceOf[A]
         else
-          checkHeaders(headers)
-          val length = payloadLength(data.length)
-          checkMagic(data(0))
-          val id = ((data(1) & 0xff) << 24) | ((data(2) & 0xff) << 16) |
-            ((data(3) & 0xff) << 8) | (data(4) & 0xff)
-          val reader = readerFor(topic, id)
-          read(reader, BinaryInput.slice(data, 5, length, settings.decodeLimits))
+          val guid = headerGuid(headers)
+          val prefixLength = if guid.isDefined then 0 else 5
+          val length = payloadLength(data.length, prefixLength)
+          val reader = guid match
+            case Some(value) => readerForGuid(value)
+            case None =>
+              checkMagic(data(0))
+              val id = ((data(1) & 0xff) << 24) | ((data(2) & 0xff) << 16) |
+                ((data(3) & 0xff) << 8) | (data(4) & 0xff)
+              readerFor(topic, id)
+          read(reader, BinaryInput.slice(data, prefixLength, length, settings.decodeLimits))
       }
     }
 
@@ -51,34 +60,47 @@ final class RegistryDeserializer[A] private[registry] (
       lifecycle.use {
         if data == null then null.asInstanceOf[A]
         else
-          checkHeaders(headers)
-          val length = payloadLength(data.remaining())
+          val guid = headerGuid(headers)
+          val prefixLength = if guid.isDefined then 0 else 5
+          val length = payloadLength(data.remaining(), prefixLength)
           val start = data.position()
-          checkMagic(data.get(start))
-          // The frame is always big-endian, regardless of the buffer's byte order.
-          val id = ((data.get(start + 1) & 0xff) << 24) | ((data.get(start + 2) & 0xff) << 16) |
-            ((data.get(start + 3) & 0xff) << 8) | (data.get(start + 4) & 0xff)
-          val reader = readerFor(topic, id)
+          val reader = guid match
+            case Some(value) => readerForGuid(value)
+            case None =>
+              checkMagic(data.get(start))
+              // The prefix is big-endian regardless of the buffer's byte order.
+              val id = ((data.get(start + 1) & 0xff) << 24) | ((data.get(start + 2) & 0xff) << 16) |
+                ((data.get(start + 3) & 0xff) << 8) | (data.get(start + 4) & 0xff)
+              readerFor(topic, id)
           val in =
             if data.hasArray then
-              BinaryInput.slice(data.array(), data.arrayOffset() + start + 5, length, settings.decodeLimits)
+              BinaryInput.slice(data.array(), data.arrayOffset() + start + prefixLength, length, settings.decodeLimits)
             else
               val payload = new Array[Byte](length)
               val view = data.duplicate()
-              view.position(start + 5)
+              view.position(start + prefixLength)
               view.get(payload)
               new BinaryInput(payload, settings.decodeLimits)
           read(reader, in)
       }
     }
 
-  private def checkHeaders(headers: Headers): Unit =
-    if headers != null && headers.lastHeader(role.schemaIdHeader) != null then
-      throw new IllegalArgumentException("Schema ID header framing is unsupported")
+  private def headerGuid(headers: Headers): Option[UUID] =
+    val header = if headers == null then null else headers.lastHeader(role.schemaIdHeader)
+    val bytes = if header == null then null else header.value()
+    if bytes == null then None
+    else
+      require(bytes.length == 17 && bytes(0) == 1,
+        "Schema GUID header must contain version one followed by exactly sixteen GUID bytes")
+      // A fresh view has big-endian order and does not borrow mutable header
+      // storage into the cache; UUID retains the two immutable 64-bit values.
+      val input = ByteBuffer.wrap(bytes)
+      Some(new UUID(input.getLong(1), input.getLong(9)))
 
-  private def payloadLength(frameLength: Int): Int =
-    if frameLength < 5 then throw new IllegalArgumentException("Confluent frame is shorter than five bytes")
-    val length = frameLength - 5
+  private def payloadLength(frameLength: Int, prefixLength: Int): Int =
+    if frameLength < prefixLength then
+      throw new IllegalArgumentException("Confluent frame is shorter than five bytes")
+    val length = frameLength - prefixLength
     if settings.decodeLimits.maxInputBytes.exists(length > _) then
       throw new IllegalArgumentException("Avro datum exceeds maxInputBytes")
     length
@@ -89,11 +111,17 @@ final class RegistryDeserializer[A] private[registry] (
   private def readerFor(topic: String, id: Int): ResolvingReader[A] =
     if id < 0 then throw new IllegalArgumentException("Invalid Confluent schema ID")
     val subject = settings.schemaLookup.subject(topic, role)
-    readers.getOrLoad(ReaderKey(subject, id)) {
+    readers.getOrLoad(ReaderKey.Id(subject, id)) {
       val schema = subject match
         case Some(name) => client.getSchemaBySubjectAndId(name, id)
         case None => client.getSchemaById(id)
       val writer = RegistrySupport.writerSchema(schema)
+      new ResolvingReader(writer, codec)
+    }
+
+  private def readerForGuid(guid: UUID): ResolvingReader[A] =
+    readers.getOrLoad(ReaderKey.Guid(guid)) {
+      val writer = RegistrySupport.writerSchema(client.getSchemaByGuid(guid.toString, null))
       new ResolvingReader(writer, codec)
     }
 

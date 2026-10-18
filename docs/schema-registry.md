@@ -1,10 +1,10 @@
 # Confluent Schema Registry
 
 The optional `avro2s-wire-schema-registry` module wraps generated native codecs
-with Confluent's classic schema-ID framing. It lets Kafka applications serialize
+with Confluent's classic schema-ID prefix or optional schema-GUID headers. It lets Kafka applications serialize
 and deserialize generated Scala models without converting them to `GenericRecord`.
 The serializer calls the generated codec directly; the deserializer fetches the
-writer schema by ID and uses Wire's native schema resolver to construct the
+writer schema by ID or GUID and uses Wire's native schema resolver to construct the
 generated reader model.
 
 The module is separate from `avro2s-wire-runtime`. Add it only to applications
@@ -193,8 +193,8 @@ rejected. Recognized unsupported Confluent serializer/deserializer options fail
 at construction instead of being silently forwarded as client settings.
 
 Each adapter has a bounded concurrent cache. The serializer caches validated
-schema-ID prefixes by subject; the deserializer caches compiled writer-to-reader
-plans by schema ID and the selected subject/context lookup hint. Cached calls can
+schema identities by subject; the deserializer caches compiled writer-to-reader
+plans by GUID, or by numeric ID and the selected subject/context lookup hint. Cached calls can
 encode or decode concurrently. Calls for the same missing key share a load, and
 an unrelated load does not block cached calls.
 Failed loads are not retained by the adapter; an underlying client's own
@@ -327,7 +327,7 @@ generated reader model. Readers do not register or normalize schemas.
 ### Reader lookup policies
 
 `DeserializerSettings.schemaLookup` controls the subject/context hint supplied
-when looking up a numeric schema ID. The default, `SchemaLookup.ById`, preserves
+when looking up a numeric schema ID. GUID lookups do not use this policy. The default, `SchemaLookup.ById`, preserves
 lookup through `client.getSchemaById(id)`. The other policies use
 `client.getSchemaBySubjectAndId(hint, id)`:
 
@@ -373,11 +373,70 @@ the adapter does not change them.
 
 ## Frame, errors and limits
 
-The supported frame is Confluent's classic payload prefix: one zero magic byte,
-four big-endian schema-ID bytes, then the Avro datum. The ID is looked up with the
-injected registry client; the writer schema is resolved against the generated
-reader codec. Kafka tombstones (`null` values) pass through as `null` without a
-frame.
+`SerializerSettings.schemaIdPlacement` selects the writer format:
+
+| Placement | Kafka key/value bytes | Kafka header |
+| --- | --- | --- |
+| `SchemaIdPlacement.PayloadPrefix` (default) | Zero magic byte, four big-endian numeric ID bytes, then the Avro datum | None |
+| `SchemaIdPlacement.HeaderGuid` | Avro datum only | `__key_schema_id` or `__value_schema_id`: byte `1` followed by the 16-byte GUID in big-endian order |
+
+Readers accept both formats without a setting. The last header for the reader's
+role takes precedence. An absent or null-valued last header falls back to the
+classic prefix; a malformed non-null header fails without fallback. The other
+role's header is ignored. GUIDs are fetched through `getSchemaByGuid(guid, null)`;
+numeric IDs use the configured `SchemaLookup`. Both resolve the writer schema
+against the generated reader codec. Kafka tombstones (`null` values) pass through
+without a frame, header modification or registry call.
+
+Header mode requires Kafka `Headers`; the two-argument `serialize(topic, value)`
+method cannot carry this format and rejects non-null values. KafkaProducer calls
+the header-aware method automatically. Each call returns independently owned
+payload bytes, and each added header owns its bytes. Concurrent calls must use
+separate mutable `Headers` objects. Headers are appended only after successful
+encoding; the writer's cached schema identity is never exposed for mutation.
+
+The writer takes the GUID from the registry's registration/lookup response. It
+does not calculate one from the local schema or perform an extra fetch. This
+requires a registry/client response containing a GUID; a missing or malformed
+GUID fails rather than silently writing another format. Automatic registration
+still defaults to false. GUIDs in payloads, numeric IDs in headers and custom
+Confluent schema-ID serializer/deserializer plugins are outside this API.
+
+### Opting into GUID headers
+
+In the [complete example](schema-registry-examples.md), change only
+`schemaIdPlacement = SchemaIdPlacement.HeaderGuid`. Both Avro keys and values then
+use their own GUID headers, and the existing reader settings accept them. For a
+standalone round trip using an already registered `trades-value` schema:
+
+```scala
+import avro2s.wire.fixtures.Trade
+import avro2s.wire.registry.{RegistryDeserializer, RegistrySerializer, SchemaIdPlacement, SerializerSettings}
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
+import org.apache.kafka.common.header.internals.RecordHeaders
+import scala.util.Using
+
+Using.Manager { use =>
+  val client = use(new CachedSchemaRegistryClient("http://localhost:18081", 256))
+  val settings = SerializerSettings(schemaIdPlacement = SchemaIdPlacement.HeaderGuid)
+  val writer = use(RegistrySerializer.forValue(Trade.codec, client, settings))
+  val reader = use(RegistryDeserializer.forValue(Trade.codec, client))
+  val headers = new RecordHeaders()
+  val trade = Trade(42L, "ABC", 12.5, Vector(1, 2))
+  val payload = writer.serialize("trades", headers, trade)
+  assert(reader.deserialize("trades", headers, payload) == trade)
+}.get
+```
+
+Every hop must preserve Kafka headers, and downstream readers must understand
+GUID framing. This is separate from HTTP `request.header.*` properties used to
+contact the registry. Changing a Kafka **key** from prefix framing to header
+framing changes the serialized key bytes: plan partitioning and log-compaction
+migration accordingly. A matching schema must remain available through the
+destination registry's GUID endpoint. See Confluent's
+[GUID header format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format-schema-guid-in-header).
+
+### Supported schemas and errors
 
 The codec root must be a named Avro record, enum or fixed schema. Primitive roots
 and unnamed unions are rejected. This also excludes Avro's special raw-bytes
@@ -388,9 +447,10 @@ Confluent. Enum and fixed roots use TopicName. Schema ID zero is accepted for
 imported schemas; negative IDs are rejected.
 
 `RegistryConnection` rejects properties for unsupported Confluent modes, including
-schema GUIDs in Kafka headers, latest-schema selection, fixed schema IDs or GUIDs,
+latest-schema selection, fixed schema IDs or GUIDs,
 Confluent subject/context strategy classes and rule executors. Configure numeric
-reader lookup through `DeserializerSettings.schemaLookup`. Inactive selector defaults
+reader lookup through `DeserializerSettings.schemaLookup`, and GUID placement through
+`SerializerSettings.schemaIdPlacement`. Inactive selector defaults
 (`use.latest.version = false`, `use.schema.id = -1`, `use.schema.guid = null`) are
 accepted for migration and omitted from the underlying client properties.
 Descriptive registry metadata and empty rule sets are accepted. Nonempty
@@ -425,7 +485,7 @@ cancellable; a waiter's own interruption is preserved. Cancellation and retries
 inside the supplied client remain that client's responsibility; Wire cannot
 restore an interruption swallowed by that client.
 Configured native decode limits apply to the framed Avro datum; the five framing
-bytes are outside `maxInputBytes`. All five ceilings are disabled by default.
+bytes are outside `maxInputBytes`; GUID header bytes are also excluded. All five ceilings are disabled by default.
 Byte sizes and collection counts are independent of nesting depth. Mandatory
 checks for malformed encodings, available input, arithmetic overflow and JVM
 representability remain enabled regardless of these options. The [complete

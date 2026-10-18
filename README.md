@@ -442,7 +442,7 @@ reports and experiments remain recoverable through [Git history](docs/benchmarks
 - `compiler`: validated schema graph and deterministic Scala source generation.
 - `java-backend`: optional Apache Avro Java encoding and decoding backend.
 - `resolution`: optional native schema parsing/resolution and cached reader plans.
-- `schema-registry`: optional Confluent classic-frame Kafka serializer/deserializer adapters.
+- `schema-registry`: optional Confluent Kafka adapters with classic ID prefixes or GUID headers.
 - `fixtures`: generated-model compilation and interoperability checks.
 - `benchmarks`: JMH comparisons.
 - `property-tests`: generated schemas, schema evolution, wire layouts, limits and ownership properties.

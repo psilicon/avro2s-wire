@@ -76,8 +76,8 @@ LocalTime. Opaque aliases alone would not preserve runtime branch identity.
 
 The supported subset has binary interoperability tests in both directions with
 Java Avro. An optional Schema Registry module adds classic Confluent ID-prefix
-framing and Kafka SerDes adapters for named Avro records, enums and fixed roots.
-Header GUIDs and other registry serializer modes remain unsupported. Broader wire
+framing or opt-in GUID headers and Kafka SerDes adapters for named Avro records,
+enums and fixed roots. Readers accept either framing format. Broader wire
 compatibility, JVM API compatibility and file containers are separate milestones.
 
 See [schema evolution](schema-evolution.md) for plan construction, validation, and
@@ -85,6 +85,6 @@ compatibility boundaries. The runtime remains independent of Apache Avro; the
 optional resolver uses Jackson for JSON and implements resolution itself.
 
 The optional [Schema Registry module](schema-registry.md) uses the generated codec
-to encode native Scala values, fetches writer schemas by registry ID, and delegates
+to encode native Scala values, fetches writer schemas by registry ID or GUID, and delegates
 schema evolution to the resolver. It adds Confluent client dependencies only to
 applications that include that module.

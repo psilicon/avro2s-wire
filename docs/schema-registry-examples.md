@@ -63,7 +63,7 @@ package example.registry
 
 import avro2s.wire.registry.{
   DeserializerSettings, RegistryConnection, RegistryDeserializer,
-  RegistrySerializer, SchemaLookup, SerializerSettings, SubjectNameStrategy
+  RegistrySerializer, SchemaIdPlacement, SchemaLookup, SerializerSettings, SubjectNameStrategy
 }
 import avro2s.wire.runtime.{DecodeLimits, MalformedStringPolicy, WriterSettings}
 import example.trading.{Trade, TradeKey}
@@ -88,7 +88,8 @@ object FullConfiguration:
       normalizeSchemas = false,
       subjectNameStrategy = SubjectNameStrategy.TopicName,
       cacheCapacity = 256,
-      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject)
+      writerSettings = WriterSettings(malformedStrings = MalformedStringPolicy.Reject),
+      schemaIdPlacement = SchemaIdPlacement.PayloadPrefix
     )
 
     // Every DeserializerSettings and DecodeLimits parameter is specified here.
@@ -164,7 +165,7 @@ The settings are defined in these source files:
 
 | Settings type | Source | Purpose |
 | --- | --- | --- |
-| `SerializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Registration, normalization, subject naming, the writer's schema-ID cache and native writer settings |
+| `SerializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Registration, normalization, framing, subject naming, the writer's schema-ID cache and native writer settings |
 | `WriterSettings` | [WriterSettings.scala](../runtime/src/main/scala/avro2s/wire/runtime/WriterSettings.scala) | Immutable malformed-string policy: `Reject` (default) or Java-compatible `Replace` |
 | `DeserializerSettings` | [RegistrySettings.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistrySettings.scala) | Numeric schema lookup policy, reader resolution-plan cache and decoding limits |
 | `SchemaLookup` | [SchemaLookup.scala](../schema-registry/src/main/scala/avro2s/wire/registry/SchemaLookup.scala) | ID-only lookup or an explicit topic, subject or context hint |
@@ -172,7 +173,7 @@ The settings are defined in these source files:
 | `RegistryConnection` | [RegistryConnection.scala](../schema-registry/src/main/scala/avro2s/wire/registry/RegistryConnection.scala) | Registry endpoints, registry-client cache and network/authentication/TLS properties |
 
 The two cache capacities control different caches: adapter settings bound cached
-writer IDs for each subject or reader plans for each lookup scope and schema ID;
+writer identities for each subject or reader plans for each GUID or scoped numeric ID;
 `RegistryConnection.cacheCapacity` configures the underlying Confluent client.
 Kafka broker and consumer-group settings remain in Kafka's maps.
 
@@ -185,6 +186,11 @@ For a fixed hint independent of the Kafka topic, use
 These are registry lookup hints, not checks that an ID belongs to a particular
 subject. They do not change the writer's registration subjects. See
 [reader lookup policies](schema-registry.md#reader-lookup-policies) for details.
+
+To use GUID headers with this same complete program, change
+`schemaIdPlacement` to `SchemaIdPlacement.HeaderGuid`. Kafka supplies the headers;
+readers accept either format automatically. See [format and migration details](schema-registry.md#opting-into-guid-headers),
+particularly before changing the serialization of Kafka keys.
 
 ## Client cleanup
 

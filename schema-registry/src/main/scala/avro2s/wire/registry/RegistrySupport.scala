@@ -1,11 +1,13 @@
 package avro2s.wire.registry
 
-import avro2s.wire.runtime.AvroCodec
+import avro2s.wire.runtime.{AvroCodec, Bytes}
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
 import io.confluent.kafka.schemaregistry.client.rest.entities.RuleSet
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException
 import java.io.InterruptedIOException
+import java.nio.ByteBuffer
+import java.util.UUID
 import org.apache.avro.Schema
 import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.errors.{AuthenticationException, AuthorizationException, DisconnectException,
@@ -47,28 +49,41 @@ private[registry] object RegistrySupport:
       raw.toString
     case _ => throw new IllegalArgumentException("Registry schema is not Avro")
 
-  /** Inspect the registry response before remembering its ID or writing a datum.
+  /** Inspect the registry response before remembering its identity or writing a datum.
     * The registry may add rules during registration, even when the submitted
     * codec schema has none. Confluent returns those rules in the response.
     * Custom clients must implement the response APIs and include attached rules;
-    * an ID-only response is treated as an unchanged, rule-free schema.
+    * an ID-only response is treated as an unchanged, rule-free schema. Header
+    * framing additionally requires the registry-issued GUID in that response.
     */
-  def schemaId(
+  def schemaIdentity(
       client: SchemaRegistryClient,
       subject: String,
       schema: AvroSchema,
       settings: SerializerSettings
-  ): Int =
+  ): Bytes =
     val response =
       if settings.autoRegisterSchemas then
         client.registerWithResponse(subject, schema, settings.normalizeSchemas, false)
       else client.getIdWithResponse(subject, schema, settings.normalizeSchemas)
     require(response != null, "Registry returned no schema response")
-    require(response.getId >= 0, "Registry returned an invalid schema ID")
     require(response.getSchemaType == null || response.getSchemaType == AvroSchema.TYPE,
       "Registry schema is not Avro")
     requireNoRules(response.getRuleSet)
-    response.getId
+    val bytes = settings.schemaIdPlacement match
+      case SchemaIdPlacement.PayloadPrefix =>
+        require(response.getId >= 0, "Registry returned an invalid schema ID")
+        ByteBuffer.allocate(5).put(0.toByte).putInt(response.getId).array()
+      case SchemaIdPlacement.HeaderGuid =>
+        val value = response.getGuid
+        require(value != null && value.length == 36, "Registry returned no valid schema GUID")
+        val guid = UUID.fromString(value)
+        // UUID.fromString also accepts shortened groups; require the registry's
+        // canonical 8-4-4-4-12 form instead of silently padding them with zeroes.
+        require(guid.toString.equalsIgnoreCase(value), "Registry returned an invalid schema GUID")
+        ByteBuffer.allocate(17).put(1.toByte).putLong(guid.getMostSignificantBits)
+          .putLong(guid.getLeastSignificantBits).array()
+    Bytes.unsafeWrap(bytes)
 
   private val clientNamespace = "schema.registry."
   private val headerPrefix = "request.header."
