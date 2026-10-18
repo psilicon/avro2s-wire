@@ -1,11 +1,16 @@
 # Confluent Schema Registry
 
 The optional `avro2s-wire-schema-registry` module wraps generated native codecs
-with Confluent's classic schema-ID prefix or optional schema-GUID headers. It lets Kafka applications serialize
-and deserialize generated Scala models without converting them to `GenericRecord`.
+with Confluent's classic schema-ID prefix or optional schema-GUID headers. Kafka
+applications serialize and deserialize generated Scala models without converting
+them to `GenericRecord`.
 The serializer calls the generated codec directly; the deserializer fetches the
 writer schema by ID or GUID and uses Wire's native schema resolver to construct the
 generated reader model.
+
+The [compatibility inventory](schema-registry-compatibility.md) lists the supported
+features, remaining differences from Confluent 8.1.5, and client/cache concurrency
+limits.
 
 The module is separate from `avro2s-wire-runtime`. Add it only to applications
 that use Schema Registry. Its published artifact is
@@ -257,8 +262,8 @@ virtual-thread scalability guarantee. JDK 21 also limits concurrent read-lock
 holds to 65,535; JDK 25 raises this to `Integer.MAX_VALUE`. These are in-flight
 operation limits, unrelated to datum sizes or nesting.
 
-Serialization writes the prefix and datum into one working buffer and returns
-one independently owned frame. Array deserialization reads the payload as a
+Classic serialization writes the prefix and datum into one working buffer and
+returns one independently owned frame. GUID mode writes just the datum. Array deserialization reads the payload as a
 bounded range without copying it. Kafka's `ByteBuffer` entry point uses the
 backing array when accessible; direct/read-only buffers initially copy only the
 validated payload. The caller's position, limit and mark are preserved. Do not
@@ -487,7 +492,8 @@ cancellable; a waiter's own interruption is preserved. Cancellation and retries
 inside the supplied client remain that client's responsibility; Wire cannot
 restore an interruption swallowed by that client.
 Configured native decode limits apply to the framed Avro datum; the five framing
-bytes are outside `maxInputBytes`; GUID header bytes are also excluded. All five ceilings are disabled by default.
+bytes are outside `maxInputBytes`; GUID header bytes are also excluded. All five
+ceilings are disabled by default.
 Byte sizes and collection counts are independent of nesting depth. Mandatory
 checks for malformed encodings, available input, arithmetic overflow and JVM
 representability remain enabled regardless of these options. The [complete

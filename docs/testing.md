@@ -2,8 +2,7 @@
 
 Testing has two complementary layers: mechanically generated schema/value
 properties, and targeted regressions for particular wire-format and API rules.
-The original **128 MUnit regression tests across 16 suites** remain in place.
-The ordinary correctness suite now declares **367 tests across 50 suites**,
+The ordinary correctness suite now declares **683 tests across 63 suites**,
 including 32 property tests, comparison-benchmark checks and focused runtime and
 registry regressions. The separate real-service registry project is opt-in locally.
 A named test often exercises many inputs; declaration counts do not measure
@@ -16,9 +15,10 @@ Avro readers/writers. The optimised stack-safe traversal passed the full suite o
 JDK 21 on 26 September 2026, including the default-off generator setting,
 standard-only compatibility, nested collections, branching, concurrent reuse and
 failure cleanup. The runnable [usage example](stack-safety.md) also passed.
-All eight real Kafka/Schema Registry integration tests passed during the initial
-stack-safe implementation (on the host's JDK 25); they were not rerun after the
-subsequent traversal optimisation or generator opt-in change.
+On 18 October 2026, all 683 ordinary tests and all 11 real Kafka/Schema Registry
+integration tests passed on Corretto 25.0.4.1. The complete configuration and
+root-union examples also compiled. This run includes the default-off stack-safe
+generator, GUID headers, subject/context lookup and coordinated cache refresh.
 
 Production generation defaults to standard-only. Fixture generation and the dual-codec
 property campaigns explicitly set `generateStackSafeCodecs = true`; the dynamic
@@ -236,8 +236,8 @@ rejects the pair; Wire continues to require matching names or reader aliases.
 ## Schema Registry and Kafka
 
 `schemaRegistry/test` uses Confluent's serializers, mock clients and isolated
-loopback HTTP servers to check exact
-framing and interoperability, named roots, subject strategies, normalization,
+loopback HTTP servers to check exact classic and GUID framing, named and
+top-level union roots, subject strategies, normalization,
 registration versus lookup, immutable key/value factories, typed settings,
 connection-property validation, bounded cache eviction, concurrent use, retries,
 tombstones, limits, malformed data, unsupported options and client ownership.
@@ -245,7 +245,13 @@ The HTTP tests exercise the actual cached client's request headers and enriched
 registration/lookup responses. They do not establish real-server registration
 policy. Barrier-controlled concurrency tests prove overlapping codec execution,
 cached progress during unrelated blocked loads, shared lookups, failure recovery,
-interruption ownership and close draining. Buffer tests cover heap, sliced,
+interruption ownership, close draining and coordinated client/adapter refresh.
+Refresh checks include overlapping batches, reset failures and callback rejection.
+GUID tests compare actual Confluent SerDes, validate header precedence and mutable
+header isolation, and cover missing GUID responses and zero-byte payloads.
+Root-union tests cover whole-union identity, nullable branches, primitive bytes,
+branch reorder, promotions, defaults and named/union resolution in both directions.
+Buffer tests cover heap, sliced,
 read-only and direct buffers, cursor preservation, bounded payload validation and
 independent decoded storage. `runtime/test` separately checks array-range bounds,
 collection blocks, resource limits and datum-relative errors.
@@ -258,11 +264,13 @@ bash scripts/test-schema-registry.sh
 
 This starts isolated Confluent 8.1.5 Kafka and Schema Registry containers, runs
 `registryIntegration/test`, then removes the test containers, network and volumes.
-The suite tests actual registration compatibility policies, references and
-Wire/Confluent interoperability; broker tests pass owned key/value adapters directly
+The suite tests actual registration compatibility policies, resolved references,
+whole-union identity and lookup in independent contexts with colliding numeric
+IDs. Wire/Confluent interoperability covers both framing formats; broker tests
+pass owned key/value adapters directly
 to Kafka producers and consumers and send messages and tombstones in both directions,
-checking both registered subjects. PR and release CI run this
-command after the ordinary tests. See [registry usage](schema-registry.md) for
+checking both registered subjects with classic prefixes and GUID headers. PR and
+release CI run this command after the ordinary tests. See [registry usage](schema-registry.md) for
 ports and configuration. The integration project is deliberately not part of
 the root `sbt test` aggregate.
 
@@ -317,13 +325,13 @@ classes, rather than claiming exhaustive wire fuzzing.
 | Module | Suites | Tests | Coverage |
 | --- | --- | ---: | --- |
 | `runtime` | `BinaryRuntimeSuite` (22), `BinaryInputSliceSuite` (9), `BinarySkippingSuite` (4), `BulkIntegerArraySuite` (3), `DecimalLogicalValuesSuite` (7), `LogicalValuesSuite` (14), `NumericBoundarySuite` (9), `OptionalDecodeLimitsSuite` (10), `StrictUtf8Suite` (9), `SupplementaryStringSuite` (2), `WriterSettingsSuite` (5), `StepSuite` (9) | 103 | Binary wire bytes and bounded array ranges, malformed input, truncation, block boundaries, optional resource limits and larger payloads, ownership, skipping, string policies, logical-type precision and ranges; iterative execution and failure cleanup. |
-| `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (6), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16) | 59 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change standard-codec output compatibility and cross-file schemas. |
+| `compiler` | `CodeGeneratorSuite` (33), `GeneratorCliSuite` (10), `GeneratorCompatibilitySuite` (4), `GeneratorOptionsSuite` (16), `RootUnionGeneratorSuite` (7) | 70 | Both codec implementations, recursive definitions, unions, logical validation, namespace mapping, raw representations, CLI errors, pre-change standard-codec output compatibility and cross-file schemas. |
 | `java-backend` | `IntegerOutputSuite` (3), `JavaAvroInputSuite` (4), `StringEncodingSuite` (5) | 12 | Buffer slices and ownership, validating null hooks, integer widths and buffer growth, Unicode encoding and malformed strings. |
 | `resolution` | `DecimalResolutionSuite` (3), `RawLogicalResolutionSuite` (8), `ResolvingReaderSuite` (20), `EvolutionMatrixSuite` (7), their four `StackSafe` counterparts (38), `StackSafeDepthSuite` (8), `StackSafeConcurrencySuite` (1) | 85 | Both execution modes: aliases, reordered/skipped fields, defaults, promotions and demotions, both version directions, union selection, enums, fixed values, recursion, logical types and limits; deep traversal and cleanup. |
-| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7), `BranchingStackSafetySuite` (5) | 47 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
-| `benchmarks` | `BigDecimalBenchmarkSuite` (2), `CodecWorkloadSuite` (5), `ComparisonBenchmarkSuite` (7), `TradeBenchmarkSuite` (5), `StackSafetyBenchmarkSuite` (4) | 23 | Benchmark correctness, genuine implementation dispatch, workload distributions, fresh results, buffer reuse and comparative/evolution/stack-safety workloads. |
+| `fixtures` | `BulkIntegerInteropSuite` (2), `EmptyCollectionsSuite` (4), `EvolutionSuite` (5), `GeneratedCollectionsSuite` (3), `InteropSuite` (12), `LogicalInteropSuite` (4), `UnionInteropSuite` (3), `UnionLogicalSuite` (2), `StackSafetySuite` (7), `BranchingStackSafetySuite` (5), `RootUnionInteropSuite` (8) | 55 | Compiled generated codecs, Java interoperability, unions, logical types, schema evolution, nested empty collections, arrays above the former item limit, malformed records and deep values on small stacks. |
+| `benchmarks` | `SuiteCorrectnessSuite` (68), `SuiteReuseSuite` (70), `SuiteJavaConfigurationSuite` (65), `SuiteCorpusContractSuite` (8) | 211 | Catalogue and corpus contracts, genuine implementation dispatch, cross-engine bytes and values, fresh results, owned buffers, factory/reuse configurations and failure recovery. |
 | `property-tests` | `DecimalConfigurationSuite` (2), `EvolutionPropertiesSuite` (6), `GeneratedEvolutionPropertiesSuite` (3), `GeneratedPropertiesSuite` (9), `GeneratorOptionsPropertiesSuite` (7), `WirePropertiesSuite` (5) | 32 | Generated model compilation, Java differential properties, schema evolution in both directions and at named roots, wire mutations, budgets, state, shrinking and replay. |
-| `schema-registry` | `RegistrySuite` (27), `RegistryStackSafetySuite` (1), `RegistryBufferSuite` (8), `RegistrySemanticsSuite` (12), `RegistryHttpSuite` (4), `RegistryConcurrencySuite` (14) | 66 | Confluent interoperability, framing and bounded buffers, typed settings, HTTP headers, metadata/rules, schema selection, concurrent cache loads, ownership, lifecycle and deep framed values. |
+| `schema-registry` | `RegistrySuite` (27), `RegistryStackSafetySuite` (1), `RegistryBufferSuite` (8), `RegistrySemanticsSuite` (12), `RegistryHttpSuite` (4), `RegistryConcurrencySuite` (14), `RegistryOperationalSuite` (6), `RegistryCacheRefreshSuite` (7), `SchemaLookupSuite` (3), `RegistryLookupSuite` (9), `RegistryGuidSuite` (14), `RegistryRootUnionSuite` (10) | 115 | Confluent interoperability, classic/GUID framing and bounded buffers, root unions, typed settings, HTTP error categories, metadata/rules, subject/context lookup, concurrent cache loads, coordinated refresh, ownership, lifecycle and deep framed values. |
 
 The runtime tests include exact zigzag and little-endian wire examples, signed
 extremes, 2,000 seeded random ints and 2,000 seeded random longs. Negative tests
