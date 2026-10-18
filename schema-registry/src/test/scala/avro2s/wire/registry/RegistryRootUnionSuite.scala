@@ -356,7 +356,7 @@ final class RegistryRootUnionSuite extends munit.FunSuite:
         val writer = use(nativeWriter(codec, client, placement))
         val reader = use(nativeReader(codec, client))
         val headers = new RecordHeaders()
-        assertEquals(writer.serialize(topic, headers, null), null)
+        assertEquals(writer.serialize(topic, headers, RootNull(null)), null)
         assertEquals(headers.toArray.length, 0)
         assert(client.getAllSubjects.isEmpty)
         val id = client.register(subject(false), schema)
@@ -367,7 +367,7 @@ final class RegistryRootUnionSuite extends munit.FunSuite:
         new GenericDatumWriter[AnyRef](schema.rawSchema()).write(null, encoder)
         encoder.flush()
         val datum = out.toByteArray
-        assertEquals(datum.toVector, codec.encode(null).toVector)
+        assertEquals(datum.toVector, codec.encode(RootNull(null)).toVector)
         val framed = placement match
           case SchemaIdPlacement.PayloadPrefix =>
             ByteBuffer.allocate(5 + datum.length).put(0.toByte).putInt(id).put(datum).array()
@@ -376,7 +376,7 @@ final class RegistryRootUnionSuite extends munit.FunSuite:
             headers.add(headerName(false), ByteBuffer.allocate(17).put(1.toByte)
               .putLong(guid.getMostSignificantBits).putLong(guid.getLeastSignificantBits).array())
             datum
-        assertEquals(reader.deserialize(topic, headers, framed), null)
+        assertEquals(reader.deserialize(topic, headers, framed), RootNull(null))
       }.get
       client.close()
   }

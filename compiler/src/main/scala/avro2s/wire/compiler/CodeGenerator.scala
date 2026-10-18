@@ -64,7 +64,13 @@ object CodeGenerator:
           s"new $qualifiedName(values(0).asInstanceOf[$valueType])")
 
       case Definition.RootUnion(_, value, json) =>
-        (s"type $localName = ${emitter.scalaType(value)}\n", json, emitter.read(value), emitter.write(value, "value"), "")
+        // A transparent singleton alias would inherit its branch's implicit
+        // codec, silently dropping the union index. An opaque type gives the
+        // root its own implicit scope without allocating a wrapper value.
+        val modifier = value match
+          case Value.Union(branches) if branches.size == 1 => "opaque "
+          case _ => ""
+        (s"${modifier}type $localName = ${emitter.scalaType(value)}\n", json, emitter.read(value), emitter.write(value, "value"), "")
 
     val references = reachableDefinitions(definition, definitions).map { name =>
       s"case ${ScalaNames.literal(name)} => ${ScalaNames.qualified(config.mappedFullName(name))}.codec"
@@ -80,7 +86,14 @@ object CodeGenerator:
       else "    override val rawLogicalTypes: _root_.scala.collection.immutable.Set[_root_.java.lang.String] = " +
         config.rawLogicalTypes.map(ScalaNames.literal).mkString("_root_.scala.collection.immutable.Set(", ", ", ")\n\n")
 
-    val companion = s"\nobject $localName:\n" +
+    val singletonAccess = definition match
+      case Definition.RootUnion(_, value @ Value.Union(branches), _) if branches.size == 1 =>
+        val underlying = emitter.scalaType(value)
+        s"  def apply(value: $underlying): $qualifiedName = value\n\n" +
+        s"  extension (root: $qualifiedName)\n    def value: $underlying = root\n\n"
+      case _ => ""
+
+    val companion = s"\nobject $localName:\n" + singletonAccess +
       s"  val schemaJson: _root_.java.lang.String = ${ScalaNames.stringExpression(json)}\n\n" +
       s"  given codec: _root_.avro2s.wire.runtime.AvroCodec[$qualifiedName] with\n" +
       s"    override val schemaJson: _root_.java.lang.String = $qualifiedName.schemaJson\n\n" +

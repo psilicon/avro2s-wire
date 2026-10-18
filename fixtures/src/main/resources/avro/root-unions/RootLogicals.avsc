@@ -1,0 +1,19 @@
+[
+  {"type": "int", "logicalType": "time-millis"},
+  {"type": "long", "logicalType": "time-micros"},
+  {"type": "string", "logicalType": "uuid"},
+  {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2},
+  {
+    "type": "fixed",
+    "name": "RootDuration",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "size": 12,
+    "logicalType": "duration"
+  },
+  {
+    "type": "enum",
+    "name": "RootStatus",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "symbols": ["read", "codec", "Happy"]
+  }
+]

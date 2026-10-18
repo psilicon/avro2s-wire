@@ -1,0 +1,8 @@
+[
+  {
+    "type": "record",
+    "name": "RootSingleBranch",
+    "namespace": "avro2s.wire.fixtures.rootunions",
+    "fields": [{"name": "value", "type": "long"}]
+  }
+]

@@ -79,8 +79,9 @@ the default package unless a namespace mapping or explicit name supplies one.
 Name collisions and inaccessible default-package references fail before any
 output is written.
 
-Scala type aliases do not add their companion's givens to implicit scope. Pass
-`Event.codec` as the runnable example does, or import the given explicitly:
+Multi-branch Scala type aliases do not add their companion's givens to implicit
+scope. Pass `Event.codec` as the runnable example does, or import the given
+explicitly:
 
 ```scala
 import avro2s.wire.runtime.AvroCodec
@@ -89,6 +90,26 @@ import example.trading.Event.given
 
 val eventCodec: AvroCodec[Event] = AvroCodec[Event]
 ```
+
+A union with exactly one branch has a different Scala representation. For a
+schema containing only `OrderPlaced`, generation produces an opaque type:
+
+```scala
+opaque type Event = OrderPlaced
+
+object Event:
+  def apply(value: OrderPlaced): Event = value
+  extension (event: Event) def value: OrderPlaced = event
+  // schemaJson, given codec and optional stackSafeCodec are also generated.
+```
+
+Construct it with `Event(OrderPlaced(...))` and access the underlying record
+with `event.value`. There is no wrapper allocation. Its distinct type ensures
+`AvroCodec[Event]` automatically selects the union codec, without a given
+import. A transparent singleton alias would instead silently select
+`OrderPlaced.codec`, which omits the union branch index. Single-branch primitive
+and collection roots use the same opaque representation. This does not change
+the Avro schema or bytes, and does not affect multi-branch or nullable unions.
 
 ## Keep schema identity and branch encoding together
 
@@ -125,10 +146,11 @@ The reader returns `None` for the encoded Avro null and JVM `null` for a
 tombstone. Confluent's public Kafka serializer likewise reserves Java `null`
 for tombstones, even when given an explicit union schema.
 
-The degenerate union `["null"]` retains the existing Scala `Null`
-representation. Its core codec can encode an Avro null branch, but its registry
-serializer treats the only Scala value, `null`, as a tombstone. Use a nullable
-union with a non-null alternative when those two meanings must be distinct.
+The degenerate union `["null"]` also has an opaque facade. Construct its only
+value with `NullEvent(null)` (using the generated facade name). This is still
+JVM `null` at runtime: its core codec can encode an Avro null branch, but its
+registry serializer treats that value as a tombstone. Use a nullable union
+with a non-null alternative when those two meanings must be distinct.
 
 Root unions reuse Wire's existing binary union encoding and schema-resolution
 machinery. The feature extends generation and registry root handling; it does

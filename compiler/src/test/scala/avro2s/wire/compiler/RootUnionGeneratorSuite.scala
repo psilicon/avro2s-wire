@@ -42,6 +42,23 @@ class RootUnionGeneratorSuite extends munit.FunSuite:
       assert(sources.head.content.contains(s"type Event = $expected"), clues(json))
   }
 
+  test("singleton root unions have a distinct codec identity without a wrapper allocation") {
+    val schemas = Vector(
+      "[\"long\"]" -> "_root_.scala.Long",
+      "[\"null\"]" -> "_root_.scala.Null",
+      """[{"type":"record","name":"example.Inner","fields":[{"name":"value","type":"long"}]}]""" -> "_root_.example.Inner"
+    )
+    for (json, underlying) <- schemas do
+      val source = generate(json).find(_.relativePath == "example/Event.scala").get.content
+      assert(source.contains(s"opaque type Event = $underlying"))
+      assert(source.contains(s"def apply(value: $underlying): _root_.example.Event = value"))
+      assert(source.contains("extension (root: _root_.example.Event)"))
+      assert(source.contains(s"def value: $underlying = root"))
+      assert(!source.contains("case class Event"))
+    assert(!generate(records).last.content.contains("opaque type"))
+    assert(!generate("[\"null\",\"long\"]").head.content.contains("opaque type"))
+  }
+
   test("root recursive unions suspend child traversal in the same stack-safe driver") {
     val json = """["string",{"type":"record","name":"example.Node","fields":[
       {"name":"next","type":["null","example.Node"]}

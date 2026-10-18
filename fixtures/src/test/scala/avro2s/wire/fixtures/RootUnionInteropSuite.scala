@@ -6,6 +6,9 @@ import avro2s.wire.resolution.ResolvingReader
 import avro2s.wire.runtime.*
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.time.LocalTime
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericDatumWriter, GenericRecord}
@@ -93,12 +96,56 @@ final class RootUnionInteropSuite extends munit.FunSuite:
       check(codec, value, datum)
   }
 
-  test("single-branch null-only and optional roots preserve their existing field representations") {
-    for codec <- Vector(RootSingle.codec, RootSingle.stackSafeCodec) do check(codec, 42L, 42L)
-    for codec <- Vector(RootNull.codec, RootNull.stackSafeCodec) do check[Null](codec, null, null)
+  test("single-branch roots retain union framing and optional roots retain Option values") {
+    for codec <- Vector(RootSingle.codec, RootSingle.stackSafeCodec) do check(codec, RootSingle(42L), 42L)
+    for codec <- Vector(RootNull.codec, RootNull.stackSafeCodec) do check(codec, RootNull(null), null)
     for codec <- Vector(RootOptional.codec, RootOptional.stackSafeCodec) do
       check[RootOptional](codec, Some("present"), "present")
       check[RootOptional](codec, None, null)
+  }
+
+  test("singleton root unions summon their own codec without importing companion givens") {
+    val branch = RootSingleBranch(123L)
+    val value = RootSingleRecord(branch)
+    val codec = AvroCodec[RootSingleRecord]
+    assert(codec eq RootSingleRecord.codec)
+    assert(AvroCodec[RootSingle] eq RootSingle.codec)
+    assert(AvroCodec[RootNull] eq RootNull.codec)
+    assert(value.value eq branch)
+    assertEquals(RootSingle(42L).value, 42L)
+    assert(compileErrors("""val value: RootSingleRecord = RootSingleBranch(123L)""").nonEmpty)
+    assert(compileErrors("""val codec: AvroCodec[RootSingleRecord] = RootSingleBranch.codec""").nonEmpty)
+    val schema = new Schema.Parser().parse(codec.schemaJson)
+    val datum = new GenericData.Record(schema.getTypes.get(0))
+    datum.put("value", 123L)
+    for rootCodec <- Vector(codec, RootSingleRecord.stackSafeCodec) do
+      check(rootCodec, value, datum)
+      assertEquals(rootCodec.encode(value).toSeq, 0.toByte +: RootSingleBranch.codec.encode(branch).toSeq)
+      val resolved = new ResolvingReader(" " + rootCodec.schemaJson, rootCodec)
+      assertEquals(resolved.decode(javaEncode(schema, datum)).value, branch)
+  }
+
+  test("compiled logical root unions interoperate with Java in both execution modes") {
+    val schema = new Schema.Parser().parse(RootLogicals.schemaJson)
+    val millis = LocalTime.of(1, 2, 3, 4000000)
+    val micros = LocalTime.of(1, 2, 3, 4005000)
+    val durationBytes = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+      .putInt(1).putInt(2).putInt(3).array()
+    val values: Vector[(RootLogicals, Any)] = Vector(
+      TimeMillis(millis) -> (millis.toNanoOfDay / 1000000L).toInt,
+      TimeMicros(micros) -> (micros.toNanoOfDay / 1000L),
+      UUID.fromString("12345678-1234-4321-9876-123456789012") -> "12345678-1234-4321-9876-123456789012",
+      BigDecimal("12345.67") -> ByteBuffer.wrap(BigInt(1234567).toByteArray),
+      RootDuration(AvroDuration(1, 2, 3)) -> new GenericData.Fixed(schema.getTypes.get(4), durationBytes),
+      RootStatus.Happy -> new GenericData.EnumSymbol(schema.getTypes.get(5), "Happy")
+    )
+    for codec <- Vector(RootLogicals.codec, RootLogicals.stackSafeCodec) do
+      // Distinct schema text deliberately exercises the resolver rather than
+      // its identical-schema codec fast path.
+      val reader = new ResolvingReader(" " + codec.schemaJson, codec)
+      for (value, datum) <- values do
+        check(codec, value, datum)
+        assertEquals(reader.decode(javaEncode(schema, datum)), value)
   }
 
   test("root collection branches keep nested union and collection representations") {
@@ -130,10 +177,19 @@ final class RootUnionInteropSuite extends munit.FunSuite:
       val reader = new ResolvingReader(older.toString, codec)
       assertEquals(reader.decode(javaEncode(older, created)), RootCreated(12L))
       assertEquals(reader.decode(javaEncode(older, cancelled)), RootCancelled("old"))
-      val schema = new Schema.Parser().parse("[\"int\",\"string\"]")
-      val primitives = new ResolvingReader(schema.toString, RootPrimitives.stackSafeCodec)
-      assertEquals(primitives.decode(javaEncode(schema, 42)), Some(42))
     assertEquals(original.getType, Schema.Type.UNION)
+  }
+
+  test("root primitive branches promote int to long for both codec variants") {
+    val writerSchema = new Schema.Parser().parse("[\"string\",\"int\"]")
+    for codec <- Vector(RootPromotedPrimitives.codec, RootPromotedPrimitives.stackSafeCodec) do
+      val reader = new ResolvingReader(writerSchema.toString, codec)
+      assertEquals(reader.decode(javaEncode(writerSchema, 42)), 42L)
+      assertEquals(reader.decode(javaEncode(writerSchema, "text")), "text")
+    val singletonWriter = new Schema.Parser().parse("[\"int\"]")
+    for codec <- Vector(RootSingle.codec, RootSingle.stackSafeCodec) do
+      val reader = new ResolvingReader(singletonWriter.toString, codec)
+      assertEquals(reader.decode(javaEncode(singletonWriter, 42)).value, 42L)
   }
 
   test("root unions reject invalid indexes truncated values and trailing data") {
