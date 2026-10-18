@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.fixtures.Trade
 import avro2s.wire.fixtures.unions.UnionFixed
 import avro2s.wire.runtime.*
@@ -40,10 +42,10 @@ final class RegistryBufferSuite extends munit.FunSuite:
 
   private final class FetchClient(json: String = Trade.schemaJson) extends MockSchemaRegistryClient:
     var fetches = 0
-    override def getSchemaById(id: Int): ParsedSchema =
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
       assertEquals(id, schemaId)
       fetches += 1
-      new AvroSchema(json)
+      new RegistrySchema(subject, 1, id, new AvroSchema(json))
 
   test("buffer variants honor range, array offset and frame byte order without moving the cursor") {
     for

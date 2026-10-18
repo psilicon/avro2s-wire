@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput}
 import io.confluent.kafka.schemaregistry.ParsedSchema
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
@@ -42,10 +44,10 @@ final class RegistryConcurrencySuite extends munit.FunSuite:
     override def registerWithResponse(subject: String, schema: ParsedSchema, normalize: Boolean,
         propagateSchemaTags: Boolean): RegisterSchemaResponse =
       getIdWithResponse(subject, schema, normalize)
-    override def getSchemaById(id: Int): ParsedSchema =
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
       fetches.incrementAndGet()
       beforeFetch.get()(id)
-      new AvroSchema(writerJson)
+      new RegistrySchema(subject, 1, id, new AvroSchema(writerJson))
     override def close(): Unit =
       closes.incrementAndGet()
       beforeClose.get()()

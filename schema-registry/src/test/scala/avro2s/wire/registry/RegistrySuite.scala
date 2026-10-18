@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.fixtures.{Status, Trade}
 import avro2s.wire.fixtures.unions.UnionFixed
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, Bytes, DecodeLimits, MalformedStringPolicy, WriterSettings}
@@ -317,9 +319,9 @@ final class RegistrySuite extends munit.FunSuite:
     var available = false
     var fetches = 0
     val client = new MockSchemaRegistryClient:
-      override def getSchemaById(id: Int): ParsedSchema = synchronized {
+      override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema = synchronized {
         fetches += 1
-        if id == unavailable && available then new AvroSchema(Trade.schemaJson)
+        if id == unavailable && available then new RegistrySchema(subject, 1, id, new AvroSchema(Trade.schemaJson))
         else throw new IOException("schema ID unavailable")
       }
     val bytes = frame(unavailable, Trade.codec.encode(trade))
@@ -342,20 +344,17 @@ final class RegistrySuite extends munit.FunSuite:
   }
 
   test("non-Avro schemas are rejected") {
-    val nonAvro = java.lang.reflect.Proxy.newProxyInstance(
-      classOf[ParsedSchema].getClassLoader,
-      Array(classOf[ParsedSchema]),
-      (_, _, _) => null
-    ).asInstanceOf[ParsedSchema]
     val client = new MockSchemaRegistryClient:
-      override def getSchemaById(id: Int): ParsedSchema = nonAvro
+      override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
+        new RegistrySchema(subject, 1, id, "JSON", java.util.List.of(), "{}")
     val deserializer = RegistryDeserializer.forValue(Trade.codec, client)
     failure(deserializer.deserialize("trades", frame(7, Trade.codec.encode(trade))))
   }
 
   test("interrupted registry calls restore the interrupt flag and wrap the cause") {
     val client = new MockSchemaRegistryClient:
-      override def getSchemaById(id: Int): ParsedSchema = throw new InterruptedException("interrupted")
+      override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
+        throw new InterruptedException("interrupted")
     val deserializer = RegistryDeserializer.forValue(Trade.codec, client)
     try
       val error = failure(deserializer.deserialize("trades", frame(7, Trade.codec.encode(trade))))
@@ -521,12 +520,12 @@ final class RegistrySuite extends munit.FunSuite:
       super.getIdWithResponse(subject, schema, normalize)
     }
 
-    override def getSchemaById(id: Int): ParsedSchema = synchronized {
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema = synchronized {
       fetchCalls += 1
       if failFetchOnce then
         failFetchOnce = false
         throw new IOException("temporary failure")
-      super.getSchemaById(id)
+      super.getSchemaEntityBySubjectAndId(subject, id)
     }
 
     override def close(): Unit = synchronized { closeCalls += 1 }

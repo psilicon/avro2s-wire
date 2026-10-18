@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.fixtures.Trade
 import io.confluent.kafka.schemaregistry.ParsedSchema
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
@@ -41,11 +43,9 @@ final class RegistryOperationalSuite extends munit.FunSuite:
     override def registerWithResponse(subject: String, parsed: ParsedSchema,
         normalize: Boolean, propagate: Boolean): RegisterSchemaResponse =
       getIdWithResponse(subject, parsed, normalize)
-    override def getSchemaById(id: Int): ParsedSchema =
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
       check()
-      schema
-    override def getSchemaBySubjectAndId(subject: String, id: Int): ParsedSchema =
-      getSchemaById(id)
+      new RegistrySchema(subject, 1, id, schema)
 
   private def config(registering: Boolean): java.util.Map[String, AnyRef] = Map[String, AnyRef](
     "schema.registry.url" -> "mock://operational-errors",

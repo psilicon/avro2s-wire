@@ -4,7 +4,9 @@ import io.confluent.kafka.schemaregistry.utils.QualifiedSubject
 
 /** The subject/context hint used when resolving numeric schema IDs.
   * A hint selects the registry namespace; it is not a subject-membership check.
-  * GUIDs identify complete schemas independently and do not use this policy.
+  * GUID lookups do not use this policy. Their root references must specify a
+  * named context explicitly; context-relative references are rejected because
+  * the GUID response does not identify the parent context.
   */
 enum SchemaLookup:
   /** Use the namespace supplied by the client/connection, preserving the original API. */

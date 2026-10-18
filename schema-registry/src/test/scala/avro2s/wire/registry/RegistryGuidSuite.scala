@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.fixtures.Trade
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput, DecodeLimits}
 import io.confluent.kafka.schemaregistry.ParsedSchema
@@ -110,9 +112,9 @@ final class RegistryGuidSuite extends munit.FunSuite:
       assertEquals(format, null)
       guidFetches.incrementAndGet()
       schema
-    override def getSchemaById(id: Int): ParsedSchema =
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
       idFetches.incrementAndGet()
-      schema
+      new RegistrySchema(subject, 1, id, schema)
 
   test("GUID header writes and reads interoperate with Confluent for both roles and selection modes") {
     for
@@ -356,7 +358,8 @@ final class RegistryGuidSuite extends munit.FunSuite:
         override def registerWithResponse(subject: String, parsed: ParsedSchema,
             normalize: Boolean, propagate: Boolean): RegisterSchemaResponse =
           getIdWithResponse(subject, parsed, normalize)
-        override def getSchemaById(id: Int): ParsedSchema = throw new AssertionError("Unexpected ID lookup")
+        override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
+          throw new AssertionError("Unexpected ID lookup")
         override def getSchemaByGuid(guid: String, format: String): ParsedSchema =
           throw new AssertionError("Unexpected GUID lookup")
         override def getGuid(subject: String, parsed: ParsedSchema, normalize: Boolean): String =

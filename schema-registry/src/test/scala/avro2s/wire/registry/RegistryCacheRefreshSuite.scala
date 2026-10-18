@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput}
 import io.confluent.kafka.schemaregistry.ParsedSchema
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
@@ -44,11 +46,9 @@ final class RegistryCacheRefreshSuite extends munit.FunSuite:
       val id = cachedId.updateAndGet(current => if current == 0 then serverId.get() else current)
       new RegisterSchemaResponse(new Schema(subject, 1, id, schema))
 
-    override def getSchemaById(id: Int): ParsedSchema =
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
       fetches.incrementAndGet()
-      new AvroSchema(json)
-
-    override def getSchemaBySubjectAndId(subject: String, id: Int): ParsedSchema = getSchemaById(id)
+      new RegistrySchema(subject, 1, id, new AvroSchema(json))
 
     override def reset(): Unit =
       resets.incrementAndGet()

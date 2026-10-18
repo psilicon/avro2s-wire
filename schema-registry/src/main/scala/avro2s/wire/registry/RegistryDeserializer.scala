@@ -112,16 +112,13 @@ final class RegistryDeserializer[A] private[registry] (
     if id < 0 then throw new IllegalArgumentException("Invalid Confluent schema ID")
     val subject = settings.schemaLookup.subject(topic, role)
     readers.getOrLoad(ReaderKey.Id(subject, id)) {
-      val schema = subject match
-        case Some(name) => client.getSchemaBySubjectAndId(name, id)
-        case None => client.getSchemaById(id)
-      val writer = RegistrySupport.writerSchema(schema)
+      val writer = RegistrySchemas.byId(client, subject, id)
       new ResolvingReader(writer, codec)
     }
 
   private def readerForGuid(guid: UUID): ResolvingReader[A] =
     readers.getOrLoad(ReaderKey.Guid(guid)) {
-      val writer = RegistrySupport.writerSchema(client.getSchemaByGuid(guid.toString, null))
+      val writer = RegistrySchemas.byGuid(client, guid.toString)
       new ResolvingReader(writer, codec)
     }
 

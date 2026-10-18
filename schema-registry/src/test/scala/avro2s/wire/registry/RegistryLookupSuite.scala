@@ -1,5 +1,7 @@
 package avro2s.wire.registry
 
+import io.confluent.kafka.schemaregistry.client.rest.entities.{Schema as RegistrySchema}
+
 import avro2s.wire.runtime.{AvroCodec, AvroInput, AvroOutput}
 import com.sun.net.httpserver.HttpServer
 import io.confluent.kafka.schemaregistry.ParsedSchema
@@ -41,8 +43,8 @@ final class RegistryLookupSuite extends munit.FunSuite:
     private def fetch(subject: Option[String], id: Int): ParsedSchema =
       fetches += Fetch(subject, id)
       new AvroSchema(schemas.getOrElse(subject, json))
-    override def getSchemaById(id: Int): ParsedSchema = fetch(None, id)
-    override def getSchemaBySubjectAndId(subject: String, id: Int): ParsedSchema = fetch(Some(subject), id)
+    override def getSchemaEntityBySubjectAndId(subject: String, id: Int): RegistrySchema =
+      new RegistrySchema(subject, 1, id, fetch(Option(subject), id))
 
   test("the default ID-only lookup preserves topic-independent caching") {
     val client = new Client
