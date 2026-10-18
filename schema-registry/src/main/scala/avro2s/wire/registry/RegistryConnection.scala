@@ -14,6 +14,8 @@ final case class RegistryConnection(
 ):
   require(urls != null && urls.nonEmpty && urls.forall(url => url != null && url.trim.nonEmpty),
     "At least one Schema Registry URL is required")
+  require(!urls.exists(_.trim.toLowerCase(java.util.Locale.ROOT).startsWith("mock://")),
+    "RegistryConnection does not support mock:// URLs; inject a MockSchemaRegistryClient instead")
   require(cacheCapacity > 0, "Registry client cacheCapacity must be positive")
   require(properties != null, "Registry client properties must be non-null")
   private[registry] val clientProperties = RegistrySupport.clientProperties(properties)

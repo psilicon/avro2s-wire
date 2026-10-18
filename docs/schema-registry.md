@@ -148,6 +148,10 @@ methods and retain the response's rule information; returning only an ID cannot
 communicate unsupported registry rules. Confluent's cached and mock clients
 provide these methods.
 
+For in-memory tests, inject a `MockSchemaRegistryClient`. `RegistryConnection`
+rejects `mock://` URLs at construction: it creates real HTTP clients and does not
+participate in Confluent's shared mock-scope factory.
+
 The same `forKey` and `forValue` factories also accept a `RegistryConnection`.
 Each such call creates and owns a cached registry client. Closing the adapter
 closes that client. The connection describes registry endpoints, client cache
@@ -321,6 +325,8 @@ check fetched writer schemas before compiling a plan. Neither adapter executes
 rules. These checks happen on cache loads; adapters do not poll for administrative
 changes to an already-cached schema.
 Only TopicName, RecordName and TopicRecordName subject naming is supported.
+Confluent's associated-subject options (`subject.name.strategy.*`) are rejected
+rather than silently ignored; Wire does not perform topic-association lookups.
 Context is determined by the registry URL/client; the module does
 not implement per-topic context-name strategies or cross-context lookup. It does
 not claim the full behavior of Confluent's Avro SerDes or compatibility across
@@ -329,6 +335,14 @@ other vendors' registry implementations.
 Malformed/truncated frames, unsupported magic bytes, unknown IDs, incompatible
 writer data, unsupported logical types and decode-limit violations fail with a
 Kafka `SerializationException` whose cause describes the underlying failure.
+Registry HTTP failures retain Confluent's Kafka exception categories: 401 is
+`AuthenticationException`, 403 is `AuthorizationException`, 429 is
+`ThrottlingQuotaExceededException`, 408/500/503/504 are `TimeoutException`, and
+502 is `DisconnectException`. Other registry HTTP errors remain
+`SerializationException`. Interrupted I/O and socket timeouts are reported as
+`TimeoutException`; an I/O timeout does not mark the calling thread interrupted.
+Applications can therefore distinguish registry availability/access failures
+from invalid Avro data when applying their own retry or rejection policies.
 When a registry operation propagates `InterruptedException` to Wire, Wire restores
 the interrupted thread's flag before failing. A shared load failure does not
 interrupt its other callers. Waiting for a shared load is not promptly

@@ -4,8 +4,12 @@ import avro2s.wire.runtime.AvroCodec
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
 import io.confluent.kafka.schemaregistry.client.rest.entities.RuleSet
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException
+import java.io.InterruptedIOException
 import org.apache.avro.Schema
-import org.apache.kafka.common.errors.SerializationException
+import org.apache.kafka.common.KafkaException
+import org.apache.kafka.common.errors.{AuthenticationException, AuthorizationException, DisconnectException,
+  SerializationException, ThrottlingQuotaExceededException, TimeoutException}
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
@@ -93,7 +97,8 @@ private[registry] object RegistrySupport:
       if name == "max.schemas.per.subject" then
         throw new IllegalArgumentException(s"Set $key through RegistryConnection.cacheCapacity")
       val unsupported = unsupportedSerdeProperties(name) || name.startsWith("rule.") ||
-        name.startsWith("rules.") || name.startsWith("validation.rules.")
+        name.startsWith("rules.") || name.startsWith("validation.rules.") ||
+        name.startsWith("subject.name.strategy.")
       if unsupported then
         val harmless = name match
           case "use.latest.version" => value != null && value.toString.equalsIgnoreCase("false")
@@ -133,8 +138,26 @@ private[registry] object RegistrySupport:
   def guard[A](operation: String)(body: => A): A =
     try body
     catch
-      case e: SerializationException => throw e
+      case e: KafkaException => throw e
+      case e: RestClientException => throw registryException(operation, e)
+      // SocketTimeoutException also extends InterruptedIOException. Do not turn
+      // an I/O timeout into a thread interruption or change an existing flag.
+      case e: InterruptedIOException =>
+        throw new TimeoutException(s"Avro registry $operation timed out", e)
       case e: InterruptedException =>
         Thread.currentThread().interrupt()
         throw new SerializationException(s"Avro registry $operation interrupted", e)
       case NonFatal(e) => throw new SerializationException(s"Avro registry $operation failed", e)
+
+  /** Keep retryable registry failures distinct from malformed Avro data, using
+    * the same HTTP status categories as Confluent's serializer/deserializer.
+    */
+  private def registryException(operation: String, error: RestClientException): KafkaException =
+    val message = s"Avro registry $operation failed"
+    error.getStatus match
+      case 401 => new AuthenticationException(message, error)
+      case 403 => new AuthorizationException(message, error)
+      case 429 => new ThrottlingQuotaExceededException(error.getMessage)
+      case 408 | 500 | 503 | 504 => new TimeoutException(message, error)
+      case 502 => new DisconnectException(message, error)
+      case _ => new SerializationException(message, error)
